@@ -32,8 +32,8 @@ def primary_label(node: Node) -> str:
         return labels
     for lab in labels:
         if lab not in ("Ticket", "OwnersFile"):
-            return lab
-    return labels[0] if labels else "Node"
+            return str(lab)
+    return str(labels[0]) if labels else "Node"
 
 
 def node_title(label: str, props: dict[str, Any]) -> str:
@@ -45,7 +45,8 @@ def node_title(label: str, props: dict[str, Any]) -> str:
     if label in ("Issue", "PullRequest"):
         return f"{key} {props.get('title', '')}".strip()
     if label == "StatusChange":
-        return f"{props.get('field', '')} {props.get('from_value') or '∅'} → {props.get('to_value') or '∅'} ({props.get('at_iso', '')[:10]})"
+        before, after = props.get("from_value") or "∅", props.get("to_value") or "∅"
+        return f"{props.get('field', '')} {before} → {after} ({str(props.get('at_iso', ''))[:10]})"
     if label == "Finding":
         return f"{props.get('kind', '')} on {props.get('kep_path', '')}"
     for field in ("title", "heading", "display_name", "name", "login", "summary"):

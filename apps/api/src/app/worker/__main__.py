@@ -1,0 +1,175 @@
+"""Worker CLI: `python -m app.worker <command>`.
+
+Commands: schema-apply, sync-docs, sync-history, sync-owners, sync-tickets, derive, all, stats, schedule.
+Every run gets a ULID `sync_run_id` stamped on the nodes and edges it writes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import json
+import sys
+import time
+from collections.abc import Callable
+from typing import Any
+
+import structlog
+from ulid import ULID
+
+from app.db.batch import BatchWriter
+from app.db.falkordb import GRAPH_KEP, WRITE_TIMEOUT_MS, FalkorPool, Role
+from app.ingest.docs import Corpus, build_corpus, sync_docs
+from app.ingest.history import sync_history
+from app.ingest.owners import sync_owners
+from app.logging import configure_logging
+from app.schema.apply import apply_schema
+from app.settings import Settings, get_settings
+
+log = structlog.get_logger(__name__)
+
+
+def _optional(module: str, name: str) -> Callable[..., Any] | None:
+    """A lane-B entry point, or None when that module is not present yet."""
+    try:
+        mod = importlib.import_module(module)
+    except ModuleNotFoundError as exc:
+        if exc.name == module:
+            return None
+        raise
+    fn = getattr(mod, name, None)
+    return fn if callable(fn) else None
+
+
+class Worker:
+    def __init__(self, settings: Settings, graph: str) -> None:
+        self.settings = settings
+        self.graph = graph
+        self.pool = FalkorPool(settings)
+        self.run_id = str(ULID())
+        self._corpus: Corpus | None = None
+
+    def close(self) -> None:
+        self.pool.close()
+        if self._corpus is not None:
+            self._corpus.git.close()
+            self._corpus.community_git.close()
+            self._corpus = None
+
+    def writer(self) -> BatchWriter:
+        return BatchWriter(self.pool, self.graph, self.run_id)
+
+    def corpus(self) -> Corpus:
+        if self._corpus is None:
+            self._corpus = build_corpus(self.settings)
+        return self._corpus
+
+    def schema_apply(self) -> dict[str, Any]:
+        report = apply_schema(self.pool, self.graph)
+        if not report.ok:
+            raise RuntimeError("schema apply failed: " + "; ".join(report.failed))
+        return {"created": len(report.created), "existing": len(report.existing)}
+
+    def sync_docs(self) -> dict[str, Any]:
+        return sync_docs(self.writer(), self.corpus(), self.settings)
+
+    def sync_history(self) -> dict[str, Any]:
+        return sync_history(self.writer(), self.corpus())
+
+    def sync_owners(self) -> dict[str, Any]:
+        return sync_owners(self.writer(), self.settings)
+
+    def sync_tickets(self) -> dict[str, Any]:
+        fn = _optional("app.ingest.tickets", "sync_tickets")
+        if fn is None:
+            log.warning("sync_tickets_unavailable")
+            return {"skipped": True}
+        result: dict[str, Any] = fn(self.pool, self.settings, graph=self.graph)
+        return result
+
+    def derive(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for module, name in (("app.ingest.derive", "derive_decisions"), ("app.ingest.findings", "detect_findings")):
+            fn = _optional(module, name)
+            if fn is None:
+                log.warning("derive_step_unavailable", step=name)
+                out[name] = "skipped"
+            else:
+                out[name] = fn(self.writer())
+        return out
+
+    def stats(self) -> dict[str, Any]:
+        def q(query: str) -> list[list[Any]]:
+            return self.pool.run_sync(Role.READER, self.graph, query, read_only=True, timeout_ms=WRITE_TIMEOUT_MS).rows
+
+        labels = {r[0]: r[1] for r in q("MATCH (n) UNWIND labels(n) AS l RETURN l, count(*) ORDER BY l")}
+        rels = {r[0]: r[1] for r in q("MATCH ()-[e]->() RETURN type(e), count(*) ORDER BY type(e)")}
+        return {"labels": labels, "relationships": rels}
+
+    def all(self) -> dict[str, Any]:
+        return {
+            "schema-apply": self.schema_apply(),
+            "sync-docs": self.sync_docs(),
+            "sync-history": self.sync_history(),
+            "sync-owners": self.sync_owners(),
+            "sync-tickets": self.sync_tickets(),
+            "derive": self.derive(),
+            "stats": self.stats(),
+        }
+
+
+COMMANDS = (
+    "schema-apply", "sync-docs", "sync-history", "sync-owners", "sync-tickets", "derive", "all", "stats", "schedule",
+    "freshness", "coordinate",
+)  # fmt: skip
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m app.worker", description="KEP Brain ingest worker")
+    parser.add_argument("command", choices=COMMANDS)
+    parser.add_argument("--graph", default=GRAPH_KEP, help="target graph (default: kep)")
+    parser.add_argument("--interval-minutes", type=int, default=15, help="schedule: minutes between full runs")
+    parser.add_argument("--limit", type=int, default=None, help="freshness: maximum findings to triage")
+    args = parser.parse_args(argv)
+    settings = get_settings()
+    configure_logging(settings)
+
+    if args.command == "freshness":
+        from app.worker.freshness import run_freshness_once
+
+        print(json.dumps(run_freshness_once(settings, limit=args.limit), indent=2, default=str))
+        return 0
+    if args.command == "coordinate":
+        from app.worker.coordinate import run_coordination_tick
+
+        print(json.dumps(run_coordination_tick(settings), indent=2, default=str))
+        return 0
+
+    if args.command == "schedule":
+        while True:
+            worker = Worker(settings, args.graph)
+            try:
+                worker.all()
+            except Exception:  # noqa: BLE001 - keep the scheduler alive; the failure is logged
+                log.exception("scheduled_run_failed", sync_run_id=worker.run_id)
+            finally:
+                worker.close()
+            time.sleep(args.interval_minutes * 60)
+
+    worker = Worker(settings, args.graph)
+    started = time.monotonic()
+    log.info("worker_start", command=args.command, graph=args.graph, sync_run_id=worker.run_id)
+    try:
+        handler: Callable[[], dict[str, Any]] = getattr(worker, args.command.replace("-", "_"))
+        result = handler()
+    finally:
+        worker.close()
+    log.info(
+        "worker_done", command=args.command, sync_run_id=worker.run_id, seconds=round(time.monotonic() - started, 1)
+    )
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -7,6 +7,7 @@ services:
   falkordb:
     image: falkordb/falkordb:v4.22.0@sha256:4ac83f55062d364dcf151692635138b0bd2e12578019a56eb86ef53d067b116b
     environment:
+      FALKORDB_PASSWORD: ${FALKORDB_PASSWORD:?set FALKORDB_PASSWORD in .env}
       REDIS_ARGS: >-
         --requirepass ${FALKORDB_PASSWORD:?set FALKORDB_PASSWORD in .env}
         --appendonly yes --appendfsync everysec --save 300 10
@@ -49,17 +50,43 @@ services:
     build: ./apps/api
     env_file: .env
     entrypoint: ["python", "-m", "app.worker"]
-    command: ["schedule"]
+    command: ["schedule", "--interval-minutes", "1440"]
     environment:
       FALKORDB_HOST: falkordb
       FALKORDB_PORT: "6379"
       REPO_CACHE_DIR: /repo_cache
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "*"
     depends_on:
       falkordb:
         condition: service_healthy
     volumes:
-      - repo_cache:/repo_cache
+      - ${REPO_CACHE_HOST:-repo_cache}:/repo_cache
+    healthcheck:
+      disable: true
     networks: [data]
+    restart: unless-stopped
+
+  mcp:
+    build: ./apps/api
+    env_file: .env
+    command: ["python", "-m", "app.mcp"]
+    environment:
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: "6379"
+      MCP_TOKEN: ${MCP_TOKEN:?set MCP_TOKEN in .env}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8765), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8765:8765"
+    networks: [edge, data]
     restart: unless-stopped
 
   web:

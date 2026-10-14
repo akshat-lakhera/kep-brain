@@ -37,3 +37,31 @@ dev = [
     "ruff==0.17.0",
     "types-pyyaml>=6.0.12.20260906",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# Third-party clients without type information; anthropic is optional at runtime.
+module = ["falkordb", "falkordb.*", "anthropic", "anthropic.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "integration: needs the dev FalkorDB instance (throwaway graph names only)",
+    "acl: needs a FalkorDB started with an ACL file (aclfile mode)",
+]

@@ -13,7 +13,7 @@ NODE_LABELS: frozenset[str] = frozenset(
         "SIG", "WorkingGroup", "Committee", "Subproject", "Person", "Alias", "Document", "Section",
         "KEP", "FeatureGate", "Component", "Metric", "Release", "Label", "ExternalRef", "Commit",
         "PullRequest", "Issue", "Review", "Comment", "StatusChange", "Decision", "Finding",
-        "Ticket", "OwnersFile",
+        "Ticket", "OwnersFile", "AnswerCache",
     }
 )  # fmt: skip
 

@@ -1,0 +1,1232 @@
+# Eval questions transcribed from docs/design/04-eval-set.md section 5.
+# 'unknown' marks a field the design doc does not give. Source prefixes: E enhancements@pin, C community sigs.yaml,
+# K kubernetes/kubernetes OWNERS, R recon cache. expected_evidence keys come from the paths and PR/issue numbers in Sources.
+version: 1
+source: docs/design/04-eval-set.md section 5
+pin: 8659e382efab7340d70de52432ee8f3d9979b797
+questions:
+- id: OWN-01
+  kind: OWN
+  difficulty: easy
+  needs: lookup
+  question: Which SIG owns KEP-1287 (In-place Update of Pod Resources) and who are its approvers?
+  ground_truth: owning SIG sig-node; approvers dchen1107, derekwaynecarr, ahg-g, mwielgus, thockin
+  expected_evidence:
+  - &id001
+    label: KEP
+    key: keps/sig-node/1287-in-place-update-pod-resources
+  expected_tools:
+    first: get_kep
+    set:
+    - get_kep
+  sources:
+  - E:keps/sig-node/1287-in-place-update-pod-resources/kep.yaml L10, L26-L31
+- id: OWN-02
+  kind: OWN
+  difficulty: easy
+  needs: lookup
+  question: Who approved the production-readiness review of KEP-1287 at alpha, beta and stable?
+  ground_truth: alpha ehashman; beta jpbetz; stable jpbetz
+  expected_evidence:
+  - *id001
+  expected_tools:
+    first: who_approves
+    set:
+    - who_approves
+  sources:
+  - E:keps/prod-readiness/sig-node/1287.yaml L3, L5, L7
+- id: OWN-03
+  kind: OWN
+  difficulty: medium
+  needs: join
+  question: Who can approve a change under pkg/kubelet in kubernetes/kubernetes, and who used to but no longer can?
+  ground_truth: 'via alias sig-node-approvers: Random-Liu, dchen1107, derekwaynecarr, yujuhong, sjenning, mrunalp,
+    klueska, SergeyKanzhelev, tallclair (9); emeritus (cannot approve): dashpole, vishh. The answer must say the
+    approval comes through the alias.'
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - K:pkg/kubelet/OWNERS L3-L7
+  - K:OWNERS_ALIASES L242-L251
+  must_mention:
+  - sig-node-approvers
+- id: OWN-04
+  kind: OWN
+  difficulty: easy
+  needs: lookup
+  question: Who chairs SIG Scheduling and who are its tech leads?
+  ground_truth: chairs macsko, sanposhiho; tech leads dom4ha, sanposhiho
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - C:sigs.yaml L2909-L2925
+- id: OWN-05
+  kind: OWN
+  difficulty: medium
+  needs: join
+  question: Who approves changes to the Job controller directory pkg/controller/job?
+  ground_truth: alias sig-apps-approvers = kow3ns, janetkuo, soltysh, smarterclayton, atiratree; plus mimowo listed
+    directly; emeritus approver alculquicondor (cannot approve)
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - K:pkg/controller/job/OWNERS L3-L5, L13-L14
+  - K:OWNERS_ALIASES L315-L320
+- id: OWN-06
+  kind: OWN
+  difficulty: hard
+  needs: join
+  question: Who approved KEP-3329 (retriable and non-retriable Pod failures for Jobs), and what role does each approver
+    hold?
+  ground_truth: 'soltysh (sig-apps chair and tech lead), alculquicondor (sig-scheduling emeritus lead), deads2k
+    (sig-api-machinery chair and tech lead), dchen1107 (sig-node tech lead); PRR approver at alpha, beta and stable:
+    johnbelamaric'
+  expected_evidence:
+  - &id004
+    label: KEP
+    key: keps/sig-apps/3329-retriable-and-non-retriable-failures
+  expected_tools:
+    first: who_approves
+    set:
+    - who_approves
+    - who_owns
+  sources:
+  - E:keps/sig-apps/3329-retriable-and-non-retriable-failures/kep.yaml L15-L19
+  - E:keps/prod-readiness/sig-apps/3329.yaml L3, L5, L7
+  - C:sigs.yaml L188, L201, L2932, L11, L20, L2538
+- id: OWN-07
+  kind: OWN
+  difficulty: easy
+  needs: lookup
+  question: Who approves KEP pull requests for SIG Node in kubernetes/enhancements (the sig-node-leads alias)?
+  ground_truth: SergeyKanzhelev, dchen1107, derekwaynecarr, mrunalp, haircommander
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - E:OWNERS_ALIASES L84-L89
+- id: OWN-08
+  kind: OWN
+  difficulty: easy
+  needs: lookup
+  question: Who are the production-readiness approvers for the enhancements repository?
+  ground_truth: deads2k, johnbelamaric, jpbetz, soltysh, wojtek-t, kannon92
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - E:OWNERS_ALIASES L199-L205
+- id: OWN-09
+  kind: OWN
+  difficulty: easy
+  needs: lookup
+  question: 'For KEP-4671 Gang Scheduling: owning SIG, participating SIGs, kep.yaml approvers and PRR approver?'
+  ground_truth: sig-scheduling; participating sig-apps; approvers sanposhiho, dom4ha; PRR soltysh at alpha, beta
+    and stable
+  expected_evidence:
+  - &id005
+    label: KEP
+    key: keps/sig-scheduling/4671-gang-scheduling
+  expected_tools:
+    first: get_kep
+    set:
+    - get_kep
+  sources:
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L13-L15, L21-L23
+  - E:keps/prod-readiness/sig-scheduling/4671.yaml L3, L5, L7
+- id: OWN-10
+  kind: OWN
+  difficulty: medium
+  needs: join
+  question: Who are the approvers of KEP-3063 (classic DRA)? The file names an alias, not people.
+  ground_truth: kep.yaml approvers = @sig-node-tech-leads (an alias string); the enhancements OWNERS_ALIASES defines
+    sig-node-tech-leads = dchen1107, derekwaynecarr, mrunalp. Both the alias and its expansion must appear.
+  expected_evidence:
+  - &id003
+    label: KEP
+    key: keps/sig-node/3063-dynamic-resource-allocation
+  expected_tools:
+    first: get_kep
+    set:
+    - get_kep
+    - who_owns
+  sources:
+  - E:keps/sig-node/3063-dynamic-resource-allocation/kep.yaml L15-L16
+  - E:OWNERS_ALIASES L228-L231
+  must_mention:
+  - sig-node-tech-leads
+- id: EXP-01
+  kind: EXP
+  difficulty: medium
+  needs: join
+  question: Who knows most about Dynamic Resource Allocation?
+  ground_truth: 'tie at 19: pohly, johnbelamaric; then dom4ha 15; next mrunalp 9, mortent 9, klueska 8. By role:
+    pohly 4 authored / 12 reviewed / 4 approved; johnbelamaric 1 / 15 / 6; dom4ha 0 / 6 / 12'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - the 26 matching kep.yaml files; e.g. E:keps/sig-node/4381-dra-structured-parameters/kep.yaml L3, L11-L12
+  scope:
+    scope_terms:
+    - dra
+    - dynamic resource allocation
+    roles: &id002
+    - authors
+    - reviewers
+    - approvers
+    n: 26
+- id: EXP-02
+  kind: EXP
+  difficulty: easy
+  needs: join
+  question: Who are the most involved people across SIG Node KEPs?
+  ground_truth: dchen1107 63, mrunalp 62, SergeyKanzhelev 56; then derekwaynecarr 43, haircommander 36
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - 'all 139 sig-node kep.yaml; approver counts alone: dchen1107 59, mrunalp 44, derekwaynecarr 34'
+  scope:
+    sig: sig-node
+    roles: *id002
+    n: 139
+- id: EXP-03
+  kind: EXP
+  difficulty: medium
+  needs: join
+  question: Who knows most about Job (batch) KEPs in SIG Apps?
+  ground_truth: 'soltysh 16, alculquicondor 11, then a tie at 6: janetkuo, mimowo; then liggitt 5, kannon92 5'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - the 16 matching kep.yaml files
+  scope:
+    sig: sig-apps
+    scope_terms:
+    - job
+    - cronjob
+    roles: *id002
+    n: 16
+- id: EXP-04
+  kind: EXP
+  difficulty: easy
+  needs: join
+  question: Who has authored the most SIG Node KEPs?
+  ground_truth: 'three-way tie at 8: tallclair, SergeyKanzhelev, HirazawaUi; next haircommander 7. All three tied
+    names are required.'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - authors lists of the 139 sig-node files
+  scope:
+    sig: sig-node
+    roles:
+    - authors
+- id: EXP-05
+  kind: EXP
+  difficulty: medium
+  needs: join
+  question: Who knows most about in-place pod resize?
+  ground_truth: 'tallclair 7, then a tie at 4: natasha41575, dchen1107; then mrunalp 3, SergeyKanzhelev 3'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - the 7 matching files; e.g. E:keps/sig-node/1287-in-place-update-pod-resources/kep.yaml L3-L9
+  scope:
+    scope_terms:
+    - in-place
+    - inplace
+    - resize
+    - ippr
+    roles: *id002
+    n: 7
+- id: EXP-06
+  kind: EXP
+  difficulty: easy
+  needs: join
+  question: Who has reviewed the most SIG Scheduling KEPs?
+  ground_truth: 'dom4ha 20, Huang-Wei 18, then a tie at 12: alculquicondor, macsko, pohly'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - reviewers lists of the 59 KEPs owned by sig-scheduling
+  scope:
+    sig: sig-scheduling
+    roles:
+    - reviewers
+    n: 59
+- id: EXP-07
+  kind: EXP
+  difficulty: medium
+  needs: join
+  question: Who knows most about workload-aware scheduling (gang scheduling, PodGroup, Workload API)?
+  ground_truth: 'dom4ha 9, then a tie at 6: helayoty, wojtek-t; then sanposhiho 5, mm4tt 5'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - the 11 matching files
+  scope:
+    scope_terms:
+    - workload
+    - gang
+    - podgroup
+    - coscheduling
+    roles: *id002
+    n: 11
+- id: DEC-01
+  kind: DEC
+  difficulty: medium
+  needs: join
+  question: When was KEP-1287 marked implemented, by whom, and in which PR?
+  ground_truth: see facts
+  expected_evidence:
+  - *id001
+  - label: PullRequest
+    key: kubernetes/enhancements#5761
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+  sources:
+  - R:eval/commit-d47a8df46c.json
+  - R:eval/pr-5761.json
+  - R:eval/issue-1287.json
+  facts:
+  - 'commit d47a8df46c, 2025-12-29, author natasha41575, diff status: implementable -> implemented'
+  - 'PR #5761 ''KEP-1287: Mark in-place pod resize as implemented'', merged 2026-01-16T02:45:28Z'
+  - '(optional) tracking issue #1287 closed 2026-01-16T02:45:29Z with milestone v1.35'
+  judge_order: 3
+- id: DEC-02
+  kind: DEC
+  difficulty: hard
+  needs: join
+  question: Why was classic DRA (KEP-3063) withdrawn, when and by whom?
+  ground_truth: see facts
+  expected_evidence:
+  - *id003
+  - label: PullRequest
+    key: kubernetes/enhancements#4904
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+    - find_entities
+  sources:
+  - R:eval/pr-4904.json
+  - R:eval/commit-be482d3eb9.json
+  - E:keps/sig-node/3063-dynamic-resource-allocation/README.md L159-L165
+  facts:
+  - 'PR #4904 ''KEP-3063: Classic DRA: withdraw the KEP'' by pohly, merged 2024-10-05T00:26:28Z'
+  - 'commit be482d3eb9 2024-10-04: status implementable -> withdrawn, latest-milestone v1.31 -> v1.32'
+  - 'reasons in the README: lack of cluster-autoscaler support, and the complex back-and-forth through the apiserver
+    while scheduler and DRA drivers negotiate allocation'
+  - 'PR body: ''There isn''t sufficient justification for keeping it around when there is no clear path forward.'''
+  - (optional) successor KEP-4381 continues
+- id: DEC-03
+  kind: DEC
+  difficulty: hard
+  needs: join
+  question: Which PR graduated Job Pod Failure Policy (KEP-3329) to stable, what changed in the metadata, and what
+    reasons were given?
+  ground_truth: see facts
+  expected_evidence:
+  - *id004
+  - label: PullRequest
+    key: kubernetes/enhancements#4661
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+  sources:
+  - R:eval/pr-4661.json
+  - R:eval/commit-8fdd98a561.json
+  facts:
+  - 'PR #4661 ''Graduate Job Pod Failure Policy to stable'' by mimowo, merged 2024-06-11T11:41:46Z'
+  - 'commit 8fdd98a561: status implementable -> implemented, stage beta -> stable, latest-milestone v1.28 -> v1.31,
+    milestone.stable v1.30 -> v1.31'
+  - 'the same commit added stable: approver ''@johnbelamaric'' to the PRR file'
+  - 'reasons from the PR body: beta since 1.26 with no major changes since 1.27; code spread across kube-controller-manager,
+    kubelet, scheduler and api-server so two code paths add complexity; other features build on it (KEP-4443 cited)'
+- id: DEC-04
+  kind: DEC
+  difficulty: medium
+  needs: join
+  question: When did 'structured parameters' become the base of DRA and 'classic' DRA the extension?
+  ground_truth: see facts
+  expected_evidence:
+  - *id003
+  - &id006
+    label: KEP
+    key: keps/sig-node/4381-dra-structured-parameters
+  - label: PullRequest
+    key: kubernetes/enhancements#4585
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+    - find_entities
+  sources:
+  - R:eval/pulls-3159f896a2.json
+  - E:keps/sig-node/3063-dynamic-resource-allocation/README.md L153-L156
+  facts:
+  - commit 3159f896a2, 2024-04-18, author pohly
+  - 'PR #4585 ''KEP-3063 and KEP-4381: DRA: Structured Parameters as base, classic DRA as extension'', merged 2024-05-02T12:50:00Z'
+  - 'README-3063 states the role reversal (''Now the roles are reversed: #4381 defines the base functionality and
+    this KEP is an optional extension'')'
+- id: DEC-05
+  kind: DEC
+  difficulty: medium
+  needs: join
+  question: Which PR declared Gang Scheduling (KEP-4671) GA for v1.38 and what did it change?
+  ground_truth: see facts
+  expected_evidence:
+  - *id005
+  - label: PullRequest
+    key: kubernetes/enhancements#6349
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+    - status_history
+  sources:
+  - R:eval/pr-6349.json
+  - R:eval/commit-91ac5bf521.json
+  - R:eval/gql-4671-timeline.json
+  facts:
+  - 'PR #6349 ''KEP-4671: Update Gang Scheduling KEP for GA in v1.38'' by macsko, merged 2026-09-22T13:34:19Z (merged
+    by kubernetes-prow[bot])'
+  - 'commit 91ac5bf521 2026-09-11: stage beta -> stable, latest-milestone v1.37 -> v1.38'
+  - 'the PRR file gained stable: approver ''@soltysh'' in the same commit'
+  - (optional) tracking issue label stage/stable applied 2026-09-07 by macsko
+- id: DEC-06
+  kind: DEC
+  difficulty: medium
+  needs: join
+  question: When was KEP-4381 marked implemented and what else changed in that commit?
+  ground_truth: see facts
+  expected_evidence:
+  - *id006
+  - label: PullRequest
+    key: kubernetes/enhancements#5817
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+  sources:
+  - R:eval/commit-51b50a24c3.json
+  - R:eval/pr-5817.json
+  facts:
+  - 'commit 51b50a24c3, 2026-01-20, author kannon92: status implementable -> implemented, stage beta -> stable,
+    disable-supported true -> false'
+  - 'PR #5817 ''KEP-4381: Mark (DRA) as implemented'', merged 2026-02-10T16:20:02Z'
+- id: DEC-07
+  kind: DEC
+  difficulty: hard
+  needs: join
+  question: Which KEPs does Gang Scheduling replace, and what became of KEP-5832?
+  ground_truth: see facts
+  expected_evidence:
+  - *id005
+  - &id008
+    label: KEP
+    key: keps/sig-scheduling/5832-decouple-podgroup-api
+  - &id007
+    label: KEP
+    key: keps/sig-scheduling/583-coscheduling
+  - label: Issue
+    key: kubernetes/enhancements#5832
+  expected_tools:
+    first: kep_relations
+    set:
+    - kep_relations
+    - get_kep
+    - find_contradictions
+  sources:
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L27-L29
+  - E:keps/sig-scheduling/4671-gang-scheduling/README.md L1898
+  - R:eval/issue-5832.json
+  - E:keps/sig-scheduling/5832-decouple-podgroup-api/kep.yaml L13, L26-L27, L29, L31
+  facts:
+  - replaces = 583-coscheduling and 5832-decouple-podgroup-api
+  - 'README-4671 Implementation History: ''2026-03: KEP-5832 merged into KEP-4671 as a single consolidated KEP'''
+  - 'tracking issue #5832 closed 2026-05-18T23:01:00Z'
+  - '5832/kep.yaml still says status: implementable, stage: alpha, latest-milestone: v1.36, so its metadata is stale
+    (an active_status_closed_issue hit)'
+  - (optional) 5832 itself declares replaces 583 and see-also 4671
+  judge_order: 2
+- id: DEC-08
+  kind: DEC
+  difficulty: medium
+  needs: join
+  question: Who proposed GA for in-place pod resize in v1.35, in which PR, and which SIGs were asked to sign off?
+  ground_truth: see facts
+  expected_evidence:
+  - *id001
+  - label: PullRequest
+    key: kubernetes/enhancements#5562
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+  sources:
+  - R:eval/pr-5562.json
+  facts:
+  - 'PR #5562 ''KEP 1287: Graduate InPlacePodVerticalScaling to GA'' by natasha41575, merged 2025-10-16T05:43:33Z
+    by k8s-ci-robot, labels sig/autoscaling, sig/node, sig/scheduling'
+  - body asks tallclair and dchen1107 (node), dom4ha for sig-scheduling, jackfrancis for sig-autoscaling
+  - 'commit 6e1c6afec9 2025-09-22: stage beta -> stable, latest-milestone v1.34 -> v1.35, milestone.stable TBD ->
+    v1.35'
+- id: STA-01
+  kind: STA
+  difficulty: easy
+  needs: lookup
+  question: What stage is Container Stop Signals (KEP-4960) at, and which release does each stage target?
+  ground_truth: 'status: implementable, stage: beta; alpha v1.33, beta v1.38 (in-flight release: a target, not shipped),
+    stable unset (''''); latest-milestone v1.38'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-node/4960-container-stop-signals
+  expected_tools:
+    first: get_kep
+    set:
+    - get_kep
+  sources:
+  - E:keps/sig-node/4960-container-stop-signals/kep.yaml L19-L25
+- id: STA-02
+  kind: STA
+  difficulty: easy
+  needs: join
+  question: Which SIG Apps KEPs target stable in v1.38?
+  ground_truth: 'exactly one: KEP-5440 Mutable Pod Resources for Suspended Jobs (implementable, stage: stable; alpha
+    v1.35, beta v1.36, stable v1.38)'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-apps/5440-mutable-job-pod-resource-updates
+  expected_tools:
+    first: whats_changed
+    set:
+    - whats_changed
+  sources:
+  - E:keps/sig-apps/5440-mutable-job-pod-resource-updates/kep.yaml L8, L20, L28-L31
+- id: STA-03
+  kind: STA
+  difficulty: medium
+  needs: join
+  question: Which SIG Scheduling KEPs record stable in v1.37?
+  ground_truth: KEP-5004 DRA Extended Resource, KEP-5055 DRA device taints and tolerations, KEP-5278 NominatedNodeName
+    for expectation, KEP-5501 reflect PreEnqueue rejections in Pod status
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-scheduling/5004-dra-extended-resource
+  - label: KEP
+    key: keps/sig-scheduling/5055-dra-device-taints-and-tolerations
+  - label: KEP
+    key: keps/sig-scheduling/5278-nominated-node-name-for-expectation
+  - label: KEP
+    key: keps/sig-scheduling/5501-reflect-preenqueue-rejections-in-pod-status
+  expected_tools:
+    first: whats_changed
+    set:
+    - whats_changed
+  sources:
+  - milestone.stable == v1.37 in the four kep.yaml files
+- id: STA-04
+  kind: STA
+  difficulty: hard
+  needs: join
+  question: What is the status of KEP-583 Coscheduling, and is that metadata current?
+  ground_truth: 'kep.yaml: status: provisional, no stage, milestone, feature gate or PRR file; last-updated: 2019-01-03.
+    Tracking issue #583 closed 2019-09-09T21:03:18Z, labels lifecycle/rotten, stage/alpha, kind/feature. KEP-4671
+    and KEP-5832 both declare replaces 583, but 583 has no superseded-by. Correct answer: stale; cites the file,
+    the closed issue and at least one successor.'
+  expected_evidence:
+  - *id007
+  - label: Issue
+    key: kubernetes/enhancements#583
+  expected_tools:
+    first: find_contradictions
+    set:
+    - find_contradictions
+    - get_kep
+    - kep_relations
+  sources:
+  - E:keps/sig-scheduling/583-coscheduling/kep.yaml L12-L13
+  - R:eval/issue-583.json
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L28
+  - E:keps/sig-scheduling/5832-decouple-podgroup-api/kep.yaml L27
+  expected_evidence_any:
+  - *id005
+  - *id008
+  judge_order: 1
+- id: STA-05
+  kind: STA
+  difficulty: hard
+  needs: join
+  question: In which release did DRA structured parameters (KEP-4381) reach GA?
+  ground_truth: 'v1.34: milestone.stable v1.34; the tracking issue got stage/stable on 2025-06-03 while milestoned
+    v1.34; v1.34.0 shipped 2025-08-27. The issue''s milestone later moved v1.34 -> v1.35 (2025-09-25) for follow-up
+    work, latest-milestone is v1.35. A correct answer gives v1.34 and explains the v1.35 references; v1.35 alone
+    is wrong. Not a contradiction.'
+  expected_evidence:
+  - *id006
+  - label: Issue
+    key: kubernetes/enhancements#4381
+  expected_tools:
+    first: status_history
+    set:
+    - status_history
+    - get_kep
+    - trace_decision
+  sources:
+  - E:keps/sig-node/4381-dra-structured-parameters/kep.yaml L28, L31-L34
+  - R:eval/gql-4381-timeline.json
+  - R:eval/issue-4381.json
+  must_mention:
+  - v1.35
+  answer:
+    release: v1.34
+  facts:
+  - milestone.stable in kep.yaml is v1.34
+  - 'tracking issue #4381 milestone is v1.35 and latest-milestone is v1.35'
+- id: STA-06
+  kind: STA
+  difficulty: medium
+  needs: join
+  question: 'What has changed for SIG Apps since v1.33: which of its KEPs went stable in v1.33 or later?'
+  ground_truth: 'v1.33: KEP-3850 (backoff limits per index), KEP-3998 (Job success/completion policy); v1.34: KEP-3939
+    (Pod replacement when fully terminated); v1.35: KEP-4368 (Job managed-by label); v1.38 target: KEP-5440'
+  expected_evidence: unknown
+  expected_tools:
+    first: whats_changed
+    set:
+    - whats_changed
+  sources:
+  - milestone.stable in the five E:keps/sig-apps/*/kep.yaml
+- id: STA-07
+  kind: STA
+  difficulty: hard
+  needs: join
+  question: Has the stage label on Gang Scheduling's tracking issue ever moved backwards? What is it now?
+  ground_truth: 'Yes. stage/alpha 2025-05-21 (jenshu) -> stage/beta 2026-01-23 (macsko) -> back to stage/alpha 2026-02-10
+    (wojtek-t) -> stage/beta 2026-05-26 (macsko) -> stage/stable 2026-09-07 (macsko). Now: open, milestone v1.38,
+    labels stage/stable, tracked/yes, lead-opted-in, sig/scheduling, wg/workload-aware-scheduling.'
+  expected_evidence:
+  - label: Issue
+    key: kubernetes/enhancements#4671
+  expected_tools:
+    first: status_history
+    set:
+    - status_history
+  sources:
+  - R:eval/gql-4671-timeline.json
+  - R:eval/issue-4671.json
+- id: STA-08
+  kind: STA
+  difficulty: medium
+  needs: lookup
+  question: What is the status of KEP-5978 DRA ClusterResourceClaimTemplate?
+  ground_truth: 'status: withdrawn, stage: alpha, latest-milestone: v1.37; the milestone map still lists alpha v1.37,
+    beta v1.38, stable v1.40, which is inconsistent with ''withdrawn'' and must be flagged (terminal_status_future_targets);
+    PRR alpha approver johnbelamaric'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-node/5978-cluster-resource-claim-template
+  expected_tools:
+    first: get_kep
+    set:
+    - get_kep
+    - find_contradictions
+  sources:
+  - E:keps/sig-node/5978-cluster-resource-claim-template/kep.yaml L7, L19, L24, L27-L30
+  - E:keps/prod-readiness/sig-node/5978.yaml L3
+- id: STA-09
+  kind: STA
+  difficulty: medium
+  needs: join
+  question: Which SIG Node KEPs carry a status value outside the KEP-0000 enum, and what are the raw values?
+  ground_truth: 'KEP-2625 (imlpemented, a typo; normalised to implemented) and KEP-281 (removed, not a status; normalised
+    to implemented with stage: removed). The answer must show the raw strings and the metadata_invalid flag.'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-node/2625-cpumanager-policies-thread-placement
+  - label: KEP
+    key: keps/sig-node/281-dynamic-kubelet-configuration
+  expected_tools:
+    first: find_entities
+    set:
+    - find_entities
+    - get_kep
+  sources:
+  - E:keps/sig-node/2625-cpumanager-policies-thread-placement/kep.yaml L8
+  - E:keps/sig-node/281-dynamic-kubelet-configuration/kep.yaml L7, L30-L35
+  must_mention:
+  - imlpemented
+  - removed
+- id: STA-10
+  kind: STA
+  difficulty: easy
+  needs: join
+  question: Which KEPs in the loaded SIGs are withdrawn?
+  ground_truth: KEP-3063 (sig-node, latest v1.32) and KEP-5978 (sig-node, latest v1.37); none in sig-scheduling
+    or sig-apps
+  expected_evidence:
+  - *id003
+  - label: KEP
+    key: keps/sig-node/5978-cluster-resource-claim-template
+  expected_tools:
+    first: find_entities
+    set:
+    - find_entities
+  sources:
+  - E:keps/sig-node/3063-dynamic-resource-allocation/kep.yaml L9
+  - E:keps/sig-node/5978-cluster-resource-claim-template/kep.yaml L7
+- id: MH-01
+  kind: MH
+  difficulty: medium
+  needs: join
+  question: Which SIGs own or participate in the KEPs that Gang Scheduling replaces?
+  ground_truth: '583 -> owning sig-scheduling (no participating SIGs); 5832 -> owning sig-scheduling, participating
+    sig-apps, sig-api-machinery. Union: sig-scheduling, sig-apps, sig-api-machinery.'
+  expected_evidence:
+  - *id007
+  - *id008
+  expected_tools:
+    first: kep_relations
+    set:
+    - kep_relations
+    - get_kep
+  sources:
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L27-L29
+  - E:keps/sig-scheduling/583-coscheduling/kep.yaml L5
+  - E:keps/sig-scheduling/5832-decouple-podgroup-api/kep.yaml L9-L12
+- id: MH-02
+  kind: MH
+  difficulty: hard
+  needs: join
+  question: Which people are kep.yaml approvers on both SIG Apps and SIG Scheduling KEPs?
+  ground_truth: 'alculquicondor (apps: 3329; scheduling: 11 KEPs incl. 3022, 3094, 3280), dchen1107 (3329; 5517),
+    dom4ha (5547, 6276; 23 KEPs incl. 4671), liggitt (19, 3017, 85; 8 KEPs incl. 2249), soltysh (23 KEPs; 3280,
+    3902, 6089). The placeholder TBD appears in both SIGs'' approver lists and must not be returned as a person.'
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - approver lists of the 35 sig-apps and 59 sig-scheduling kep.yaml files
+- id: MH-03
+  kind: MH
+  difficulty: medium
+  needs: join
+  question: Which KEPs are gated by the GenericWorkload feature gate, and in which components?
+  ground_truth: KEP-4671 (kube-apiserver, kube-scheduler, kube-controller-manager); KEP-5710 (same three); KEP-5832
+    (kube-apiserver, kube-scheduler)
+  expected_evidence:
+  - *id005
+  - label: KEP
+    key: keps/sig-scheduling/5710-workload-aware-preemption
+  - *id008
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L49-L54
+  - E:keps/sig-scheduling/5710-workload-aware-preemption/kep.yaml L42ff
+  - E:keps/sig-scheduling/5832-decouple-podgroup-api/kep.yaml L38ff
+- id: MH-04
+  kind: MH
+  difficulty: hard
+  needs: join
+  question: Which KEPs declare see-also to KEP-4381 (they build on it), and which SIGs own them?
+  ground_truth: '15 KEPs. sig-node: 4817, 5304, 5677. sig-scheduling: 4815, 4816, 5004, 5007, 5027, 5075, 5234,
+    5491, 5690, 5941, 5981, 6080.'
+  expected_evidence:
+  - *id006
+  expected_tools:
+    first: kep_relations
+    set:
+    - kep_relations
+  sources:
+  - see-also entries resolving to /keps/sig-node/4381-dra-structured-parameters in the 15 kep.yaml files
+- id: MH-05
+  kind: MH
+  difficulty: hard
+  needs: join
+  question: Who is a code approver for the DRA scheduler plugin directory and also a kep.yaml approver on DRA KEPs?
+  ground_truth: 'pohly: sole approver in pkg/scheduler/framework/plugins/dynamicresources/OWNERS and approver (with
+    sig-node-approvers and klueska) in pkg/controller/resourceclaim/OWNERS; kep.yaml approver on KEP-5945, KEP-5978,
+    KEP-6080, KEP-6406'
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+    - rank_people
+  sources:
+  - K:pkg/scheduler/framework/plugins/dynamicresources/OWNERS L3-L4
+  - K:pkg/controller/resourceclaim/OWNERS L3-L6
+- id: MH-06
+  kind: MH
+  difficulty: medium
+  needs: join
+  question: Which SIG Apps KEPs list SIG Scheduling as a participating SIG, and which of those were approved by
+    a current SIG Scheduling tech lead?
+  ground_truth: '8 KEPs: 1591, 2185, 3017, 3329, 5547, 6276, 85, 981. Approved by dom4ha (current tech lead): KEP-5547
+    and KEP-6276. (alculquicondor on 3329 is an emeritus lead, not current.)'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-apps/5547-integrate-workload-with-job
+  - label: KEP
+    key: keps/sig-apps/6276-integrate-workload-with-deployment
+  expected_tools:
+    first: find_entities
+    set:
+    - find_entities
+    - who_owns
+  sources:
+  - E:keps/sig-apps/5547-integrate-workload-with-job/kep.yaml L15-L17
+  - E:keps/sig-apps/6276-integrate-workload-with-deployment/kep.yaml L13-L16
+  - C:sigs.yaml L2919, L2932
+- id: MH-07
+  kind: MH
+  difficulty: medium
+  needs: shortest_path
+  question: How is soltysh connected to Gang Scheduling (KEP-4671)?
+  ground_truth: 'Shortest: length 1, soltysh -PRR_APPROVED-> KEP-4671 (alpha, beta and stable). Also required: chair
+    and tech lead of sig-apps, which 4671 lists as participating; approver of KEP-6089 (WAS controller APIs), which
+    see-also 4671'
+  expected_evidence:
+  - *id005
+  expected_tools:
+    first: path_between
+    set:
+    - path_between
+    - who_approves
+  sources:
+  - E:keps/prod-readiness/sig-scheduling/4671.yaml L3, L5, L7
+  - C:sigs.yaml L188, L201
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L14-L15
+  - E:keps/sig-scheduling/6089-was-controller-apis/kep.yaml L14-L16, L18-L26
+  judge_order: 4
+  path:
+    shortest_length: 1
+- id: MH-08
+  kind: MH
+  difficulty: medium
+  needs: join
+  question: Which SIG Node leaders in sigs.yaml are also members of the kubernetes/kubernetes sig-node-approvers
+    alias?
+  ground_truth: 'Tech leads dchen1107, derekwaynecarr, mrunalp: all members. Chairs SergeyKanzhelev and mrunalp:
+    members. Chair haircommander: not a member (he is in sig-node-cri-approvers).'
+  expected_evidence: unknown
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+  sources:
+  - C:sigs.yaml L2525-L2544
+  - K:OWNERS_ALIASES L242-L251, L255-L261
+- id: MH-09
+  kind: MH
+  difficulty: medium
+  needs: join
+  question: Across the loaded SIGs' PRR files, who approved the most stage reviews?
+  ground_truth: wojtek-t 138, johnbelamaric 116, deads2k 55, soltysh 41, jpbetz 31, kannon92 21, ehashman 11 (413
+    stage entries in 212 files)
+  expected_evidence: unknown
+  expected_tools:
+    first: rank_people
+    set:
+    - rank_people
+  sources:
+  - keps/prod-readiness/{sig-node,sig-scheduling,sig-apps}/*.yaml
+- id: MH-10
+  kind: MH
+  difficulty: easy
+  needs: join
+  question: Which other KEPs share a feature gate with KEP-2837 Pod Level Resources?
+  ground_truth: PodLevelResources is also declared by KEP-5419 (in-place pod-level resize) and KEP-5526 (pod-level
+    resource managers)
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-node/2837-pod-level-resource-spec
+  - label: KEP
+    key: keps/sig-node/5419-pod-level-resources-in-place-resize
+  - label: KEP
+    key: keps/sig-node/5526-pod-level-resource-managers
+  expected_tools:
+    first: who_owns
+    set:
+    - who_owns
+    - get_kep
+  sources:
+  - E:keps/sig-node/2837-pod-level-resource-spec/kep.yaml L44ff
+  - E:keps/sig-node/5419-pod-level-resources-in-place-resize/kep.yaml L42ff
+  - E:keps/sig-node/5526-pod-level-resource-managers/kep.yaml L43ff
+- id: MH-11
+  kind: MH
+  difficulty: medium
+  needs: var_path
+  question: 'Trace the full replacement lineage that ends at Gang Scheduling (KEP-4671): every KEP it replaces directly
+    or transitively, and which of those links the replaced KEP acknowledges with superseded-by.'
+  ground_truth: 'Edges: 4671 -> 583, 4671 -> 5832, 5832 -> 583 (replaces). Transitive set {583, 5832}. Acknowledged:
+    none (neither 583 nor 5832 has superseded-by), so all three links are one-sided.'
+  expected_evidence:
+  - *id005
+  - *id007
+  - *id008
+  expected_tools:
+    first: kep_relations
+    set:
+    - kep_relations
+    - find_contradictions
+  sources:
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L27-L29
+  - E:keps/sig-scheduling/5832-decouple-podgroup-api/kep.yaml L26-L27
+  - E:keps/sig-scheduling/583-coscheduling/kep.yaml
+- id: MH-12
+  kind: MH
+  difficulty: medium
+  needs: shortest_path
+  question: Using only KEP metadata relationships (authored, reviews, approves, PRR-approved, see-also, replaces,
+    owned-by, participates), what is the shortest connection between tallclair and KEP-5710 (workload-aware preemption)?
+  ground_truth: 'Length 2, through KEP-5836 (Scheduler Preemption for In-Place Pod Resize): tallclair is a reviewer
+    and an approver of 5836, and 5836 declares see-also 5710. Exactly two shortest paths exist (via REVIEWS and
+    via APPROVES); either is correct.'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-scheduling/5836-scheduler-preemption-for-ippr
+  - label: KEP
+    key: keps/sig-scheduling/5710-workload-aware-preemption
+  expected_tools:
+    first: path_between
+    set:
+    - path_between
+  sources:
+  - E:keps/sig-scheduling/5836-scheduler-preemption-for-ippr/kep.yaml L11, L16, L22ff
+  path:
+    shortest_length: 2
+- id: MH-13
+  kind: MH
+  difficulty: medium
+  needs: shortest_path
+  question: Using the same relationship types, what is the shortest connection between pohly and KEP-1287 (in-place
+    pod resize)?
+  ground_truth: 'Length 2, unique: pohly reviews KEP-4680 (Add Resource Health Status to the Pod Status for Device
+    Plugin and DRA), which declares see-also 1287.'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-node/4680-add-resource-health-to-pod-status
+  - *id001
+  expected_tools:
+    first: path_between
+    set:
+    - path_between
+  sources:
+  - E:keps/sig-node/4680-add-resource-health-to-pod-status/kep.yaml L11, L21ff
+  path:
+    shortest_length: 2
+- id: MH-14
+  kind: MH
+  difficulty: medium
+  needs: var_path
+  question: Which KEPs are exactly two see-also hops from KEP-3329 (Job Pod Failure Policy), in either direction,
+    and through which KEP?
+  ground_truth: 'Depth 1: 3939 (both directions) and 4443 (its see-also is a full GitHub URL to 3329''s README,
+    which ingest must resolve). Depth 2: 3973 (Consider Terminating Pods in Deployments) and 5882 (Deployment Pod
+    Replacement Policy), both through 3939.'
+  expected_evidence:
+  - label: KEP
+    key: keps/sig-apps/3973-consider-terminating-pods-deployment
+  - label: KEP
+    key: keps/sig-apps/5882-deployment-pod-replacement-policy
+  - label: KEP
+    key: keps/sig-apps/3939-allow-replacement-when-fully-terminated
+  expected_tools:
+    first: kep_relations
+    set:
+    - kep_relations
+  sources:
+  - E:keps/sig-apps/3329-retriable-and-non-retriable-failures/kep.yaml L21
+  - E:keps/sig-apps/3939-allow-replacement-when-fully-terminated/kep.yaml L18
+  - E:keps/sig-apps/3973-consider-terminating-pods-deployment/kep.yaml L16ff
+  - E:keps/sig-apps/5882-deployment-pod-replacement-policy/kep.yaml L16ff
+- id: CHT-01
+  kind: CHT
+  difficulty: medium
+  needs: join
+  question: 'Who approved PR #5761 (the PR that marked KEP-1287 implemented), and who gave it /lgtm?'
+  ground_truth: approved (review state APPROVED) = {SergeyKanzhelev 2026-01-12T21:03:02Z, mrunalp 2026-01-16T02:39:28Z};
+    lgtm = {tallclair (comment 2026-01-07T01:04:20Z), SergeyKanzhelev (in the body of his approving review)}. The
+    approval bot's comment says keps/sig-node/OWNERS was satisfied by mrunalp (optional; bot comments are not people)
+  expected_evidence:
+  - label: PullRequest
+    key: kubernetes/enhancements#5761
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+  sources:
+  - R:eval/pr-5761-reviews.json (review ids 3652733449, 3668493442)
+  - https://github.com/kubernetes/enhancements/pull/5761#issuecomment-3716919166
+  - https://github.com/kubernetes/enhancements/pull/5761#issuecomment-3757838517
+  require_any_label: &id009
+  - Review
+  - Comment
+- id: CHT-02
+  kind: CHT
+  difficulty: hard
+  needs: join
+  question: Why was Gang Scheduling's tracking-issue stage label moved back from beta to alpha on 2026-02-10, and
+    by whom?
+  ground_truth: see facts
+  expected_evidence:
+  - label: Issue
+    key: kubernetes/enhancements#4671
+  expected_tools:
+    first: status_history
+    set:
+    - status_history
+    - trace_decision
+  sources:
+  - R:eval/gql-4671-timeline.json
+  - https://github.com/kubernetes/enhancements/issues/4671#issuecomment-3876065663
+  facts:
+  - wojtek-t changed stage/beta -> stage/alpha on 2026-02-10
+  - 'the same person commented on the tracking issue that day (2026-02-10T08:19:01Z): the 1.36 cycle carried many
+    changes (described in #5730 and #5893), so the SIG decided on a second alpha, and he was adjusting the labels'
+  - the answer cites that comment's URL
+  require_any_label: *id009
+- id: CHT-03
+  kind: CHT
+  difficulty: medium
+  needs: join
+  question: 'Who gave /lgtm and who approved PR #4904, which withdrew classic DRA (KEP-3063)?'
+  ground_truth: lgtm = {thockin, johnbelamaric}, each adding that he is not a sig-node approver; approved (review
+    state APPROVED) = {mrunalp 2024-10-05T00:21:29Z}; author pohly
+  expected_evidence:
+  - label: PullRequest
+    key: kubernetes/enhancements#4904
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+  sources:
+  - https://github.com/kubernetes/enhancements/pull/4904#issuecomment-2394153939
+  - https://github.com/kubernetes/enhancements/pull/4904#issuecomment-2394575346
+  - R:eval/pr-4904-reviews.json (review 2349385494)
+  require_any_label: *id009
+- id: CHT-04
+  kind: CHT
+  difficulty: hard
+  needs: join
+  question: Why was the Gang Scheduling GA PR (#6349) put on hold, who approved its production-readiness section
+    and on what condition, and who released the hold?
+  ground_truth: see facts
+  expected_evidence:
+  - label: PullRequest
+    key: kubernetes/enhancements#6349
+  expected_tools:
+    first: trace_decision
+    set:
+    - trace_decision
+    - status_history
+  sources:
+  - https://github.com/kubernetes/enhancements/pull/6349#issuecomment-5634811256
+  - https://github.com/kubernetes/enhancements/pull/6349#issuecomment-5777338842
+  - R:eval/pr-6349-reviews.json (review 5248516956)
+  facts:
+  - macsko put /hold on 2026-09-11, pending approval and an update to the workload-aware preemption KEP
+  - soltysh approved on 2026-09-18T13:51:31Z, conditionally on the answers macsko and wojtek-t gave in the review
+    thread
+  - wojtek-t lifted the hold (/hold cancel) on 2026-09-22T13:23:56Z after that KEP merged
+  - (optional) the PR merged 2026-09-22T13:34:19Z
+  require_any_label: *id009
+- id: ABS-01
+  kind: ABS
+  difficulty: easy
+  needs: unknown
+  question: Who approved the production-readiness review for KEP-583 Coscheduling?
+  ground_truth: no PRR file exists for 583
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - keps/prod-readiness/sig-scheduling/583.yaml absent in the tarball (51 files in that directory)
+  accept:
+  - no_evidence
+  accept_explicit_negative: false
+- id: ABS-02
+  kind: ABS
+  difficulty: medium
+  needs: unknown
+  question: Which approver signed off on KEP-2360 Optional Service Environment Variables?
+  ground_truth: 'approvers: [TBD], reviewers: [TBD], status: provisional'
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - E:keps/sig-apps/2360-optional-service-environment-variables/kep.yaml L8-L11, L15
+  accept:
+  - no_evidence
+  accept_explicit_negative: true
+  explicit_negative_evidence:
+  - label: KEP
+    key: keps/sig-apps/2360-optional-service-environment-variables
+- id: ABS-03
+  kind: ABS
+  difficulty: easy
+  needs: unknown
+  question: What is the e-mail address of the SIG Node chair SergeyKanzhelev?
+  ground_truth: e-mail is never ingested (Rule 6)
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - sigs.yaml email keys are dropped at parse time; the answer must not guess
+  accept:
+  - out_of_scope
+  accept_explicit_negative: false
+- id: ABS-04
+  kind: ABS
+  difficulty: easy
+  needs: unknown
+  question: What did the SIG Scheduling meeting on 2026-10-09 decide about gang scheduling?
+  ground_truth: meeting notes are not a source; sigs.yaml carries only meeting metadata
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - recon section 4.2, 9.2
+  accept:
+  - no_evidence
+  - out_of_scope
+  accept_explicit_negative: false
+- id: ABS-05
+  kind: ABS
+  difficulty: easy
+  needs: unknown
+  question: What is the status of KEP-9999?
+  ground_truth: no such KEP
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - no 9999-* directory under keps/; GET /repos/kubernetes/enhancements/issues/9999 -> HTTP 404 (2026-10-11)
+  accept:
+  - no_evidence
+  accept_explicit_negative: false
+- id: ABS-06
+  kind: ABS
+  difficulty: medium
+  needs: unknown
+  question: Which SIG Storage KEP replaced the CSI migration KEP?
+  ground_truth: sig-storage KEPs are outside the loaded scope; the only sig-storage path referenced from the scope
+    is 1790-recover-resize-failure (via KEP-4680 see-also), stored as a stub without metadata
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - recon D4, D6; census refs
+  accept:
+  - out_of_scope
+  accept_explicit_negative: false
+- id: ABS-07
+  kind: ABS
+  difficulty: easy
+  needs: unknown
+  question: How many GitHub stars does kubernetes/enhancements have?
+  ground_truth: repository statistics are not ingested
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - architecture section 9.1 source list
+  accept:
+  - out_of_scope
+  accept_explicit_negative: false
+- id: ABS-08
+  kind: ABS
+  difficulty: medium
+  needs: unknown
+  question: Who approved the PRR for the beta stage of KEP-5690 DRA Preemption?
+  ground_truth: the PRR file has only an alpha entry (@wojtek-t)
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - E:keps/prod-readiness/sig-scheduling/5690.yaml L3 (3-line file)
+  accept:
+  - no_evidence
+  accept_explicit_negative: true
+- id: ABS-09
+  kind: ABS
+  difficulty: medium
+  needs: unknown
+  question: Which release is KEP-3541 (StatefulSet Recreate strategy) targeted to reach stable?
+  ground_truth: 'milestone has alpha: v1.37 and beta: v1.38 and no stable key'
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - E:keps/sig-apps/3541-add-recreate-strategy-to-statefulset/kep.yaml L23-L25
+  accept:
+  - no_evidence
+  accept_explicit_negative: true
+  explicit_negative_evidence:
+  - label: KEP
+    key: keps/sig-apps/3541-add-recreate-strategy-to-statefulset
+- id: ABS-10
+  kind: ABS
+  difficulty: hard
+  needs: unknown
+  question: Which KEP introduced the GangScheduling feature gate?
+  ground_truth: no feature gate with that name exists in the 234 files; KEP-4671's gate is GenericWorkload. Naming
+    4671 as if the gate existed is wrong; offering GenericWorkload as the nearest match while abstaining is right.
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - census gates (no key GangScheduling)
+  - E:keps/sig-scheduling/4671-gang-scheduling/kep.yaml L49-L50
+  accept:
+  - no_evidence
+  accept_explicit_negative: false
+  judge_order: 5
+- id: ABS-11
+  kind: ABS
+  difficulty: easy
+  needs: unknown
+  question: Which Slack threads discussed KEP-1287?
+  ground_truth: Slack requires login and is never fetched (Rule 6); 'chats' means public GitHub issue and PR threads
+  expected_evidence: unknown
+  expected_tools: unknown
+  sources:
+  - recon section 9.2 item 4
+  accept:
+  - out_of_scope
+  accept_explicit_negative: false

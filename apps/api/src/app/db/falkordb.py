@@ -11,6 +11,7 @@ thread to keep the event loop free.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from dataclasses import dataclass
 from enum import StrEnum
@@ -167,8 +168,6 @@ class FalkorPool:
     def close(self) -> None:
         with self._lock:
             for client in self._clients.values():
-                try:
+                with contextlib.suppress(Exception):  # best effort on shutdown
                     client.connection.close()
-                except Exception:  # noqa: BLE001 - best effort on shutdown
-                    pass
             self._clients.clear()

@@ -17,7 +17,8 @@ SIG_SCOPE_DEFAULT = "sig-node,sig-scheduling,sig-apps"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Repo-root .env first, then a local one (later files win).
+        env_file=("../../.env", ".env"),
         env_ignore_empty=True,
         extra="ignore",
         case_sensitive=False,
@@ -52,11 +53,16 @@ class Settings(BaseSettings):
     github_token: SecretStr | None = None
 
     llm_provider: Literal["anthropic", "openai_compatible"] = "openai_compatible"
-    llm_model: str = "gemini-2.5-flash"
-    llm_model_cheap: str = "gemini-2.5-flash-lite"
+    llm_model: str = "openai/gpt-oss-120b"
+    llm_model_cheap: str = "openai/gpt-oss-20b"
+    # Tried in order when the primary model answers 429/503.
+    llm_fallback_models: str = "qwen/qwen3.8-27b"
+    # Client-side pacing so a rate-limited provider (Groq free tier) is not hammered.
+    llm_requests_per_minute: int = Field(default=25, ge=1)
+    llm_max_retries: int = Field(default=4, ge=0)
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
-    openai_base_url: str | None = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    openai_base_url: str | None = "https://api.groq.com/openai/v1"
     llm_daily_budget_usd: float = 5.0
     llm_timeout_seconds: float = 60.0
     findings_agent_enabled: bool = True
@@ -80,6 +86,10 @@ class Settings(BaseSettings):
     @property
     def sig_list(self) -> list[str]:
         return self.sigs.split(",")
+
+    @property
+    def llm_fallback_list(self) -> list[str]:
+        return [m.strip() for m in self.llm_fallback_models.split(",") if m.strip()]
 
     @property
     def cors_origin_list(self) -> list[str]:
