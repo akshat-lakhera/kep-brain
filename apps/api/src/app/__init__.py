@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from app!")
+"""KEP Brain API, worker and MCP server."""

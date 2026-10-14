@@ -11,16 +11,19 @@ dependencies = [
     "falkordb==1.7.1",
     "fastapi==0.143.0",
     "httpx==0.28.1",
+    "mcp>=2.3.0",
     "openai>=3.31.0",
     "pydantic==2.14.0",
     "pydantic-settings==2.15.0",
+    "python-ulid>=4.0.1",
     "pyyaml>=6.0.3",
+    "sse-starlette>=3.5.0",
     "structlog==26.1.0",
     "uvicorn==0.54.0",
 ]
 
 [project.scripts]
-app = "app:main"
+kep-worker = "app.worker.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
