@@ -1,0 +1,44 @@
+# Production override. Use together with the root file:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+# Requires PUBLIC_HOST (DNS name pointing at this VM) in the shell or in .env.
+name: kep-brain
+
+services:
+  caddy:
+    image: caddy:2.8.4-alpine
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?set PUBLIC_HOST to the public DNS name}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks: [edge]
+    restart: unless-stopped
+
+  falkordb:
+    ports: !reset []
+
+  api:
+    ports: !reset []
+    environment:
+      ENV: prod
+      CORS_ORIGINS: https://${PUBLIC_HOST:?set PUBLIC_HOST to the public DNS name}
+      PUBLIC_BASE_URL: https://${PUBLIC_HOST}
+
+  mcp:
+    ports: !reset []
+
+  web:
+    ports: !reset []
+
+volumes:
+  caddy-data:
+  caddy-config:
