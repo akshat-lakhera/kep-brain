@@ -1,14 +1,51 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
-import type { ApiFailure } from "@/lib/api/core";
-import type { Evidence, Finding, FindingDetail, IssueDraft } from "@/lib/api/types";
-import { FINDING_KIND_TEXT, humanize, isoDate, numberFromPath } from "@/lib/format";
-import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, TableWrap, cx, tableClass, tdClass, thClass } from "./ui";
+import type { ApiFailure, ApiResult } from "@/lib/api/core";
+import type { DecisionOut, Evidence, Finding, FindingDetail, IssueDraft, ItemList } from "@/lib/api/types";
+import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, ms, numberFromPath } from "@/lib/format";
+import { kindLabel, toneColor } from "@/lib/kinds";
+import { Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, PersonLink, SigLink, TableWrap, cx, tableClass, tdClass, thClass } from "./ui";
 
-type Detail = { kind: "loading" } | { kind: "error"; error: ApiFailure } | { kind: "done"; data: FindingDetail };
+type Load<T> = { kind: "loading" } | { kind: "error"; error: ApiFailure } | { kind: "done"; data: T };
+type Detail = Load<FindingDetail>;
+type Decisions = Load<DecisionOut[]>;
+
+type SortKey = "kep" | "sig" | "kind" | "state" | "detected" | "verdict";
+
+const STATE_ORDER = ["open", "triaged", "drafted", "confirmed", "dismissed", "resolved_upstream"];
+
+function stateRank(s: string): number {
+  const i = STATE_ORDER.indexOf(s);
+  return i < 0 ? STATE_ORDER.length : i;
+}
+
+function sigOf(f: Finding): string {
+  return f.owning_sig ?? f.kep_path.split("/")[1] ?? "";
+}
+
+function kepNum(f: Finding): number | null {
+  return f.kep_number ?? numberFromPath(f.kep_path);
+}
+
+function compare(a: Finding, b: Finding, key: SortKey): number {
+  switch (key) {
+    case "kep":
+      return (kepNum(a) ?? 0) - (kepNum(b) ?? 0);
+    case "sig":
+      return sigOf(a).localeCompare(sigOf(b));
+    case "kind":
+      return a.kind.localeCompare(b.kind);
+    case "state":
+      return stateRank(a.state) - stateRank(b.state);
+    case "detected":
+      return (a.detected_at_iso ?? "").localeCompare(b.detected_at_iso ?? "");
+    case "verdict":
+      return (a.human_verdict ?? "~").localeCompare(b.human_verdict ?? "~");
+  }
+}
 
 function Side({ label, value, url }: { label: string; value: string | null; url: string | null }) {
   return (
@@ -24,71 +61,130 @@ function Side({ label, value, url }: { label: string; value: string | null; url:
   );
 }
 
-/** Findings as a table whose rows expand (Enter or click) to both sides, the evidence records and the draft action (d). */
-export function FindingsTable({ items, selected, filtered }: { items: Finding[]; selected?: string; filtered: boolean }) {
+function verdictTone(v: string): "success" | "danger" | "neutral" {
+  if (/^(correct|confirmed|true|yes)$/i.test(v)) return "success";
+  if (/^(incorrect|wrong|false|no|rejected)$/i.test(v)) return "danger";
+  return "neutral";
+}
+
+/** Findings as a sortable table whose rows expand (Enter or click) to both sides, who set each side, and the draft action (d). */
+export function FindingsTable({
+  items,
+  selected,
+  filtered,
+  tones,
+}: {
+  items: Finding[];
+  selected?: string;
+  filtered: boolean;
+  /** Series slot per kind, shared with the charts so a kind keeps its colour. */
+  tones?: Record<string, number | null>;
+}) {
   const base = useId();
   const [open, setOpen] = useState<Set<string>>(() => new Set(selected ? [selected] : []));
   const [details, setDetails] = useState<Record<string, Detail>>({});
+  const [decisions, setDecisions] = useState<Record<string, Decisions>>({});
   const [draft, setDraft] = useState<{ finding: Finding; opener: HTMLElement | null } | null>(null);
+  const [sort, setSort] = useState<Sort>({ key: "state", dir: 1 });
+  const anyVerdict = items.some((f) => f.human_verdict);
+
+  // Results are stored from the callbacks only; a missing entry renders as loading.
+  const fetchFor = (f: Finding, withEvidence: boolean, withDecisions: boolean) => {
+    if (withEvidence) {
+      clientApi.finding(f.key).then((res) => {
+        setDetails((d) => ({ ...d, [f.key]: res.ok ? { kind: "done", data: res.data } : { kind: "error", error: res.error } }));
+      });
+    }
+    const n = kepNum(f);
+    if (withDecisions && n !== null) {
+      clientApi.kepDecisions(n, f.kep_path).then((res: ApiResult<ItemList<DecisionOut>>) => {
+        setDecisions((d) => ({
+          ...d,
+          [f.kep_path]: res.ok ? { kind: "done", data: res.data.items } : { kind: "error", error: res.error },
+        }));
+      });
+    }
+  };
+
+  const load = (f: Finding) => {
+    const needEvidence = !details[f.key];
+    const needDecisions = !decisions[f.kep_path];
+    if (needEvidence) setDetails((d) => ({ ...d, [f.key]: { kind: "loading" } }));
+    if (needDecisions) setDecisions((d) => ({ ...d, [f.kep_path]: { kind: "loading" } }));
+    fetchFor(f, needEvidence, needDecisions);
+  };
+
+  // A finding opened through ?finding= loads its evidence and scrolls into view.
+  useEffect(() => {
+    if (!selected) return;
+    const f = items.find((x) => x.key === selected);
+    if (!f) return;
+    fetchFor(f, true, true);
+    document.getElementById(`f-${encodeURIComponent(selected)}`)?.scrollIntoView({ block: "center" });
+    // Only on first render for the selected finding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   if (items.length === 0) {
     return (
-      <EmptyState title={filtered ? "No findings match these filters" : "No findings in the graph"}>
+      <EmptyState title={filtered ? "No findings match these filters" : "No records disagree"}>
         {filtered
           ? "No finding has the selected kind, SIG and state."
-          : "The graph holds no Finding nodes: the detector has not run, or every check passed."}
+          : "The graph holds no Finding nodes: the detector has not run, or every kep.yaml agrees with its tracking issue and replacement declarations."}
       </EmptyState>
     );
   }
-  const sorted = [...items].sort((a, b) => (a.kep_number ?? 0) - (b.kep_number ?? 0) || a.kind.localeCompare(b.kind));
+  const sorted = [...items].sort(
+    (a, b) => compare(a, b, sort.key) * sort.dir || (kepNum(a) ?? 0) - (kepNum(b) ?? 0) || a.kind.localeCompare(b.kind),
+  );
 
-  function load(key: string) {
-    if (details[key]) return;
-    setDetails((d) => ({ ...d, [key]: { kind: "loading" } }));
-    clientApi.finding(key).then((res) => {
-      setDetails((d) => ({ ...d, [key]: res.ok ? { kind: "done", data: res.data } : { kind: "error", error: res.error } }));
-    });
-  }
-
-  function toggle(key: string) {
+  function toggle(f: Finding) {
     setOpen((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else {
-        next.add(key);
-        load(key);
-      }
+      if (next.has(f.key)) next.delete(f.key);
+      else next.add(f.key);
       return next;
     });
+    if (!open.has(f.key)) load(f);
   }
+
+  const cols = anyVerdict ? 9 : 8;
 
   return (
     <>
-      <Card title={`Findings (${items.length})`} id="findings">
-        <p className="mb-3 text-sm text-fg-secondary">
-          Enter or click expands a row; d opens the draft for the focused row. Nothing on this page posts to GitHub.
-        </p>
+      <section className="rounded-md border border-border bg-surface" aria-labelledby={`${base}-t`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
+          <h3 id={`${base}-t`} className="text-md font-semibold">
+            {items.length.toLocaleString("en-US")} finding{items.length === 1 ? "" : "s"}
+          </h3>
+          <p className="text-xs text-fg-muted">
+            Click or Enter expands a row · d drafts a fix for the focused row · nothing on this page posts to GitHub
+          </p>
+        </div>
         <TableWrap label="Findings table">
           <table className={tableClass}>
-            <caption className="sr-only">Each finding with both disagreeing sources</caption>
+            <caption className="sr-only">Each finding with both disagreeing records; column headers sort</caption>
             <thead>
               <tr>
                 <th className={cx(thClass, "w-8")}>
                   <span className="sr-only">Expand</span>
                 </th>
-                <th className={thClass}>KEP</th>
-                <th className={thClass}>Kind</th>
-                <th className={thClass}>Side A</th>
-                <th className={thClass}>Side B</th>
+                <SortHead sort={sort} onSort={setSort} k="kep">KEP</SortHead>
+                <SortHead sort={sort} onSort={setSort} k="sig">SIG</SortHead>
+                <SortHead sort={sort} onSort={setSort} k="kind">Kind</SortHead>
+                <th className={thClass}>Record A</th>
+                <th className={thClass}>Record B</th>
                 <th className={thClass}>Suggested fix</th>
-                <th className={thClass}>State</th>
+                {anyVerdict ? <SortHead sort={sort} onSort={setSort} k="verdict">Hand check</SortHead> : null}
+                <SortHead sort={sort} onSort={setSort} k="state">State</SortHead>
               </tr>
             </thead>
             <tbody>
               {sorted.map((f, i) => {
-                const n = f.kep_number ?? numberFromPath(f.kep_path);
+                const n = kepNum(f);
                 const expanded = open.has(f.key);
                 const panelId = `${base}-panel-${i}`;
+                const tone = tones?.[f.kind] ?? null;
                 return [
                   <tr
                     key={f.key}
@@ -97,19 +193,19 @@ export function FindingsTable({ items, selected, filtered }: { items: Finding[];
                     aria-expanded={expanded}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest("a, button")) return;
-                      toggle(f.key);
+                      toggle(f);
                     }}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        toggle(f.key);
+                        toggle(f);
                       } else if (e.key === "d") {
                         e.preventDefault();
                         setDraft({ finding: f, opener: e.currentTarget });
                       }
                     }}
-                    className={cx("cursor-pointer", selected === f.key && "bg-accent-subtle", expanded && "bg-surface-subtle")}
+                    className={cx("cursor-pointer hover:bg-surface-subtle", selected === f.key && "bg-accent-subtle", expanded && "bg-surface-subtle")}
                   >
                     <td className={cx(tdClass, "pr-0")}>
                       <button
@@ -117,7 +213,7 @@ export function FindingsTable({ items, selected, filtered }: { items: Finding[];
                         aria-expanded={expanded}
                         aria-controls={panelId}
                         aria-label={`${expanded ? "Collapse" : "Expand"} ${n !== null ? `KEP-${n}` : f.kep_path} ${f.kind}`}
-                        onClick={() => toggle(f.key)}
+                        onClick={() => toggle(f)}
                         className="flex h-6 w-6 items-center justify-center rounded-sm text-fg-secondary hover:text-fg"
                       >
                         {expanded ? (
@@ -127,14 +223,17 @@ export function FindingsTable({ items, selected, filtered }: { items: Finding[];
                         )}
                       </button>
                     </td>
-                    <td className={cx(tdClass, "min-w-40")}>
+                    <td className={cx(tdClass, "min-w-48")}>
                       <KepLink number={n} label={n !== null ? `KEP-${n}` : f.kep_path} />
                       {f.kep_title ? <p className="text-xs">{f.kep_title}</p> : null}
-                      {f.owning_sig ? <p className="font-mono text-xs text-fg-muted">{f.owning_sig}</p> : null}
                     </td>
-                    <td className={cx(tdClass, "min-w-44")}>
-                      <span className="font-mono">{f.kind}</span>
-                      {FINDING_KIND_TEXT[f.kind] ? <p className="mt-0.5 text-xs text-fg-muted">{FINDING_KIND_TEXT[f.kind]}</p> : null}
+                    <td className={cx(tdClass, "whitespace-nowrap")}>{sigOf(f) ? <SigLink sig={sigOf(f)} /> : <Dash />}</td>
+                    <td className={cx(tdClass, "min-w-48")} title={FINDING_KIND_TEXT[f.kind]}>
+                      <span className="inline-flex items-center gap-2">
+                        <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: toneColor(tone) }} />
+                        <span>{kindLabel(f.kind)}</span>
+                      </span>
+                      <span className="ident block pl-[18px] text-xs text-fg-muted">{f.kind}</span>
                     </td>
                     <td className={cx(tdClass, "min-w-40")}>
                       <Side label={f.a_label} value={f.a_value} url={f.a_url} />
@@ -142,23 +241,28 @@ export function FindingsTable({ items, selected, filtered }: { items: Finding[];
                     <td className={cx(tdClass, "min-w-40")}>
                       <Side label={f.b_label} value={f.b_value} url={f.b_url} />
                     </td>
-                    <td className={cx(tdClass, "min-w-40")}>
-                      {f.suggested_fix ? <span className="font-mono text-sm">{humanize(f.suggested_fix)}</span> : <Dash />}
-                      {f.triage_verdict ? (
-                        <p className="mt-1 text-xs text-fg-secondary">
-                          Agent verdict: <span className="font-mono">{f.triage_verdict}</span>
-                        </p>
-                      ) : null}
+                    <td className={cx(tdClass, "min-w-36")}>
+                      {f.suggested_fix ? <span className="text-sm">{humanize(f.suggested_fix)}</span> : <Dash />}
                     </td>
+                    {anyVerdict ? (
+                      <td className={tdClass}>
+                        {f.human_verdict ? <Chip tone={verdictTone(f.human_verdict)}>{f.human_verdict}</Chip> : <span className="text-xs text-fg-muted">not checked</span>}
+                      </td>
+                    ) : null}
                     <td className={tdClass}>
                       <Chip tone={f.state === "open" ? "warning" : f.state === "dismissed" ? "neutral" : "accent"}>{f.state}</Chip>
-                      {f.detected_at_iso ? <p className="mt-1 font-mono text-xs text-fg-muted">{isoDate(f.detected_at_iso)}</p> : null}
+                      {f.detected_at_iso ? <p className="mt-1 font-mono text-xs whitespace-nowrap text-fg-muted">{isoDate(f.detected_at_iso)}</p> : null}
                     </td>
                   </tr>,
                   expanded ? (
                     <tr key={`${f.key}#panel`} id={panelId}>
-                      <td colSpan={7} className="border-b border-border bg-surface-subtle px-3 py-3">
-                        <FindingPanel finding={f} detail={details[f.key]} onDraft={(el) => setDraft({ finding: f, opener: el })} />
+                      <td colSpan={cols} className="border-b border-border bg-surface-subtle px-3 py-3">
+                        <FindingPanel
+                          finding={f}
+                          detail={details[f.key]}
+                          decisions={decisions[f.kep_path]}
+                          onDraft={(el) => setDraft({ finding: f, opener: el })}
+                        />
                       </td>
                     </tr>
                   ) : null,
@@ -167,7 +271,7 @@ export function FindingsTable({ items, selected, filtered }: { items: Finding[];
             </tbody>
           </table>
         </TableWrap>
-      </Card>
+      </section>
       {draft ? (
         <DraftFixDialog
           finding={draft.finding}
@@ -182,19 +286,138 @@ export function FindingsTable({ items, selected, filtered }: { items: Finding[];
   );
 }
 
-function FindingPanel({ finding, detail, onDraft }: { finding: Finding; detail: Detail | undefined; onDraft: (opener: HTMLElement) => void }) {
+type Sort = { key: SortKey; dir: 1 | -1 };
+
+function SortHead({
+  k,
+  sort,
+  onSort,
+  children,
+}: {
+  k: SortKey;
+  sort: Sort;
+  onSort: (f: (s: Sort) => Sort) => void;
+  children: React.ReactNode;
+}) {
+  const active = sort.key === k;
+  return (
+    <th className={thClass} aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        onClick={() => onSort((s) => ({ key: k, dir: s.key === k ? (s.dir === 1 ? -1 : 1) : 1 }))}
+        className={cx("inline-flex items-center gap-1", active ? "text-fg" : "hover:text-fg")}
+      >
+        {children}
+        {active ? (
+          sort.dir === 1 ? (
+            <ArrowUp size={12} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <ArrowDown size={12} strokeWidth={1.5} aria-hidden="true" />
+          )
+        ) : null}
+      </button>
+    </th>
+  );
+}
+
+type SideKey = "a" | "b";
+
+/** Which side a status-change record belongs to: the record whose URL is of the same kind (file or issue). */
+function sideOf(e: Evidence, f: Finding): SideKey | null {
+  const isIssue = (u: string | null) => Boolean(u && /\/issues\/\d+/.test(u));
+  const isFile = (u: string | null) => Boolean(u && /\/(blob|tree)\//.test(u));
+  const evIssue = isIssue(e.url) || /:(label|milestone):/.test(e.key);
+  if (evIssue) return isIssue(f.a_url) ? "a" : isIssue(f.b_url) ? "b" : null;
+  if (isFile(e.url)) return isFile(f.a_url) ? "a" : isFile(f.b_url) ? "b" : null;
+  return null;
+}
+
+function ByRole({ d }: { d: DecisionOut }) {
+  const roles = new Map<string, string[]>();
+  for (const x of d.deciders) roles.set(x.role, [...(roles.get(x.role) ?? []), x.login]);
+  return (
+    <ul className="mt-1 space-y-0.5 text-xs">
+      {[...roles.entries()].map(([role, logins]) => (
+        <li key={role} className="flex flex-wrap gap-x-2">
+          <span className="w-28 shrink-0 text-fg-muted">{role.replace(/_/g, " ")}</span>
+          {[...new Set(logins)].map((l) => (
+            <PersonLink key={l} login={l} />
+          ))}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function WhoSet({ side, finding, detail, decisions }: { side: SideKey; finding: Finding; detail: Detail | undefined; decisions: Decisions | undefined }) {
+  if (!detail || detail.kind === "loading") {
+    return (
+      <div role="status" className="mt-2 space-y-1">
+        <span className="sr-only">Loading who set this value</span>
+        <div className="skeleton h-3 w-9/12" />
+        <div className="skeleton h-3 w-7/12" />
+      </div>
+    );
+  }
+  if (detail.kind === "error") return null;
+  const changes = detail.data.evidence.filter((e) => e.label === "StatusChange" && sideOf(e, finding) === side);
+  if (changes.length === 0) {
+    return <p className="mt-2 text-xs text-fg-muted">The graph holds no change record that set this value.</p>;
+  }
+  return (
+    <ul className="mt-2 space-y-2 border-t border-border pt-2">
+      {changes.map((c) => {
+        const ds = decisions?.kind === "done" ? decisions.data.filter((d) => d.evidence.some((e) => e.key === c.key)) : [];
+        return (
+          <li key={c.key}>
+            <ExtLink href={c.url} className="text-xs">
+              <span className="ident">{c.title ?? c.key}</span>
+            </ExtLink>
+            {decisions?.kind === "loading" ? <p className="text-xs text-fg-muted">Loading decisions</p> : null}
+            {ds.map((d) => (
+              <div key={d.key} className="mt-1">
+                {d.summary ? <p className="text-xs text-fg-secondary">{d.summary}</p> : null}
+                <ByRole d={d} />
+                {d.decided_at_iso ? <p className="ident mt-0.5 text-xs text-fg-muted">decided {isoUtc(d.decided_at_iso)}</p> : null}
+              </div>
+            ))}
+            {decisions?.kind === "done" && ds.length === 0 ? (
+              <p className="text-xs text-fg-muted">No decision with approvers is linked to this change.</p>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function FindingPanel({
+  finding,
+  detail,
+  decisions,
+  onDraft,
+}: {
+  finding: Finding;
+  detail: Detail | undefined;
+  decisions: Decisions | undefined;
+  onDraft: (opener: HTMLElement) => void;
+}) {
+  const sides: { key: SideKey; label: string; value: string | null; url: string | null }[] = [
+    { key: "a", label: finding.a_label, value: finding.a_value, url: finding.a_url },
+    { key: "b", label: finding.b_label, value: finding.b_value, url: finding.b_url },
+  ];
   return (
     <div className="grid gap-4 lg:grid-cols-12">
-      <div className="space-y-3 lg:col-span-7">
+      <div className="space-y-3 lg:col-span-8">
+        {FINDING_KIND_TEXT[finding.kind] ? <p className="text-sm">{FINDING_KIND_TEXT[finding.kind]}</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-md border border-border bg-surface p-3">
-            <p className="mb-1 text-xs font-medium text-fg-secondary">Side A</p>
-            <Side label={finding.a_label} value={finding.a_value} url={finding.a_url} />
-          </div>
-          <div className="rounded-md border border-border bg-surface p-3">
-            <p className="mb-1 text-xs font-medium text-fg-secondary">Side B</p>
-            <Side label={finding.b_label} value={finding.b_value} url={finding.b_url} />
-          </div>
+          {sides.map((s) => (
+            <div key={s.key} className="rounded-md border border-border bg-surface p-3">
+              <p className="mb-1 text-xs font-medium text-fg-secondary">Record {s.key.toUpperCase()} · who set it</p>
+              <Side label={s.label} value={s.value} url={s.url} />
+              <WhoSet side={s.key} finding={finding} detail={detail} decisions={decisions} />
+            </div>
+          ))}
         </div>
         <div>
           <p className="text-xs font-medium text-fg-secondary">Evidence records</p>
@@ -205,32 +428,50 @@ function FindingPanel({ finding, detail, onDraft }: { finding: Finding; detail: 
           {finding.detected_at_iso ? (
             <>
               {" "}
-              · detected <span className="font-mono">{isoDate(finding.detected_at_iso)}</span>
+              · detected <span className="font-mono">{isoUtc(finding.detected_at_iso)}</span>
             </>
           ) : null}
         </p>
       </div>
-      <div className="space-y-3 lg:col-span-5">
+      <div className="space-y-3 lg:col-span-4">
         <div className="rounded-md border border-border bg-surface p-3">
-          <p className="text-xs font-medium text-fg-secondary">Triage (advisory, not a human check)</p>
+          <p className="text-xs font-medium text-fg-secondary">Hand check</p>
+          {finding.human_verdict ? (
+            <>
+              <p className="mt-1">
+                <Chip tone={verdictTone(finding.human_verdict)}>{finding.human_verdict}</Chip>
+              </p>
+              {finding.human_checked_by || finding.human_checked_at ? (
+                <p className="mt-1 text-xs text-fg-muted">
+                  {finding.human_checked_by ? `by ${finding.human_checked_by}` : ""}
+                  {finding.human_checked_at ? ` on ${isoDate(finding.human_checked_at)}` : ""}
+                </p>
+              ) : null}
+              {finding.human_note ? <p className="mt-1 text-sm text-fg-secondary">{finding.human_note}</p> : null}
+            </>
+          ) : (
+            <p className="mt-1 text-sm text-fg-secondary">Not hand-checked yet.</p>
+          )}
+        </div>
+        <div className="rounded-md border border-border bg-surface p-3">
+          <p className="text-xs font-medium text-fg-secondary">Agent triage (advisory)</p>
           {finding.triage_verdict || finding.assessment ? (
             <>
               {finding.triage_verdict ? (
                 <p className="mt-1">
-                  Verdict: <span className="font-mono">{finding.triage_verdict}</span>
+                  Verdict <span className="font-mono">{finding.triage_verdict}</span>
                 </p>
               ) : null}
               {finding.assessment ? <p className="mt-1 text-sm text-fg-secondary">{finding.assessment}</p> : null}
-              <p className="mt-1 text-xs text-fg-muted">Written by the freshness agent from the two sources above; a human verdict is not recorded in the graph.</p>
             </>
           ) : (
-            <p className="mt-1 text-sm text-fg-secondary">Not triaged yet: the freshness agent has not assessed this finding.</p>
+            <p className="mt-1 text-sm text-fg-secondary">Not triaged: the freshness agent has not assessed this finding.</p>
           )}
         </div>
         <div className="rounded-md border border-border bg-surface p-3">
           <p className="text-xs font-medium text-fg-secondary">Fix</p>
           <p className="mt-1 text-sm">
-            Suggested: {finding.suggested_fix ? <span className="font-mono">{humanize(finding.suggested_fix)}</span> : <Dash />}
+            Suggested {finding.suggested_fix ? <span className="font-medium">{humanize(finding.suggested_fix).toLowerCase()}</span> : <Dash />}
           </p>
           <button
             type="button"
@@ -263,9 +504,8 @@ function EvidenceList({ detail }: { detail: Detail | undefined }) {
     <ul className="mt-1 space-y-1">
       {items.map((e) => (
         <li key={e.evidence_id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span className="font-mono text-xs text-fg-muted">{e.label}</span>
+          <span className="w-24 shrink-0 font-mono text-xs text-fg-muted">{e.label}</span>
           <ExtLink href={e.url}>{e.title ?? e.key}</ExtLink>
-          <span className="font-mono text-xs break-all text-fg-muted">{e.key}</span>
         </li>
       ))}
     </ul>
@@ -407,7 +647,7 @@ function DraftFixDialog({ finding, onClose }: { finding: Finding; onClose: () =>
               />
             </div>
             <p className="text-xs text-fg-muted">
-              {state.draft.evidence_keys.length} evidence record{state.draft.evidence_keys.length === 1 ? "" : "s"} listed · composed in {Math.round(state.ms)} ms ·
+              {state.draft.evidence_keys.length} evidence record{state.draft.evidence_keys.length === 1 ? "" : "s"} listed · composed in {ms(state.ms)} ·
               tool <span className="font-mono">draft_stale_doc_issue</span>
             </p>
           </>

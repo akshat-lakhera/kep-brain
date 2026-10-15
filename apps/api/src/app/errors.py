@@ -25,6 +25,7 @@ MESSAGES: dict[str, tuple[int, str]] = {
     "kep_not_found": (404, "No KEP matches that reference."),
     "tool_not_found": (404, "No tool with that name is registered."),
     "ambiguous_reference": (409, "The reference matches more than one KEP."),
+    "payload_too_large": (413, "The request body is too large."),
     "rate_limited": (429, "Too many requests; retry later."),
     "graph_unavailable": (503, "The graph database is not reachable."),
     "graph_timeout": (504, "The graph query took too long."),
@@ -68,7 +69,14 @@ def envelope(code: str, request_id: str | None, details: dict[str, Any] | None =
     )
 
 
-_STATUS_CODES = {400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found", 429: "rate_limited"}
+_STATUS_CODES = {
+    400: "bad_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    413: "payload_too_large",
+    429: "rate_limited",
+}
 
 
 def install_error_handlers(app: FastAPI) -> None:

@@ -7,6 +7,7 @@ E-mail addresses in the file are never read into the graph (03 §9).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -39,6 +40,49 @@ class OrgChart:
     liaisons: list[tuple[str, str, str]] = field(default_factory=list)  # (login, label, dir)
     stakeholders: list[tuple[str, str]] = field(default_factory=list)  # (wg dir, sig dir)
     people: dict[str, str] = field(default_factory=dict)  # login -> raw
+    subprojects: list[dict[str, Any]] = field(default_factory=list)  # Subproject rows
+    subproject_leads: list[tuple[str, str]] = field(default_factory=list)  # (login, subproject key)
+
+
+_RAW_OWNERS = re.compile(r"^https://raw\.githubusercontent\.com/([^/]+/[^/]+)/([^/]+)/(.*)$")
+_BLOB_OWNERS = re.compile(r"^https://github\.com/([^/]+/[^/]+)/blob/([^/]+)/(.*)$")
+
+
+def owners_directory_url(owners: str) -> str | None:
+    """`.../org/repo/main/pkg/OWNERS` -> `https://github.com/org/repo/tree/main/pkg` (repo root when top-level)."""
+    m = _RAW_OWNERS.match(owners) or _BLOB_OWNERS.match(owners)
+    if not m:
+        return None
+    repo, branch, path = m.groups()
+    directory = path.rsplit("/", 1)[0] if "/" in path else ""
+    base = f"https://github.com/{repo}"
+    return f"{base}/tree/{branch}/{directory}" if directory else base
+
+
+def _parse_subprojects(group: dict[str, Any], gdir: str, sig_url: str, source: str, chart: OrgChart) -> None:
+    seen: set[str] = set()
+    for sp in group.get("subprojects") or []:
+        name = str(sp.get("name") or "").strip()
+        key = f"{gdir}/{name}"
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        url = next((u for u in map(owners_directory_url, map(str, sp.get("owners") or [])) if u), sig_url)
+        chart.subprojects.append(
+            {
+                "key": key,
+                "name": name,
+                "sig_dir": gdir,
+                "description": (sp.get("description") or "").strip() or None,
+                "url": url,
+                "source_url": source,
+            }
+        )
+        for person in sp.get("leads") or []:
+            login = normalise_login(person.get("github")) if isinstance(person, dict) else None
+            if login:
+                chart.people.setdefault(login, str(person.get("github")))
+                chart.subproject_leads.append((login, key))
 
 
 def parse_sigs_yaml(text: str, sha: str, in_scope: set[str]) -> OrgChart:
@@ -70,6 +114,7 @@ def parse_sigs_yaml(text: str, sha: str, in_scope: set[str]) -> OrgChart:
                 "source_path": SIGS_PATH,
                 "source_sha": sha,
             }
+            _parse_subprojects(group, gdir, str(row["url"]), source, chart)
             if label == "SIG":
                 row["in_scope"] = gdir in in_scope
             if label == "WorkingGroup":
@@ -133,6 +178,7 @@ def sync_sigs(writer: BatchWriter, git: Git, sha: str, in_scope: set[str]) -> Or
         ],
     )
     t = writer.observed_at
+    _write_subprojects(writer, chart, source, t)
     for _field, rel in LEAD_RELS:
         for label in ("SIG", "WorkingGroup", "Committee"):
             rows = [
@@ -155,8 +201,41 @@ def sync_sigs(writer: BatchWriter, git: Git, sha: str, in_scope: set[str]) -> Or
         for wg, sig in chart.stakeholders
     ]
     _write_snapshot_edges(writer, "STAKEHOLDER", "WorkingGroup", "SIG", stake_rows, chart, t)
-    log.info("sigs_loaded", **{label: len(rows) for label, rows in chart.nodes.items()}, people=len(chart.people))
+    log.info("sigs_loaded", **{label: len(rows) for label, rows in chart.nodes.items()}, people=len(chart.people),
+             subprojects=len(chart.subprojects))
     return chart
+
+
+def _write_subprojects(writer: BatchWriter, chart: OrgChart, source: str, t: int) -> None:
+    """Subproject nodes under their group (HAS_SUBPROJECT) and current leads (SUBPROJECT_LEAD)."""
+    writer.upsert_nodes("Subproject", chart.subprojects)
+    for label in ("SIG", "WorkingGroup", "Committee"):
+        writer.upsert_edges(
+            "HAS_SUBPROJECT",
+            label,
+            "Subproject",
+            [
+                {"from": sp["sig_dir"], "to": sp["key"], "props": open_state_props(t, source, "first_observed")}
+                for sp in chart.subprojects
+                if chart.label_of.get(sp["sig_dir"]) == label
+            ],
+        )
+    rows = [
+        {"from": login, "to": key, "props": {**open_state_props(t, source, "first_observed"), "w": 4}}
+        for login, key in chart.subproject_leads
+    ]
+    _open_snapshot_edges(writer, "SUBPROJECT_LEAD", "Person", "Subproject", rows)
+    for sp in chart.subprojects:
+        writer.query(
+            "MATCH (a:Person)-[e:SUBPROJECT_LEAD]->(b:Subproject {key: $k}) "
+            "WHERE e.valid_to = $open AND NOT a.key IN $current SET e.valid_to = $t",
+            {
+                "k": sp["key"],
+                "current": [login for login, key in chart.subproject_leads if key == sp["key"]],
+                "open": open_state_props(t, "")["valid_to"],
+                "t": t,
+            },
+        )
 
 
 def _write_snapshot_edges(

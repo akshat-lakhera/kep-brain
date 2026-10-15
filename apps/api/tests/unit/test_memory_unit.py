@@ -64,3 +64,26 @@ def test_planner_context_has_no_answer_text() -> None:
     assert "Who approves KEP-4671?" in text and "interest:sig-node" in text
     assert "SECRET MODEL TEXT" not in text and "NOT evidence" in text
     assert planner_context({"episodes": [], "facts": []}) == ""
+
+
+def test_rank_playbooks_prefers_success_rate_and_drops_failed_or_toolless() -> None:
+    from app.memory.store import rank_playbooks
+
+    rows = [
+        {"key": "a", "question_kind": "who_owns", "tool_sequence": ["x"], "success_count": 5, "failure_count": 5},
+        {"key": "b", "question_kind": "who_owns", "tool_sequence": ["y", "z"], "success_count": 2, "failure_count": 0},
+        {"key": "c", "question_kind": "who_owns", "tool_sequence": ["x"], "success_count": 0, "failure_count": 3},
+        {"key": "d", "question_kind": "who_owns", "tool_sequence": [], "success_count": 9, "failure_count": 0},
+    ]
+    assert [r["key"] for r in rank_playbooks(rows)] == ["b", "a"]
+
+
+def test_planner_context_renders_playbook_hint() -> None:
+    text = planner_context(
+        {
+            "procedures": [
+                {"question_kind": "who_owns", "success_count": 2, "tool_sequence": ["find_entities", "who_owns"]}
+            ]
+        }
+    )
+    assert "find_entities -> who_owns" in text and "2x" in text

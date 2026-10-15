@@ -5,10 +5,13 @@ import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { serverApi } from "@/lib/api/server";
 import type { ApiResult } from "@/lib/api/core";
-import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, KepDetail, KepRef, StatusChangeOut } from "@/lib/api/types";
+import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, KepDetail, KepRef, StatusChangeOut, ToolSpec } from "@/lib/api/types";
 import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, shortSha } from "@/lib/format";
+import { fieldsOf } from "@/lib/schema";
 import { GraphPanel } from "@/components/GraphPanel";
 import { Tabs } from "@/components/Tabs";
+import { ToolResultView } from "@/components/ToolResultView";
+import { PersonLink, SigLink } from "@/components/explore/links";
 import {
   Card,
   Chip,
@@ -18,7 +21,6 @@ import {
   ExtLink,
   Facts,
   KepLink,
-  Login,
   SkeletonBlock,
   StatusChip,
   TableWrap,
@@ -63,10 +65,11 @@ async function KepBody({
   const path = typeof sp.path === "string" ? sp.path : undefined;
   if (!/^\d+$/.test(number)) notFound();
 
-  const [kep, history, decisions] = await Promise.all([
+  const [kep, history, decisions, tools] = await Promise.all([
     serverApi.kep(number, path),
     serverApi.kepHistory(number, path),
     serverApi.kepDecisions(number, path),
+    serverApi.tools(),
   ]);
 
   if (!kep.ok) {
@@ -85,6 +88,9 @@ async function KepBody({
     );
   }
   const k = kep.data;
+  // Feature detection: the section exists only when the API registers impact_of_change and its schema accepts a KEP reference.
+  const impactTool = tools.ok ? tools.data.items.find((t) => t.name === IMPACT_TOOL) : undefined;
+  const impactParams = impactTool ? kepParamsFor(impactTool, k) : null;
   return (
     <div className="space-y-6">
       <Header k={k} />
@@ -102,7 +108,50 @@ async function KepBody({
           { id: "sections", label: "Sections", content: <Sections k={k} /> },
         ]}
       />
+      {impactTool && impactParams ? (
+        <Suspense
+          fallback={
+            <Card title="Impact of change" id="impact">
+              <SkeletonBlock lines={4} label={`Running ${IMPACT_TOOL}`} />
+            </Card>
+          }
+        >
+          <Impact tool={impactTool} params={impactParams} />
+        </Suspense>
+      ) : null}
     </div>
+  );
+}
+
+const IMPACT_TOOL = "impact_of_change";
+
+/** Parameters that point a tool at this KEP, read from its schema: a `kep_ref`-style field, or the single required text field. */
+function kepParamsFor(tool: ToolSpec, k: KepDetail): Record<string, unknown> | null {
+  const fields = fieldsOf(tool.params_schema);
+  const byName = fields.find((f) => ["kep_ref", "kep", "kep_key", "kep_path"].includes(f.name) && f.kind === "text");
+  if (byName) return { [byName.name]: k.key };
+  const byNumber = fields.find((f) => ["kep_number", "number"].includes(f.name) && f.kind === "integer");
+  if (byNumber && k.number !== null) return { [byNumber.name]: k.number };
+  const required = fields.filter((f) => f.required);
+  if (required.length === 1 && required[0].kind === "text") return { [required[0].name]: k.key };
+  return null;
+}
+
+async function Impact({ tool, params }: { tool: ToolSpec; params: Record<string, unknown> }) {
+  const res = await serverApi.runTool(tool.name, params);
+  return (
+    <Card
+      title="Impact of change"
+      id="impact"
+      actions={
+        <Link href={`/tools?tool=${encodeURIComponent(tool.name)}` as Route} className="quiet-link text-sm">
+          Run with other parameters
+        </Link>
+      }
+    >
+      <p className="mb-3 max-w-[80ch] text-sm text-fg-secondary">{tool.description}</p>
+      {res.ok ? <ToolResultView name={tool.name} params={params} result={res.data} /> : <ErrorState error={res.error} what={tool.name} />}
+    </Card>
   );
 }
 
@@ -142,7 +191,11 @@ function Header({ k }: { k: KepDetail }) {
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <StatusChip status={k.status} />
         {k.stage ? <Chip mono>{k.stage}</Chip> : null}
-        {k.owning_sig ? <Chip mono>{k.owning_sig}</Chip> : null}
+        {k.owning_sig ? (
+          <Chip mono>
+            <SigLink sig={k.owning_sig} className="quiet-link" />
+          </Chip>
+        ) : null}
         {k.latest_milestone ? <Chip mono>latest {k.latest_milestone}</Chip> : null}
         {k.open_findings > 0 ? (
           <Chip tone="warning">
@@ -176,7 +229,7 @@ function people(list: { login: string; url: string }[]): ReactNode {
   return (
     <span className="flex flex-wrap gap-x-3 gap-y-1">
       {list.map((p) => (
-        <Login key={p.login} login={p.login} url={p.url} />
+        <PersonLink key={p.login} login={p.login} />
       ))}
     </span>
   );
@@ -209,7 +262,7 @@ function KepFacts({ k }: { k: KepDetail }) {
               <span className="flex flex-wrap gap-x-3 gap-y-1">
                 {k.prr_approvers.map((p) => (
                   <span key={`${p.login}-${p.stage}`}>
-                    <Login login={p.login} url={p.url} />
+                    <PersonLink login={p.login} />
                     {p.stage ? <span className="ml-1 font-mono text-xs text-fg-muted">{p.stage}</span> : null}
                   </span>
                 ))}
@@ -257,7 +310,15 @@ function KepFacts({ k }: { k: KepDetail }) {
         },
         {
           label: "Participating SIGs",
-          value: k.participating_sigs.length ? <span className="font-mono">{k.participating_sigs.join(", ")}</span> : <Dash />,
+          value: k.participating_sigs.length ? (
+            <span className="flex flex-wrap gap-x-3">
+              {k.participating_sigs.map((sig) => (
+                <SigLink key={sig} sig={sig} />
+              ))}
+            </span>
+          ) : (
+            <Dash />
+          ),
         },
         {
           label: "Feature gates",
@@ -313,7 +374,7 @@ function Decisions({ result }: { result: ApiResult<ItemList<DecisionOut>> }) {
                   <ul className="space-y-1">
                     {d.deciders.map((p) => (
                       <li key={`${p.login}-${p.role}`}>
-                        <Login login={p.login} url={p.url} /> <span className="font-mono text-xs text-fg-muted">{p.role}</span>
+                        <PersonLink login={p.login} /> <span className="font-mono text-xs text-fg-muted">{p.role}</span>
                       </li>
                     ))}
                   </ul>
@@ -376,7 +437,7 @@ function History({ result }: { result: ApiResult<ItemList<StatusChangeOut>> }) {
                   </span>
                 ) : null}
               </td>
-              <td className={tdClass}>{c.actor_login ? <Login login={c.actor_login} /> : <Dash />}</td>
+              <td className={tdClass}>{c.actor_login ? <PersonLink login={c.actor_login} /> : <Dash />}</td>
               <td className={tdClass}>
                 <span className="flex flex-wrap gap-x-3">
                   {c.commit_sha ? (
@@ -427,7 +488,7 @@ function People({ k }: { k: KepDetail }) {
           {rows.map((r, i) => (
             <tr key={`${r.login}-${r.rel}-${i}`}>
               <td className={tdClass}>
-                <Login login={r.login} url={r.url} />
+                <PersonLink login={r.login} /> <ExtLink href={r.url} label={`@${r.login} on GitHub`}><span className="sr-only">GitHub</span></ExtLink>
               </td>
               <td className={cx(tdClass, "font-mono")}>—{r.rel}→</td>
             </tr>

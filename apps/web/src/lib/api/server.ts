@@ -12,6 +12,8 @@ import type {
   KepDetail,
   Meta,
   StatusChangeOut,
+  ToolResult,
+  ToolSpec,
 } from "./types";
 
 /** Base URL of the API as seen from the Next.js server (never sent to the browser). */
@@ -34,4 +36,15 @@ export const serverApi = {
   evalLatest: () => get<EvalRun>(paths.evalLatest()),
   evalQuestions: () => get<{ questions: EvalQuestion[] }>(paths.evalQuestions()),
   agentsBoard: () => get<AgentsBoard>(paths.agentsBoard()),
+  tools: () => get<ItemList<ToolSpec>>(paths.tools()),
+  runTool: async (name: string, params: Record<string, unknown>): Promise<ApiResult<ToolResult>> => {
+    await connection();
+    return request<ToolResult>(`${apiInternalUrl()}${paths.tool(name)}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify(params),
+      timeoutMs: 30_000,
+    });
+  },
 };

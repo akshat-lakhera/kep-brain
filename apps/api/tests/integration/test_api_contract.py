@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.db.falkordb import GRAPH_KEP, FalkorPool, Role
 from app.main import create_app
 from app.settings import Settings
+from app.tools.registry import llm_tools
 
 
 @pytest.fixture(scope="module")
@@ -63,12 +64,12 @@ def test_history_decisions_findings(client: TestClient) -> None:
     assert hist and all("at_iso" in h for h in hist)
     assert "items" in client.get("/v1/keps/1287/decisions").json()
     f = client.get("/v1/findings").json()
-    assert set(f["summary"]) == {"flagged_keps", "total", "by_kind", "by_sig"}
+    assert {"flagged_keps", "total", "by_kind", "by_sig", "hand_checked", "precision"} <= set(f["summary"])
 
 
 def test_tools_and_graph(client: TestClient) -> None:
     tools = client.get("/v1/tools").json()["items"]
-    assert len(tools) == 14
+    assert {t["name"] for t in tools} == {t.name for t in llm_tools()}
     r = client.post("/v1/tools/get_kep", json={"kep_ref": 583}).json()
     assert set(r) == {"rows", "evidence", "paths", "truncated", "ms", "template"}
     assert client.post("/v1/tools/get_kep", json={"kep_ref": "x; DROP"}).status_code == 422

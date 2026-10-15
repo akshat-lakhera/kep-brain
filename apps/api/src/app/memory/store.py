@@ -34,11 +34,11 @@ ON CREATE SET u.created_at = $now, u.display_label = $label
 SET u.last_active_at = $now
 CREATE (e:Episode {key: $request_id, question: $question, question_kind: $kind, answer_summary: $summary,
   abstained: $abstained, evidence_keys: $evidence_keys, tools_used: $tools, created_at: $now,
-  created_at_iso: $now_iso, created_ms: $now_ms})
+  created_at_iso: $now_iso, created_ms: $now_ms, observed_at: $now})
 CREATE (u)-[:HAS_EPISODE]->(e)
 MERGE (p:Procedure {key: $procedure_key})
 ON CREATE SET p.question_kind = $kind, p.tool_sequence = $tools, p.success_count = 0, p.failure_count = 0,
-  p.description = $description
+  p.description = $description, p.observed_at = $now
 SET p.success_count = p.success_count + $ok, p.failure_count = p.failure_count + $failed, p.last_used_at = $now
 MERGE (u)-[:HAS_PROCEDURE]->(p)
 CREATE (e)-[:USED {outcome: $outcome}]->(p)
@@ -48,7 +48,8 @@ REMEMBER_REFS = """
 MATCH (e:Episode {key: $request_id})
 UNWIND $refs AS ref
 MERGE (x:EntityRef {key: ref.key})
-ON CREATE SET x.label = ref.label, x.ref_key = ref.ref_key, x.title = ref.title, x.url = ref.url, x.mention_count = 0
+ON CREATE SET x.observed_at = $now, x.label = ref.label, x.ref_key = ref.ref_key,
+  x.title = ref.title, x.url = ref.url, x.mention_count = 0
 SET x.mention_count = x.mention_count + 1, x.last_mentioned_at = $now
 MERGE (e)-[:REFERS_TO {role: 'cited'}]->(x)
 """
@@ -57,7 +58,7 @@ REMEMBER_FACTS = """
 MATCH (u:User {key: $memory_id}), (e:Episode {key: $request_id})
 UNWIND $facts AS fa
 MERGE (f:Fact {key: fa.key})
-ON CREATE SET f.kind = fa.kind, f.value = fa.value, f.first_seen_at = $now, f.support_count = 0,
+ON CREATE SET f.observed_at = $now, f.kind = fa.kind, f.value = fa.value, f.first_seen_at = $now, f.support_count = 0,
   f.extractor = 'question_rules'
 SET f.support_count = f.support_count + 1, f.last_seen_at = $now,
   f.confidence = CASE WHEN 0.6 + 0.1 * f.support_count > 0.95 THEN 0.95 ELSE 0.6 + 0.1 * f.support_count END
@@ -94,10 +95,12 @@ PROCEDURES = """
 MATCH (p:Procedure)
 WHERE $kind IS NULL OR p.question_kind = $kind
 RETURN p.key AS key, p.question_kind AS question_kind, p.tool_sequence AS tool_sequence,
- p.success_count AS success_count, p.failure_count AS failure_count, p.description AS description
-ORDER BY p.success_count DESC, p.key
+ p.success_count AS success_count, p.failure_count AS failure_count, p.description AS description,
+ p.last_used_at AS last_used_at, p.observed_at AS observed_at
+ORDER BY p.success_count DESC, p.last_used_at DESC, p.key
 LIMIT $limit
 """
+DELETE_PROCEDURE = "MATCH (p:Procedure {key: $key}) DETACH DELETE p RETURN 1"
 DELETE_FACT = "MATCH (f:Fact {key: $key}) DETACH DELETE f RETURN 1"
 
 
@@ -240,7 +243,7 @@ async def recall(pool: FalkorPool, memory_id: str, question: str) -> dict[str, A
         for e in [*episodes[:RECENT_EPISODES], *related]
     ]
     facts = await _read(pool, memory_id, FACTS, {"limit": MAX_FACTS})
-    procedures = await _read(pool, memory_id, PROCEDURES, {"kind": kind, "limit": TOP_PROCEDURES})
+    procedures = rank_playbooks(await _read(pool, memory_id, PROCEDURES, {"kind": kind, "limit": 20}))
     result.update(
         episodes=chosen,
         facts=facts,
@@ -248,6 +251,17 @@ async def recall(pool: FalkorPool, memory_id: str, question: str) -> dict[str, A
         recalled=[e["request_id"] for e in chosen] + [f["key"] for f in facts] + [p["key"] for p in procedures],
     )
     return result
+
+
+def rank_playbooks(rows: Sequence[Mapping[str, Any]], limit: int = TOP_PROCEDURES) -> list[dict[str, Any]]:
+    """Playbooks that worked at least once and used tools, best success rate first, then most successes, then recent."""
+    usable = [dict(r) for r in rows if (r.get("success_count") or 0) > 0 and r.get("tool_sequence")]
+
+    def score(r: Mapping[str, Any]) -> tuple[float, int, int]:
+        ok, bad = int(r["success_count"]), int(r.get("failure_count") or 0)
+        return ok / (ok + bad), ok, int(r.get("last_used_at") or 0)
+
+    return sorted(usable, key=score, reverse=True)[:limit]
 
 
 def planner_context(recalled: Mapping[str, Any]) -> str:
@@ -258,6 +272,12 @@ def planner_context(recalled: Mapping[str, Any]) -> str:
         suffix = f" [evidence: {keys}]" if keys else ""
         lines.append(f"- earlier question ({e['question_kind']}): {e['question']}{suffix}")
     lines.extend(f"- user fact {f['key']}: {f['value']}" for f in recalled.get("facts", []))
+    lines.extend(
+        f"- tool sequence that worked for {p['question_kind']} questions "
+        f"({p['success_count']}x): {' -> '.join(p['tool_sequence'])}"
+        for p in recalled.get("procedures", [])
+        if p.get("tool_sequence")
+    )
     if not lines:
         return ""
     return "Memory about this user (context, NOT evidence; cite only graph evidence):\n" + "\n".join(lines)
@@ -271,17 +291,20 @@ async def get_memory(pool: FalkorPool, memory_id: str) -> dict[str, Any]:
             "exists": False,
             "recent_episodes": [],
             "procedures": [],
+            "playbooks": [],
             "facts": [],
             "episode_count": 0,
             "quota": MAX_EPISODES,
             "graph": {"nodes": 0, "edges": 0},
         }
     counts = (await _read(pool, memory_id, COUNTS))[0]
+    procedures = await _read(pool, memory_id, PROCEDURES, {"kind": None, "limit": 20})
     return {
         "memory_id": memory_id,
         "exists": True,
         "recent_episodes": await _read(pool, memory_id, EPISODES, {"limit": 50}),
-        "procedures": await _read(pool, memory_id, PROCEDURES, {"kind": None, "limit": 20}),
+        "procedures": procedures,
+        "playbooks": procedures,
         "facts": await _read(pool, memory_id, FACTS, {"limit": 50}),
         "episode_count": (await _read(pool, memory_id, EPISODE_COUNT))[0]["n"],
         "quota": MAX_EPISODES,
@@ -302,3 +325,9 @@ async def forget_fact(pool: FalkorPool, memory_id: str, key: str) -> bool:
     if not await _exists(pool, memory_id):
         return False
     return bool(await _write(pool, memory_id, DELETE_FACT, {"key": key}))
+
+
+async def forget_playbook(pool: FalkorPool, memory_id: str, key: str) -> bool:
+    if not await _exists(pool, memory_id):
+        return False
+    return bool(await _write(pool, memory_id, DELETE_PROCEDURE, {"key": key}))

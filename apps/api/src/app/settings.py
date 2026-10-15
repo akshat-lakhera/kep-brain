@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     findings_agent_daily_usd: float = 1.0
 
     ask_rate_limit_per_10m: int = Field(default=30, ge=1)
+    ask_daily_cap: int = Field(default=150, ge=1)
+    trust_proxy: bool = False
+    max_body_bytes: int = Field(default=65536, ge=1024)
     admin_token: SecretStr | None = None
     mcp_token: SecretStr | None = None
     mcp_port: int = 8765

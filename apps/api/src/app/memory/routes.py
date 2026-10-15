@@ -44,6 +44,15 @@ async def memory_forget_fact(
     return {"deleted": True}
 
 
+@router.delete("/memory/me/playbooks/{key}")
+async def memory_forget_playbook(
+    key: str, request: Request, x_kep_memory_id: str | None = Header(default=None, alias="X-Kep-Memory-Id")
+) -> dict[str, Any]:
+    if not await store.forget_playbook(pool_of(request), _memory_id(x_kep_memory_id), key):
+        raise AppError("not_found", {"reason": "no such playbook in this memory"})
+    return {"deleted": True}
+
+
 @router.get("/agents/board")
 async def agents_board(request: Request) -> dict[str, Any]:
     return await coordinate.board(pool_of(request))

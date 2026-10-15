@@ -25,6 +25,12 @@
   --c-danger: #c62828;
   --c-danger-subtle: #fdecec;
   --c-scrim: rgba(21, 25, 31, 0.45);
+  /* Categorical series (dataviz reference palette, slots 2-6; slot 1 blue is the accent and stays reserved). */
+  --c-series-1: #eb6834;
+  --c-series-2: #1baf7a;
+  --c-series-3: #eda100;
+  --c-series-4: #e87ba4;
+  --c-series-5: #008300;
   color-scheme: light;
 }
 
@@ -49,6 +55,11 @@
   --c-danger: #f0716a;
   --c-danger-subtle: #331a1a;
   --c-scrim: rgba(0, 0, 0, 0.6);
+  --c-series-1: #d95926;
+  --c-series-2: #199e70;
+  --c-series-3: #c98500;
+  --c-series-4: #d55181;
+  --c-series-5: #008300;
   color-scheme: dark;
 }
 
@@ -73,6 +84,11 @@
   --color-danger: var(--c-danger);
   --color-danger-subtle: var(--c-danger-subtle);
   --color-scrim: var(--c-scrim);
+  --color-series-1: var(--c-series-1);
+  --color-series-2: var(--c-series-2);
+  --color-series-3: var(--c-series-3);
+  --color-series-4: var(--c-series-4);
+  --color-series-5: var(--c-series-5);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;

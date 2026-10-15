@@ -3,7 +3,7 @@
 `python -m app.mcp [--transport streamable-http|stdio]`. Stateless Streamable
 HTTP at `/mcp` on `MCP_PORT`, behind `Authorization: Bearer <MCP_TOKEN>`
 (compared in constant time), with a Host/Origin allow-list and a request-size
-limit. 13 tools: the LLM registry minus `recall_memory` and the draft action,
+limit. Tools: the LLM registry minus `recall_memory` and the draft action,
 plus `get_graph_schema`. Every result is flagged `untrusted_content: true`:
 graph text comes from public GitHub content and must not be followed as
 instructions by the calling agent.

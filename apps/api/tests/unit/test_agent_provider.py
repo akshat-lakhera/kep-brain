@@ -15,6 +15,7 @@ from app.agent.provider import (
     RateLimiter,
     TokenLimiter,
     _duration_s,
+    _empty,
     _tool_name,
     estimate_tokens,
     llm_configured,
@@ -257,3 +258,14 @@ def test_freshness_llm_uses_the_shared_policy() -> None:
     llm = OpenAICompatibleLlm(settings(), http_client=httpx.Client(transport=httpx.MockTransport(script)))
     out = llm.complete([{"role": "user", "content": "q"}])
     assert script.calls == ["small", "small"] and out.text == "ok" and out.input_tokens == 10
+
+
+def test_whitespace_only_reply_counts_as_empty() -> None:
+    from types import SimpleNamespace
+
+    def resp(content: str | None, tool_calls: list[object] | None = None) -> object:
+        message = SimpleNamespace(content=content, tool_calls=tool_calls)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    assert _empty(resp("\n\n")) and _empty(resp(None))
+    assert not _empty(resp("It is provisional.")) and not _empty(resp("", [object()]))

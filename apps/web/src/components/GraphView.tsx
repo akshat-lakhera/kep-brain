@@ -29,6 +29,24 @@ function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/** Optional per-node presentation: a categorical series tone, a size, a hidden label, label offsets and rotation. */
+export interface NodeDecoration {
+  /** 1-based slot of --c-series-N. */
+  tone?: number;
+  size?: number;
+  label?: boolean;
+  labelDx?: number;
+  labelDy?: number;
+  /** Label rotation in radians. */
+  labelAngle?: number;
+  /** Draw the label on a surface-coloured plate so edges under it stay out of the text. */
+  labelPlate?: boolean;
+  /** Label anchor beside the node instead of below it. */
+  labelBeside?: "left" | "right";
+}
+
+const SERIES_SLOTS = 5;
+
 function stylesheet(): StylesheetJson {
   const c = {
     accent: token("--c-accent"),
@@ -93,6 +111,17 @@ function stylesheet(): StylesheetJson {
       style: { width: 2, "line-color": c.accent, "target-arrow-color": c.accent, label: "data(type)" },
     },
     { selector: "edge.hover, edge.labelled", style: { label: "data(type)" } },
+    { selector: "node[size]", style: { width: "data(size)", height: "data(size)" } },
+    { selector: "node.nolabel", style: { label: "" } },
+    {
+      selector: "node.plate",
+      style: { "text-background-color": c.surface, "text-background-opacity": 1, "text-background-padding": "1px", color: c.secondary },
+    },
+    { selector: "node.hub", style: { color: c.text, "font-size": 12, "font-weight": 600 } },
+    ...Array.from({ length: SERIES_SLOTS }, (_, i) => {
+      const color = token(`--c-series-${i + 1}`);
+      return { selector: `node.tone-${i + 1}`, style: { "background-color": color, "border-color": color } };
+    }),
   ];
 }
 
@@ -107,9 +136,12 @@ export function GraphView({
   label,
   describedBy,
   height = 360,
+  positions,
+  decorations,
 }: {
   elements: GraphOut;
-  layout: "dagre" | "fcose";
+  /** "preset" places nodes at `positions` (deterministic layouts computed by the caller). */
+  layout: "dagre" | "fcose" | "preset";
   /** Node ids to emphasise in accent (the cited nodes). */
   pathNodeIds?: string[];
   selectedKey?: string | null;
@@ -120,6 +152,8 @@ export function GraphView({
   /** id of the table that describes the graph. */
   describedBy?: string;
   height?: number;
+  positions?: Record<string, { x: number; y: number }>;
+  decorations?: Record<string, NodeDecoration>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -132,7 +166,7 @@ export function GraphView({
 
   const shown = elements.nodes.slice(0, CAP);
   const truncated = elements.nodes.length > shown.length;
-  const dataKey = JSON.stringify([elements, layout, pathNodeIds]);
+  const dataKey = JSON.stringify([elements, layout, pathNodeIds, positions ?? null, decorations ?? null]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,11 +177,43 @@ export function GraphView({
     const ids = new Set(nodes.map((n) => n.id));
     const edges = elements.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
     const defs: ElementDefinition[] = [
-      ...nodes.map((n) => ({
-        group: "nodes" as const,
-        data: { id: n.id, key: n.key, badge: badgeFor(n), shape: shapeFor(n.label), name: nameFor(n) },
-        classes: pathSet.has(n.id) ? "path" : "",
-      })),
+      ...nodes.map((n) => {
+        const d = decorations?.[n.id];
+        const classes = [
+          pathSet.has(n.id) ? "path" : "",
+          d?.tone ? `tone-${d.tone}` : "",
+          d?.label === false ? "nolabel" : "",
+          d?.size && d.size >= 36 ? "hub" : "",
+          d?.labelPlate ? "plate" : "",
+        ];
+        const style: Record<string, string | number> = {};
+        if (d?.labelBeside) {
+          style["text-valign"] = "center";
+          style["text-halign"] = d.labelBeside;
+          style["text-margin-y"] = 0;
+        }
+        if (!d?.labelBeside && (d?.labelDx !== undefined || d?.labelDy !== undefined)) {
+          style["text-valign"] = "center";
+          style["text-halign"] = "center";
+        }
+        if (d?.labelDx !== undefined) style["text-margin-x"] = d.labelDx;
+        if (d?.labelDy !== undefined) style["text-margin-y"] = d.labelDy;
+        if (d?.labelAngle !== undefined) style["text-rotation"] = `${d.labelAngle}rad`;
+        return {
+          group: "nodes" as const,
+          data: {
+            id: n.id,
+            key: n.key,
+            badge: badgeFor(n),
+            shape: shapeFor(n.label),
+            name: nameFor(n),
+            ...(d?.size ? { size: d.size } : {}),
+          },
+          classes: classes.filter(Boolean).join(" "),
+          ...(Object.keys(style).length ? { style } : {}),
+          ...(positions?.[n.id] ? { position: { ...positions[n.id] } } : {}),
+        };
+      }),
       ...edges.map((e, i) => ({
         group: "edges" as const,
         data: { id: `e${i}`, source: e.source, target: e.target, type: e.type },
@@ -169,9 +235,17 @@ export function GraphView({
         });
         cyRef.current = cy;
         const opts: LayoutOptions =
-          layout === "dagre"
-            ? ({ name: "dagre", rankDir: "LR", nodeSep: 30, rankSep: 70, animate: !reduced, animationDuration: 300, fit: true, padding: 24 } as LayoutOptions)
-            : ({ name: "fcose", randomize: false, animate: !reduced, animationDuration: 300, fit: true, padding: 24, nodeRepulsion: 6000 } as LayoutOptions);
+          layout === "preset"
+            ? ({
+                name: "preset",
+                positions: (node: { id: () => string }) => positions?.[node.id()] ?? { x: 0, y: 0 },
+                fit: true,
+                padding: 16,
+                animate: false,
+              } as unknown as LayoutOptions)
+            : layout === "dagre"
+              ? ({ name: "dagre", rankDir: "LR", nodeSep: 30, rankSep: 70, animate: !reduced, animationDuration: 300, fit: true, padding: 24 } as LayoutOptions)
+              : ({ name: "fcose", randomize: false, animate: !reduced, animationDuration: 300, fit: true, padding: 24, nodeRepulsion: 6000 } as LayoutOptions);
         cy.layout(opts).run();
         cy.on("tap", "node", (evt) => handlers.current.onSelect?.(evt.target.data("key") as string));
         cy.on("tap", (evt) => {

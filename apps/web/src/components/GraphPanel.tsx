@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { useId, useMemo, useState, useSyncExternalStore } from "react";
-import type { GraphNode, GraphOut } from "@/lib/api/types";
+import type { Citation, GraphNode, GraphOut } from "@/lib/api/types";
 import { badgeFor, nameFor, shapeFor } from "@/lib/graph";
 import { numberFromPath } from "@/lib/format";
 import { GraphView } from "./GraphView";
@@ -23,6 +24,7 @@ export function GraphPanel({
   label,
   emptyText,
   height,
+  citations,
 }: {
   graph: GraphOut;
   layout?: "dagre" | "fcose";
@@ -30,6 +32,8 @@ export function GraphPanel({
   label: string;
   emptyText: string;
   height?: number;
+  /** When given, the table becomes a hop table with the citation index of each end. */
+  citations?: Citation[];
 }) {
   const router = useRouter();
   const tableId = useId();
@@ -44,17 +48,20 @@ export function GraphPanel({
 
   const byKey = useMemo(() => new Map(graph.nodes.map((n) => [n.key, n])), [graph]);
   const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph]);
+  const citeByKey = useMemo(() => {
+    const m = new Map<string, number[]>();
+    for (const c of citations ?? []) m.set(c.key, [...(m.get(c.key) ?? []), c.index]);
+    return m;
+  }, [citations]);
   const labelsInUse = useMemo(() => Array.from(new Set(graph.nodes.map((n) => n.label))).sort(), [graph]);
 
   function open(key: string) {
     const node = byKey.get(key);
     if (!node) return;
-    if (node.label === "KEP") {
-      const n = numberFromPath(node.key);
-      if (n !== null) {
-        router.push(`/explore/kep/${n}` as Route);
-        return;
-      }
+    const href = exploreHref(node);
+    if (href) {
+      router.push(href as Route);
+      return;
     }
     if (node.url) window.open(node.url, "_blank", "noopener,noreferrer");
   }
@@ -99,7 +106,7 @@ export function GraphPanel({
             ))}
             {pathNodeIds?.length ? (
               <li>
-                <span className="text-accent">blue outline</span> = cited node; grey = context
+                <span className="text-accent">blue outline</span> cited node · grey context
               </li>
             ) : null}
           </ul>
@@ -109,12 +116,16 @@ export function GraphPanel({
       <div id={tableId} className="mt-3">
         <TableWrap label="Graph edges">
           <table className={tableClass}>
-            <caption className="mb-1 text-left text-xs text-fg-muted">Edges in the stored direction.</caption>
+            <caption className="mb-1 text-left text-xs text-fg-muted">
+              {citations ? "Hops read, in the stored direction of each relationship." : "Edges in the stored direction."}
+            </caption>
             <thead>
               <tr>
+                {citations ? <th className={thClass}>#</th> : null}
                 <th className={thClass}>Source</th>
                 <th className={thClass}>Relationship</th>
                 <th className={thClass}>Target</th>
+                {citations ? <th className={thClass}>Cited</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -124,6 +135,7 @@ export function GraphPanel({
                 if (!s || !t) return null;
                 return (
                   <tr key={i} className={cx(selected && (selected === s.key || selected === t.key) && "bg-accent-subtle")}>
+                    {citations ? <td className={cx(tdClass, "tabular text-fg-muted")}>{i + 1}</td> : null}
                     <td className={tdClass}>
                       <NodeCell node={s} onSelect={setSelected} />
                     </td>
@@ -131,6 +143,26 @@ export function GraphPanel({
                     <td className={tdClass}>
                       <NodeCell node={t} onSelect={setSelected} />
                     </td>
+                    {citations ? (
+                      <td className={cx(tdClass, "whitespace-nowrap")}>
+                        {[...(citeByKey.get(s.key) ?? []), ...(citeByKey.get(t.key) ?? [])].length ? (
+                          [...new Set([...(citeByKey.get(s.key) ?? []), ...(citeByKey.get(t.key) ?? [])])]
+                            .sort((a, b) => a - b)
+                            .map((n) => (
+                              <a
+                                key={n}
+                                href={`#source-${n}`}
+                                className="mr-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm bg-accent-subtle px-1 font-mono text-xs text-accent"
+                                aria-label={`Source ${n}`}
+                              >
+                                {n}
+                              </a>
+                            ))
+                        ) : (
+                          <span className="text-xs text-fg-muted">context</span>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
@@ -142,15 +174,29 @@ export function GraphPanel({
   );
 }
 
+function exploreHref(node: GraphNode): string | null {
+  if (node.label === "KEP") {
+    const n = numberFromPath(node.key);
+    return n !== null ? `/explore/kep/${n}` : null;
+  }
+  if (node.label === "Person") return `/explore/person/${encodeURIComponent(node.key)}`;
+  if (node.label === "SIG") return `/explore/sig/${encodeURIComponent(node.key)}`;
+  return null;
+}
+
 function NodeCell({ node, onSelect }: { node: GraphNode; onSelect: (k: string) => void }) {
-  const n = node.label === "KEP" ? numberFromPath(node.key) : null;
+  const href = exploreHref(node);
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
-      <button type="button" className="quiet-link font-mono" onClick={() => onSelect(node.key)} title={nameFor(node)}>
+      <button type="button" className="quiet-link font-mono" onClick={() => onSelect(node.key)} title={`Show ${nameFor(node)} in the graph`}>
         {badgeFor(node)}
       </button>
       <span className="text-xs text-fg-muted">{node.label}</span>
-      {n !== null ? null : node.url ? (
+      {href ? (
+        <Link href={href as Route} className="quiet-link text-xs" aria-label={`Open ${nameFor(node)}`}>
+          open
+        </Link>
+      ) : node.url ? (
         <ExtLink href={node.url} label={`${nameFor(node)} source`}>
           <span className="text-xs">source</span>
         </ExtLink>

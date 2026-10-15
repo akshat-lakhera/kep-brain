@@ -132,7 +132,7 @@ function Retry({ onRetry }: { onRetry: () => void }) {
 
 const MINE: { key: keyof MemoryMe; title: string; empty: string }[] = [
   { key: "recent_episodes", title: "Episodes", empty: "Each question you ask on the Ask page is kept here with a short answer summary." },
-  { key: "facts", title: "Facts", empty: "Interests learned from your questions, such as a SIG or KEP you return to, appear here." },
+  { key: "facts", title: "Facts", empty: "Interests learned from your questions (the SIGs and KEPs you return to) appear here." },
   { key: "procedures", title: "Procedures", empty: "The tool sequences that answered your kinds of questions appear here." },
   { key: "sessions", title: "Sessions", empty: "Each visit that asked at least one question appears here." },
 ];

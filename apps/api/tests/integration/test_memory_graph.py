@@ -123,3 +123,17 @@ async def test_forget_deletes_the_graph(pool: FalkorPool, memory_id: str) -> Non
     await store.remember(pool, memory_id, ask(1))
     assert await store.forget(pool, memory_id) is True
     assert f"mem:{memory_id}" not in await pool.ping()
+
+
+async def test_playbook_recalled_listed_and_deleted(pool: FalkorPool, memory_id: str) -> None:
+    await store.remember(pool, memory_id, ask(1))
+    await store.remember(pool, memory_id, ask(2))
+    recalled = await store.recall(pool, memory_id, "Who approves KEP-1234?")
+    assert recalled["procedures"][0]["tool_sequence"] == ["find_entities", "who_owns"]
+    assert recalled["procedures"][0]["success_count"] == 2
+    assert "find_entities -> who_owns" in store.planner_context(recalled)
+    mem = await store.get_memory(pool, memory_id)
+    assert mem["playbooks"] == mem["procedures"] and mem["playbooks"][0]["observed_at"]
+    key = mem["playbooks"][0]["key"]
+    assert await store.forget_playbook(pool, memory_id, key) is True
+    assert (await store.get_memory(pool, memory_id))["playbooks"] == []

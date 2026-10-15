@@ -5,8 +5,12 @@ from __future__ import annotations
 from app.errors import AppError
 from app.tools.base import Tool
 from app.tools.schema_tool import GetGraphSchema
+from app.tools.t01.changed_since import ChangedSince
+from app.tools.t01.decision_path import PathToDecision
 from app.tools.t01.draft_issue import DraftStaleDocIssue
 from app.tools.t01.graph_algos import PathBetween, RankPeople
+from app.tools.t01.impact import ImpactOfChange
+from app.tools.t01.who_knows import WhoKnows
 from app.tools.t02.memory_findings import RecallFindings, RecallMemory
 from app.tools.t03.audit import FindContradictions, KepRelations
 from app.tools.t03.find_entities import FindEntities
@@ -26,6 +30,10 @@ _ALL: tuple[Tool, ...] = (
     KepRelations(),
     PathBetween(),
     RankPeople(),
+    WhoKnows(),
+    ImpactOfChange(),
+    PathToDecision(),
+    ChangedSince(),
     RecallMemory(),
     RecallFindings(),
     DraftStaleDocIssue(),
@@ -36,12 +44,12 @@ TOOLS: dict[str, Tool] = {t.name: t for t in _ALL}
 
 
 def llm_tools() -> list[Tool]:
-    """The 14 v1 LLM-callable tools."""
+    """The LLM-callable tools (planner, `/v1/tools`)."""
     return [t for t in _ALL if t.llm_callable]
 
 
 def mcp_tools() -> list[Tool]:
-    """The 13 MCP tools: LLM catalog minus recall_memory and the draft action, plus get_graph_schema."""
+    """The MCP tools: LLM catalog minus recall_memory and the draft action, plus get_graph_schema."""
     return [t for t in _ALL if t.on_mcp]
 
 

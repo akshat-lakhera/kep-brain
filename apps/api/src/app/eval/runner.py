@@ -1,9 +1,10 @@
 """Eval runner: `python -m app.eval run --arms G,N --questions judge --reps 1 --max-usd 2`.
 
-Arm G is the full graph agent (`app.agent.loop.Agent`); arm N is the same model with no tools and no sources, whose
-uncited answers the validator rule turns into `unsupported_claims`. Rows are scored deterministically by
-`app.eval.scoring`. Calls run one at a time (the LLM free tier is rate limited), stop at `--max-usd`, and a stopped or
-crashed run continues with `--resume`.
+Arm G is the full graph agent (`app.agent.loop.Agent`, answer cache off); arm N is the same model with no tools and no
+sources, whose uncited answers the validator rule turns into `unsupported_claims`. Rows are scored deterministically by
+`app.eval.scoring`; citation validity and contradiction recall come from the graph (`app.eval.graphcheck`). Calls run
+one at a time (the LLM free tier is rate limited) and wait up to BATCH_MAX_WAIT_S for a model's quota; a run stops at
+`--max-usd` or at the first `provider_rate_limited`, and a stopped or crashed run continues with `--resume`.
 """
 
 from __future__ import annotations
@@ -21,12 +22,13 @@ from typing import Any
 import structlog
 from ulid import ULID
 
-from app.agent.loop import Agent, _answer_from_text, _parse_final
-from app.agent.prompts import FINAL_ANSWER_SPEC, FINAL_TOOL
-from app.agent.provider import Provider, cost_usd, llm_configured
-from app.agent.validator import FinalAnswer
+from app.agent.loop import Agent
+from app.agent.prompts import ABSTAIN_PREFIX
+from app.agent.provider import Provider, cost_usd, llm_configured, make_provider
+from app.agent.validator import parse_answer
 from app.db.falkordb import FalkorPool
 from app.errors import AppError
+from app.eval.graphcheck import contradiction_recall, load_reference, resolved_citations
 from app.eval.questions import evals_dir, judge_questions, load_questions, run_dirs
 from app.eval.scoring import summarise
 from app.settings import Settings, get_settings
@@ -38,9 +40,15 @@ SEED = 42
 MAX_CONSECUTIVE_ERRORS = 5
 N_PROMPT = (
     "You answer questions about Kubernetes Enhancement Proposals (KEPs) from memory only. No tools, documents or "
-    "sources are available. If you cannot answer with certainty, call final_answer with abstained=true. "
-    "Otherwise call final_answer with a short answer."
+    f"sources are available. If you cannot answer with certainty, reply with the line '{ABSTAIN_PREFIX} no_evidence'. "
+    "Otherwise reply with a short answer."
 )
+# A batch run waits this long for a model's quota (Groq's daily token quota refills continuously) before the provider
+# gives up with provider_rate_limited; the run then stops instead of burning the remaining questions.
+BATCH_MAX_WAIT_S = 900.0
+# Quota waits count against the agent's wall-clock budget, so a batch ask gets room for several of them.
+BATCH_WALL_BUDGET_S = 3600.0
+STOP_CODES = frozenset({"provider_rate_limited", "llm_not_configured"})
 SCORING = (
     "Pass = not abstained and every expected evidence key cited (any_of group and required node labels where "
     "recorded); ABS questions pass on an accepted abstain_reason. Questions with expected_evidence 'unknown' are "
@@ -90,13 +98,9 @@ async def ask_graph(agent: Agent, question: str) -> dict[str, Any]:
 
 async def ask_alone(provider: Provider, question: str) -> dict[str, Any]:
     started = time.perf_counter()
-    turn = await provider.complete(
-        [{"role": "system", "content": N_PROMPT}, {"role": "user", "content": question}], [FINAL_ANSWER_SPEC]
-    )
-    final: FinalAnswer = next(
-        (_parse_final(c) for c in turn.tool_calls if c.name == FINAL_TOOL), _answer_from_text(turn.text)
-    )
-    attempted = not final.abstained
+    turn = await provider.complete([{"role": "system", "content": N_PROMPT}, {"role": "user", "content": question}], [])
+    final = parse_answer(turn.text)
+    attempted = not final.abstained and bool(final.answer_markdown)
     model = getattr(provider, "last_model", provider.model)
     return {
         "abstained": True,
@@ -122,9 +126,15 @@ def select_questions(questions: list[dict[str, Any]], which: str) -> list[dict[s
 
 
 def build_summary(
-    run_id: str, meta: dict[str, Any], questions: dict[str, dict[str, Any]], rows: list[dict[str, Any]], errors: int
+    run_id: str,
+    meta: dict[str, Any],
+    questions: dict[str, dict[str, Any]],
+    rows: list[dict[str, Any]],
+    errors: int,
+    resolved: set[tuple[str, str]] | None = None,
+    contradictions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    agg = summarise(questions, rows)
+    agg = summarise(questions, rows, resolved)
     g = agg["overall"].get("G")
     n = agg["overall"].get("N")
     return {
@@ -148,6 +158,7 @@ def build_summary(
              "validator_rescues": n["validator_rescues"]}
             if n else None
         ),
+        "contradiction_recall": contradictions,
     }  # fmt: skip
 
 
@@ -211,7 +222,8 @@ async def run_eval(args: argparse.Namespace, settings: Settings) -> int:
     print(f"run {run_id}: {len(todo)} calls to make, {len(done)} already recorded, ${spent:.4f} spent")
 
     pool = FalkorPool(settings)
-    agent = Agent(pool, settings)
+    provider = make_provider(settings, max_wait_s=BATCH_MAX_WAIT_S)
+    agent = Agent(pool, settings, provider, use_cache=False, wall_budget_s=BATCH_WALL_BUDGET_S)
     stopped: str | None = None
     consecutive = 0
     try:
@@ -231,6 +243,9 @@ async def run_eval(args: argparse.Namespace, settings: Settings) -> int:
                 )
                 consecutive += 1
                 print(f"[{i}/{len(todo)}] {arm} {q['id']} error {code}")
+                if code in STOP_CODES:
+                    stopped = code
+                    break
                 if consecutive >= MAX_CONSECUTIVE_ERRORS:
                     stopped = f"{consecutive} consecutive errors"
                     break
@@ -245,12 +260,15 @@ async def run_eval(args: argparse.Namespace, settings: Settings) -> int:
             _write_summary(
                 run, build_summary(run_id, {**meta, "complete": False}, by_id, rows, len(_read_jsonl(errors)))
             )
+        complete = stopped is None
+        final = {**meta, "complete": complete, "stopped": stopped, "finished_at": _now()}
+        resolved = await resolved_citations(pool, rows)
+        contradictions = await contradiction_recall(pool, load_reference(Path(args.con_reference)))
+        _write_summary(
+            run, build_summary(run_id, final, by_id, rows, len(_read_jsonl(errors)), resolved, contradictions)
+        )
     finally:
         pool.close()
-
-    complete = stopped is None
-    final = {**meta, "complete": complete, "stopped": stopped, "finished_at": _now()}
-    _write_summary(run, build_summary(run_id, final, by_id, rows, len(_read_jsonl(errors))))
     print(f"run {run_id} {'complete' if complete else 'stopped: ' + str(stopped)}; ${spent:.4f}")
     return 0 if complete else 1
 
@@ -277,6 +295,16 @@ def render_report(summary: dict[str, Any]) -> str:
             f"| {arm} | all | {g['n']} | {g['scored']} | {g['passed']} | {_pct(g['accuracy'])} "
             f"| {g['false_abstentions']} | {g['validator_rescues']} |"
         )
+    lines.append("")
+    for arm, g in summary["overall"].items():
+        lines.append(
+            f"{arm}: citation validity {_pct(g.get('citation_validity'))} of {g.get('citations', 0)} citations; "
+            f"citation recall {_pct(g.get('citation_recall'))}; abstention precision "
+            f"{_pct(g.get('abstention_precision'))}, recall {_pct(g.get('abstention_recall'))}"
+        )
+    con = summary.get("contradiction_recall") or {}
+    if con.get("available"):
+        lines.append(f"Contradiction recall vs reference: {con['found']}/{con['reference']} ({_pct(con['recall'])})")
     return "\n".join(lines)
 
 
@@ -300,6 +328,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--reps", type=int, default=1)
     run.add_argument("--max-usd", type=float, default=2.0)
     run.add_argument("--resume", nargs="?", const="latest", help="continue a run by id (default: newest partial run)")
+    run.add_argument(
+        "--con-reference",
+        default=str(evals_dir().parent / ".recon" / "eval" / "contradiction-counts.json"),
+        help="reference contradiction hits for the contradiction-recall measure",
+    )
     rep = sub.add_parser("report", help="print a markdown table for a run")
     rep.add_argument("--run", default=None, help="run id (default: newest with a summary)")
     args = parser.parse_args(argv)

@@ -11,7 +11,7 @@ const mono = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], 
 export const metadata: Metadata = {
   title: { default: "KEP Brain", template: "%s - KEP Brain" },
   description:
-    "KEP Brain audits Kubernetes decision records: it finds where KEP metadata, tracking issues and replacement declarations disagree, and shows who decided each state and the evidence.",
+    "KEP Brain answers why a Kubernetes enhancement is designed the way it is, who decided and on what evidence, who owns and knows it, and whether its record is current, and lists the decision records that disagree.",
 };
 
 export const viewport: Viewport = {

@@ -10,12 +10,14 @@ from fastapi import APIRouter, Body, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.agent.provider import llm_configured
+from app.api.changes import release_keys
 from app.api.deps import pool_of, settings_of
-from app.db.falkordb import GRAPH_KEP
+from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.errors import AppError
 from app.eval.questions import judge_questions, latest_summary, load_questions, public_question
 from app.memory.store import valid_memory_id
 from app.schema.labels import NODE_LABELS, VALID_TO_OPEN
+from app.settings import Settings
 from app.tools.base import Projector, ToolContext
 from app.tools.registry import get_tool, llm_tools
 
@@ -31,30 +33,44 @@ META_COUNTS = {
 }
 
 
+async def source_pins(pool: FalkorPool, settings: Settings, graph: str = GRAPH_KEP) -> dict[str, str | None]:
+    """Pinned source commits and the ticket snapshot time: from the graph when it records them, else settings."""
+    community_sha, tickets_as_of = settings.community_pin_sha, settings.tickets_as_of
+    sigs_doc = await pool.ro_query(graph, "MATCH (d:Document {kind: 'sigs_yaml'}) RETURN d.source_sha LIMIT 1")
+    if sigs_doc.rows and sigs_doc.rows[0][0]:
+        community_sha = str(sigs_doc.rows[0][0])
+    if tickets_as_of is None:
+        seen = await pool.ro_query(graph, "MATCH (i:Issue) RETURN max(i.observed_at)")
+        if seen.rows and seen.rows[0][0] is not None:
+            tickets_as_of = datetime.fromtimestamp(int(seen.rows[0][0]), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "enhancements_sha": settings.enhancements_pin_sha,
+        "community_sha": community_sha,
+        "tickets_as_of": tickets_as_of,
+    }
+
+
 @router.get("/meta", tags=["meta"])
 async def meta(request: Request) -> dict[str, Any]:
     pool, settings = pool_of(request), settings_of(request)
     counts = {"nodes": 0, "edges": 0, "keps": 0, "findings": 0, "people": 0}
-    community_sha, tickets_as_of = settings.community_pin_sha, settings.tickets_as_of
+    sources: dict[str, str | None] = {
+        "enhancements_sha": settings.enhancements_pin_sha,
+        "community_sha": settings.community_pin_sha,
+        "tickets_as_of": settings.tickets_as_of,
+    }
+    releases: list[str] = []
     if GRAPH_KEP in await pool.ping():
         for name, query in META_COUNTS.items():
             out = await pool.ro_query(GRAPH_KEP, query)
             counts[name] = int(out.rows[0][0]) if out.rows else 0
-        sigs_doc = await pool.ro_query(GRAPH_KEP, "MATCH (d:Document {kind: 'sigs_yaml'}) RETURN d.source_sha LIMIT 1")
-        if sigs_doc.rows and sigs_doc.rows[0][0]:
-            community_sha = str(sigs_doc.rows[0][0])
-        if tickets_as_of is None:
-            seen = await pool.ro_query(GRAPH_KEP, "MATCH (i:Issue) RETURN max(i.observed_at)")
-            if seen.rows and seen.rows[0][0] is not None:
-                tickets_as_of = datetime.fromtimestamp(int(seen.rows[0][0]), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        sources = await source_pins(pool, settings)
+        releases = await release_keys(pool, GRAPH_KEP)
     return {
         "graph": counts,
-        "sources": {
-            "enhancements_sha": settings.enhancements_pin_sha,
-            "community_sha": community_sha,
-            "tickets_as_of": tickets_as_of,
-        },
+        "sources": sources,
         "sigs": settings.sig_list,
+        "releases": releases,
         "llm": {"provider": settings.llm_provider, "model": settings.llm_model, "configured": llm_configured(settings)},
         "falkordb_image": settings.falkordb_image,
     }

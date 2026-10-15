@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
+from app.api.audit_check import hand_check_summary, load_verdicts, with_verdicts
 from app.api.deps import pool_of, rows_of
 from app.api.keps import FINDING_FIELDS
 from app.db.falkordb import GRAPH_KEP
@@ -44,13 +45,14 @@ async def list_findings(
     state: str = Query(default="", max_length=30),
 ) -> dict[str, Any]:
     out = await pool_of(request).ro_query(GRAPH_KEP, LIST, {"kind": kind, "sig": sig, "state": state})
-    items = rows_of(out)
+    items = with_verdicts(rows_of(out), load_verdicts())
     return {
         "summary": {
             "flagged_keps": len({i["kep_path"] for i in items}),
             "total": len(items),
             "by_kind": dict(Counter(i["kind"] for i in items)),
             "by_sig": dict(Counter(i["owning_sig"] for i in items)),
+            **hand_check_summary(items),
         },
         "items": items,
     }
@@ -67,4 +69,4 @@ async def get_finding(request: Request, key: str) -> dict[str, Any]:
     proj = Projector()
     proj.value([row.pop("kep"), row.pop("issues") or [], row.pop("evidence_nodes") or []])
     row["evidence"] = [e.model_dump() for e in proj.evidence.values()]
-    return row
+    return with_verdicts([row], load_verdicts())[0]

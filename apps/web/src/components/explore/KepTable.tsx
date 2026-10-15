@@ -1,0 +1,130 @@
+"use client";
+
+import Link from "next/link";
+import type { Route } from "next";
+import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
+import type { KepCard } from "@/lib/api/types";
+import { numberFromPath } from "@/lib/format";
+import { Dash, StatusChip, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { SigLink } from "./links";
+
+type Col = "number" | "title" | "status" | "stage" | "latest_milestone" | "owning_sig" | "open_findings";
+
+const COLS: { id: Col; label: string }[] = [
+  { id: "number", label: "KEP" },
+  { id: "title", label: "Title" },
+  { id: "status", label: "Status" },
+  { id: "stage", label: "Stage" },
+  { id: "latest_milestone", label: "Latest" },
+  { id: "owning_sig", label: "SIG" },
+  { id: "open_findings", label: "Open findings" },
+];
+
+function cell(k: KepCard, c: Col): string | number | null {
+  if (c === "number") return k.number ?? numberFromPath(k.key);
+  return k[c];
+}
+
+function compare(a: KepCard, b: KepCard, c: Col): number {
+  const x = cell(a, c);
+  const y = cell(b, c);
+  if (x === null && y === null) return 0;
+  if (x === null) return 1;
+  if (y === null) return -1;
+  if (typeof x === "number" && typeof y === "number") return x - y;
+  return String(x).localeCompare(String(y), "en", { numeric: true, sensitivity: "base" });
+}
+
+/** KEP cards as a sortable table (sortable headers are buttons; aria-sort on the active column). */
+export function KepTable({
+  items,
+  caption,
+  label,
+  hideSig = false,
+  extra,
+}: {
+  items: KepCard[];
+  caption?: string;
+  label: string;
+  hideSig?: boolean;
+  /** Extra column rendered after the KEP title, keyed by KEP key (used for the PRR stage). */
+  extra?: { label: string; values: Record<string, string> };
+}) {
+  const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: "number", dir: 1 });
+  const sorted = useMemo(() => {
+    const out = [...items];
+    out.sort((a, b) => compare(a, b, sort.col) * sort.dir);
+    return out;
+  }, [items, sort]);
+  const cols = COLS.filter((c) => !(hideSig && c.id === "owning_sig"));
+
+  function toggle(col: Col) {
+    setSort((s) => (s.col === col ? { col, dir: s.dir === 1 ? -1 : 1 } : { col, dir: 1 }));
+  }
+
+  return (
+    <TableWrap label={label}>
+      <table className={tableClass}>
+        {caption ? <caption className="mb-1 text-left text-xs text-fg-muted">{caption}</caption> : null}
+        <thead>
+          <tr>
+            {cols.map((c) => {
+              const active = sort.col === c.id;
+              return (
+                <th
+                  key={c.id}
+                  className={cx(thClass, "p-0")}
+                  aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggle(c.id)}
+                    className={cx("flex h-9 w-full items-center gap-1 px-3 text-left font-medium hover:text-fg", active && "text-fg")}
+                  >
+                    {c.label}
+                    {active ? (
+                      sort.dir === 1 ? (
+                        <ArrowUp aria-hidden="true" size={12} strokeWidth={1.5} />
+                      ) : (
+                        <ArrowDown aria-hidden="true" size={12} strokeWidth={1.5} />
+                      )
+                    ) : null}
+                  </button>
+                </th>
+              );
+            })}
+            {extra ? <th className={thClass}>{extra.label}</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((k) => {
+            const num = k.number ?? numberFromPath(k.key);
+            return (
+              <tr key={k.key}>
+                <td className={cx(tdClass, "whitespace-nowrap")}>
+                  {num !== null ? (
+                    <Link href={`/explore/kep/${num}` as Route} className="quiet-link ident">
+                      KEP-{num}
+                    </Link>
+                  ) : (
+                    <span className="ident">{k.key}</span>
+                  )}
+                </td>
+                <td className={cx(tdClass, "min-w-56")}>{k.title}</td>
+                <td className={tdClass}>
+                  <StatusChip status={k.status} />
+                </td>
+                <td className={cx(tdClass, "font-mono")}>{k.stage ?? <Dash />}</td>
+                <td className={cx(tdClass, "font-mono")}>{k.latest_milestone ?? <Dash />}</td>
+                {hideSig ? null : <td className={tdClass}>{k.owning_sig ? <SigLink sig={k.owning_sig} /> : <Dash />}</td>}
+                <td className={cx(tdClass, "tabular text-right")}>{k.open_findings}</td>
+                {extra ? <td className={cx(tdClass, "font-mono")}>{extra.values[k.key] ?? <Dash />}</td> : null}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}

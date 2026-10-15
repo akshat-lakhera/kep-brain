@@ -87,12 +87,20 @@ def percentile(values: list[float], pct: float) -> float | None:
     return ordered[min(len(ordered) - 1, math.ceil(pct / 100 * len(ordered)) - 1)]
 
 
-def _group(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _rate(num: int, den: int) -> float | None:
+    return round(num / den, 4) if den else None
+
+
+def _group(rows: list[dict[str, Any]], resolved: set[tuple[str, str]] | None = None) -> dict[str, Any]:
     scored = [r for r in rows if r["passed"] is not None]
     passed = sum(1 for r in scored if r["passed"])
     answerable = [r for r in rows if r["kind"] != "ABS"]
     recalls = [r["recall"] for r in rows if r["recall"] is not None]
     ci = wilson(passed, len(scored))
+    abstentions = [r for r in rows if r.get("abstained")]
+    abs_rows = [r for r in rows if r["kind"] == "ABS"]
+    correct_abstentions = sum(1 for r in abs_rows if r.get("abstained") and r["passed"])
+    cited = [(c.get("label"), c.get("key")) for r in rows for c in r.get("citations") or []]
     return {
         "n": len(rows),
         "scored": len(scored),
@@ -106,11 +114,19 @@ def _group(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "validator_rescues": sum(1 for r in rows if r["rescue"]),
         "citation_recall": round(statistics.fmean(recalls), 4) if recalls else None,
+        "citations": len(cited),
+        "citation_validity": None if resolved is None else _rate(sum(1 for c in cited if c in resolved), len(cited)),
+        "abstentions": len(abstentions),
+        "abstention_precision": _rate(correct_abstentions, len(abstentions)),
+        "abstention_recall": _rate(correct_abstentions, len(abs_rows)),
     }
 
 
-def summarise(questions: dict[str, dict[str, Any]], rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregates over result rows; every figure is recomputed from the rows and the question file."""
+def summarise(
+    questions: dict[str, dict[str, Any]], rows: list[dict[str, Any]], resolved: set[tuple[str, str]] | None = None
+) -> dict[str, Any]:
+    """Aggregates over result rows; every figure is recomputed from the rows and the question file. `resolved` holds
+    the cited (label, key) pairs found in the graph; without it citation validity is not reported."""
     flat: list[dict[str, Any]] = []
     for row in rows:
         q = questions.get(row["qid"])
@@ -130,7 +146,7 @@ def summarise(questions: dict[str, dict[str, Any]], rows: list[dict[str, Any]]) 
         totals = [r["latency_ms"] for r in items if r.get("latency_ms") is not None]
         tool_ms = [r["tools_ms"] for r in items if r.get("tools_ms") is not None]
         overall[arm] = {
-            **_group(items),
+            **_group(items, resolved),
             "first_tool_hit_rate": round(sum(hits) / len(hits), 4) if hits else None,
             "cost_usd": round(sum(r.get("cost_usd") or 0.0 for r in items), 6),
             "input_tokens": sum(r.get("input_tokens") or 0 for r in items),
@@ -141,7 +157,7 @@ def summarise(questions: dict[str, dict[str, Any]], rows: list[dict[str, Any]]) 
             "tools_p95_ms": percentile(tool_ms, 95),
         }
     by_kind = {
-        f"{arm}/{kind}": {"arm": arm, "kind": kind, **_group(items)}
+        f"{arm}/{kind}": {"arm": arm, "kind": kind, **_group(items, resolved)}
         for (arm, kind), items in sorted(by_arm_kind.items())
     }
     per_question = [

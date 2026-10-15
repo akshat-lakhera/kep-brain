@@ -30,6 +30,7 @@ services:
     ports: !reset []
     environment:
       ENV: prod
+      TRUST_PROXY: "true"
       CORS_ORIGINS: https://${PUBLIC_HOST:?set PUBLIC_HOST to the public DNS name}
       PUBLIC_BASE_URL: https://${PUBLIC_HOST}
 

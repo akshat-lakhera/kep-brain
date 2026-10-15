@@ -33,6 +33,9 @@ services:
       FALKORDB_HOST: falkordb
       FALKORDB_PORT: "6379"
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      EVALS_DIR: /evals
+    volumes:
+      - ./evals:/evals:ro
     depends_on:
       falkordb:
         condition: service_healthy

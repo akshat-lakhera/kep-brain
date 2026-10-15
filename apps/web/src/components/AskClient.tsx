@@ -3,27 +3,30 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Ban, Copy, Link2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Ban, Copy, Link2, SquareArrowOutUpRight } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure } from "@/lib/api/core";
 import type {
   AskEvent,
   AskResponse,
   Citation,
-  EvalQuestion,
+  Finding,
+  GraphNode,
   GraphOut,
+  Meta,
   SseCitation,
   SseDone,
   SseMemory,
   SseStatus,
   SseToolCall,
 } from "@/lib/api/types";
-import { ms } from "@/lib/format";
+import { isoUtc, ms, numberFromPath, shortSha } from "@/lib/format";
+import { kindLabel } from "@/lib/kinds";
 import { AnswerMarkdown } from "./AnswerMarkdown";
 import { GraphPanel } from "./GraphPanel";
 import { Tabs } from "./Tabs";
-import { Chip, EmptyState, ErrorState, ExtLink, cx, tableClass, tdClass, thClass } from "./ui";
+import { Chip, ErrorState, ExtLink, Notice, cx, tableClass, tdClass, thClass } from "./ui";
 
 const MIN = 3;
 const MAX = 1000;
@@ -145,7 +148,32 @@ function statusText(status: SseStatus | null): string {
   return status.label || status.phase;
 }
 
-export function AskClient({ sigs }: { sigs: string[] | null }) {
+/** Explore route of a graph node, when one exists for its label. */
+function exploreHref(node: GraphNode): string | null {
+  if (node.label === "KEP") {
+    const n = numberFromPath(node.key);
+    return n !== null ? `/explore/kep/${n}` : null;
+  }
+  if (node.label === "Person") return `/explore/person/${encodeURIComponent(node.key)}`;
+  if (node.label === "SIG") return `/explore/sig/${encodeURIComponent(node.key)}`;
+  return null;
+}
+
+function plural(n: number, word: string): string {
+  return `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
+}
+
+export function AskClient({
+  meta,
+  findings,
+  idle,
+}: {
+  meta: Meta | null;
+  /** Current findings, used to flag answers that touch a KEP with a recorded disagreement. */
+  findings: Finding[];
+  /** What the page shows while nothing has been asked. */
+  idle: ReactNode;
+}) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -153,11 +181,11 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
   const [text, setText] = useState(initialQ);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [now, setNow] = useState(0);
-  const [suggestions, setSuggestions] = useState<EvalQuestion[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastAsked = useRef<string | null>(null);
+  const paused = meta !== null && !meta.llm.configured;
 
   const run = useCallback(
     async (question: string) => {
@@ -215,7 +243,7 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
     [params, pathname, router],
   );
 
-  // Run the question from ?q= (deep links from /judge and shared links).
+  // Run the question from ?q= (shared links and links from other pages).
   useEffect(() => {
     const q = params.get("q");
     if (q && q !== lastAsked.current) {
@@ -232,19 +260,6 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
   }, [phase.kind]);
 
   useEffect(() => {
-    let live = true;
-    clientApi.evalQuestions().then((res) => {
-      if (!live) return;
-      if (!res.ok) {
-        setSuggestions([]);
-        return;
-      }
-      const qs = res.data.questions
-        .filter((q) => typeof q.judge_order === "number")
-        .sort((a, b) => (a.judge_order ?? 0) - (b.judge_order ?? 0))
-        .slice(0, 3);
-      setSuggestions(qs);
-    });
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
       const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
@@ -254,10 +269,7 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
       }
     }
     document.addEventListener("keydown", onKey);
-    return () => {
-      live = false;
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const loading = phase.kind === "live";
@@ -302,76 +314,69 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
           e.preventDefault();
           void run(text);
         }}
-        className="rounded-md border border-border bg-surface p-4"
+        className="rounded-md border border-border bg-surface"
         aria-busy={loading}
       >
-        <label htmlFor="ask-input" className="mb-1 block font-medium">
-          Ask about Kubernetes Enhancement Proposals
-        </label>
-        <textarea
-          id="ask-input"
-          ref={inputRef}
-          value={text}
-          rows={2}
-          maxLength={MAX + 200}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              if (!loading) void run(text);
-            } else if (e.key === "Escape" && loading) {
-              cancel();
-            }
-          }}
-          aria-describedby="ask-help"
-          aria-invalid={tooLong}
-          className="block min-h-16 w-full resize-y rounded-sm border border-border-input bg-surface p-2 text-base"
-          placeholder="What is the status of KEP-583, and is that metadata current?"
-        />
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <p id="ask-help" className="text-xs text-fg-muted">
-            Enter sends, Shift+Enter adds a line, / focuses this box, Escape cancels.
-            {len >= 900 ? (
-              <span className={cx("ml-2 tabular", tooLong && "text-danger")}>
-                {len.toLocaleString("en-US")} / 1,000 characters
-              </span>
-            ) : null}
+        <div className="p-4">
+          <label htmlFor="ask-input" className="block text-md font-semibold">
+            Ask the decision record
+          </label>
+          <p className="mb-2 text-sm text-fg-secondary">
+            Why a KEP is designed the way it is, who decided and on what evidence, who owns it, who knows it, and whether its record
+            is still current. Every answer shows the graph path it read and links each claim to GitHub.
           </p>
-          <div className="flex gap-2">
-            {loading ? (
-              <button type="button" onClick={cancel} className="h-8 rounded-sm border border-border-input px-3 text-base">
-                Cancel
-              </button>
-            ) : null}
-            <button
-              type="submit"
-              disabled={loading || len < MIN || tooLong}
-              className="h-8 rounded-sm bg-accent px-4 text-base font-medium text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Ask
-            </button>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2" aria-label="Suggested questions">
-          {suggestions === null ? (
-            <span className="text-xs text-fg-muted">Loading suggested questions</span>
-          ) : (
-            suggestions.map((s) => (
+          <textarea
+            id="ask-input"
+            ref={inputRef}
+            value={text}
+            rows={2}
+            maxLength={MAX + 200}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (!loading && !paused) void run(text);
+              } else if (e.key === "Escape" && loading) {
+                cancel();
+              }
+            }}
+            aria-describedby="ask-help"
+            aria-invalid={tooLong}
+            className="block min-h-16 w-full resize-y rounded-sm border border-border-input bg-surface p-2 text-base"
+            placeholder="Ask about a KEP, a person or a SIG"
+          />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p id="ask-help" className="text-xs text-fg-muted">
+              Enter sends · Shift+Enter new line · / focuses · Escape cancels
+              {len >= 900 ? (
+                <span className={cx("ml-2 tabular", tooLong && "text-danger")}>
+                  {len.toLocaleString("en-US")} / 1,000 characters
+                </span>
+              ) : null}
+            </p>
+            <div className="flex gap-2">
+              {loading ? (
+                <button type="button" onClick={cancel} className="h-8 rounded-sm border border-border-input px-3 text-base">
+                  Cancel
+                </button>
+              ) : null}
               <button
-                key={s.id}
-                type="button"
-                disabled={loading}
-                onClick={() => {
-                  setText(s.text);
-                  void run(s.text);
-                }}
-                className="min-h-7 max-w-full rounded-sm border border-border bg-surface-subtle px-2 py-1 text-left text-sm hover:border-border-strong disabled:opacity-50"
+                type="submit"
+                disabled={loading || paused || len < MIN || tooLong}
+                className="h-8 rounded-sm bg-accent px-4 text-base font-medium text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="mr-1 font-mono text-xs text-fg-muted">{s.id}</span>
-                {s.text}
+                {paused ? "Answering paused" : "Ask"}
               </button>
-            ))
-          )}
+            </div>
+          </div>
+          {paused ? (
+            <div className="mt-3">
+              <Notice>
+                Answering is paused: the API reports no language model configured. Audit and Explore read the graph directly and
+                still work.
+              </Notice>
+            </div>
+          ) : null}
         </div>
       </form>
 
@@ -379,50 +384,27 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
         {phase.kind === "live" ? liveStatus : phase.kind === "done" ? "Answer ready" : ""}
       </div>
 
-      {phase.kind === "idle" ? (
-        <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <EmptyState title="No question asked yet">
-              <p>
-                Answers come from a graph of KEPs, people, SIGs, pull requests, issues and their history. Each answer lists
-                the tool calls it made and the sources it cites; the steps appear as they run, and the text appears once
-                every claim has been checked against the graph.
-              </p>
-              <p className="mt-2">
-                {sigs ? (
-                  <>
-                    Loaded SIGs: <span className="font-mono">{sigs.join(", ")}</span>.
-                  </>
-                ) : (
-                  "The API did not report which SIGs are loaded."
-                )}{" "}
-                No e-mail addresses are stored.
-              </p>
-            </EmptyState>
-          </div>
-          <aside aria-label="Evidence" className="lg:col-span-5">
-            <EmptyState title="Evidence">The graph read, the tool calls and the sources appear here.</EmptyState>
-          </aside>
-        </div>
-      ) : null}
+      {phase.kind === "idle" ? idle : null}
 
       {phase.kind === "error" ? (
-        <div className="space-y-3">
-          <p className="font-medium">{phase.live.question}</p>
-          <ErrorState error={phase.error} what="No answer">
-            <button
-              type="button"
-              onClick={() => void run(phase.live.question)}
-              className="h-8 rounded-sm border border-border-input bg-surface px-3"
-            >
-              Retry
-            </button>
-          </ErrorState>
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-3 lg:col-span-7">
+            <h2 className="text-md font-semibold">{phase.live.question}</h2>
+            <ErrorState error={phase.error} what="No answer">
+              <button
+                type="button"
+                onClick={() => void run(phase.live.question)}
+                className="h-8 rounded-sm border border-border-input bg-surface px-3"
+              >
+                Retry
+              </button>
+            </ErrorState>
+          </div>
           {phase.live.toolCalls.length > 0 ? (
-            <div className="lg:max-w-[60%]">
+            <aside aria-label="Steps completed" className="lg:col-span-5">
               <p className="mb-2 text-sm text-fg-secondary">Steps completed before it stopped</p>
               <Steps live={phase.live} />
-            </div>
+            </aside>
           ) : null}
         </div>
       ) : null}
@@ -431,7 +413,9 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
         <AnswerView
           live={phase.live}
           final={phase.kind === "done"}
-          statusLine={phase.kind === "live" ? `${liveStatus} · ${phase.live.toolCalls.length} tool call${phase.live.toolCalls.length === 1 ? "" : "s"} · ${ms(Math.max(0, now - phase.live.started))}${now - phase.live.started > SLOW_AFTER_MS ? " · still working" : ""}` : null}
+          meta={meta}
+          findings={findings}
+          statusLine={phase.kind === "live" ? `${liveStatus} · ${plural(phase.live.toolCalls.length, "tool call")} · ${ms(Math.max(0, now - phase.live.started))}${now - phase.live.started > SLOW_AFTER_MS ? " · still working" : ""}` : null}
           copied={copied}
           onCopy={copy}
         />
@@ -443,12 +427,16 @@ export function AskClient({ sigs }: { sigs: string[] | null }) {
 function AnswerView({
   live,
   final,
+  meta,
+  findings,
   statusLine,
   copied,
   onCopy,
 }: {
   live: Live;
   final: boolean;
+  meta: Meta | null;
+  findings: Finding[];
   statusLine: string | null;
   copied: string | null;
   onCopy: (k: "answer" | "link") => void;
@@ -459,6 +447,13 @@ function AnswerView({
   const done = live.done;
   const sourceCount = live.citations.length || live.evidence.length;
   const findingsRecalled = live.memory?.findings_recalled ?? [];
+  const graphKeps = new Set(live.graph.nodes.filter((n) => n.label === "KEP").map((n) => n.key));
+  const touched = findings.filter((f) => graphKeps.has(f.kep_path));
+  const recalled = findingsRecalled.map((key) => findings.find((f) => f.key === key) ?? key);
+  const exploreNode =
+    live.graph.nodes.find((n) => citedKeys.has(n.key) && exploreHref(n)) ?? live.graph.nodes.find((n) => exploreHref(n));
+  const sha = meta?.sources.enhancements_sha ?? null;
+  const asOf = meta?.sources.tickets_as_of ?? null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-12">
@@ -467,12 +462,11 @@ function AnswerView({
           {statusLine ??
             (done ? (
               <>
-                {live.toolCalls.length} tool call{live.toolCalls.length === 1 ? "" : "s"} · {done.nodes_read} node{done.nodes_read === 1 ? "" : "s"} read ·{" "}
-                {done.sources} source{done.sources === 1 ? "" : "s"} · {ms(done.latency_ms)}
+                {plural(live.toolCalls.length, "tool call")} · {ms(done.latency_ms)}
                 {live.model ? (
                   <>
                     {" "}
-                    · <span className="font-mono">{live.model}</span>
+                    · <span className="ident">{live.model}</span>
                   </>
                 ) : null}
                 {live.mode === "fallback" ? " · not streamed" : null}
@@ -487,11 +481,25 @@ function AnswerView({
               No evidence in the graph for this question
             </p>
             {done.abstain_reason ? (
-              <p className="mt-1 text-fg-secondary">
-                Reason: <span className="font-mono">{done.abstain_reason}</span>
+              <p className="mt-1 text-sm text-fg-secondary">
+                Reason <span className="ident">{done.abstain_reason}</span>
               </p>
             ) : null}
-            <p className="mt-1 text-fg-secondary">The tool calls it tried are listed under Steps. Name a SIG or a KEP number to narrow it.</p>
+            {live.toolCalls.length > 0 ? (
+              <>
+                <p className="mt-3 text-xs font-medium text-fg-secondary">What was searched</p>
+                <ol className="mt-1 space-y-1 text-sm">
+                  {live.toolCalls.map((t) => (
+                    <li key={t.step} className="flex flex-wrap gap-x-2">
+                      <span className="ident">{t.name}</span>
+                      <span className="ident break-all text-fg-muted">{JSON.stringify(t.params)}</span>
+                      <span className="tabular text-fg-secondary">{plural(t.rows, "row")}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            ) : null}
+            <p className="mt-3 text-sm text-fg-secondary">A question that names a KEP number, a GitHub login or a SIG narrows the search.</p>
           </div>
         ) : null}
         {live.answer ? (
@@ -499,7 +507,7 @@ function AnswerView({
             <AnswerMarkdown markdown={live.answer} citations={live.citations} />
           </div>
         ) : !final ? (
-          <div className="space-y-2" aria-hidden="true">
+          <div className="space-y-2 rounded-md border border-border bg-surface p-4" aria-hidden="true">
             <div className="skeleton h-4 w-11/12" />
             <div className="skeleton h-4 w-10/12" />
             <div className="skeleton h-4 w-8/12" />
@@ -507,30 +515,60 @@ function AnswerView({
         ) : null}
         {failedCalls > 0 ? (
           <p className="mt-2 text-sm text-warning">
-            {failedCalls} tool call{failedCalls === 1 ? "" : "s"} failed; see Steps.
+            {plural(failedCalls, "tool call")} failed; see Steps.
           </p>
         ) : null}
         {final ? (
           <>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {findingsRecalled.length > 0 ? (
-                <Link href={"/audit" as Route} className="no-underline">
-                  <Chip tone="warning">
-                    Used {findingsRecalled.length} shared finding{findingsRecalled.length === 1 ? "" : "s"}
-                  </Chip>
-                </Link>
+            <p className="mt-2 text-xs text-fg-secondary">
+              Read {plural(done?.nodes_read ?? live.graph.nodes.length, "node")} and {plural(live.graph.edges.length, "edge")} ·{" "}
+              {plural(done?.sources ?? sourceCount, "source")}
+              {asOf || sha ? (
+                <>
+                  {" "}
+                  · Data as of <span className="ident">{[asOf ? isoUtc(asOf) : null, sha ? shortSha(sha) : null].filter(Boolean).join(" · ")}</span>
+                </>
               ) : null}
-              {live.memory && live.memory.recalled.length > 0 ? (
-                <Link href="/memory" className="no-underline">
-                  <Chip>Recalled from your memory: {live.memory.recalled.length}</Chip>
-                </Link>
-              ) : null}
-              {live.memory && live.memory.remembered.length > 0 ? (
-                <Link href="/memory" className="no-underline">
-                  <Chip>Remembered: {live.memory.remembered.join(", ")}</Chip>
-                </Link>
-              ) : null}
-            </div>
+            </p>
+            {touched.length > 0 || recalled.length > 0 || (live.memory && (live.memory.recalled.length > 0 || live.memory.remembered.length > 0)) ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {touched.slice(0, 4).map((f) => (
+                  <Link key={f.key} href={`/audit?finding=${encodeURIComponent(f.key)}#findings` as Route} className="no-underline">
+                    <Chip tone="warning">
+                      {f.state} finding on KEP-{f.kep_number ?? numberFromPath(f.kep_path)}: {kindLabel(f.kind).toLowerCase()}
+                    </Chip>
+                  </Link>
+                ))}
+                {touched.length > 4 ? (
+                  <Link href="/audit" className="quiet-link self-center text-sm">
+                    {touched.length - 4} more findings
+                  </Link>
+                ) : null}
+                {recalled.map((f) =>
+                  typeof f === "string" ? (
+                    <Chip key={f}>
+                      Used shared finding <span className="ident">{f}</span>
+                    </Chip>
+                  ) : (
+                    <Link key={f.key} href={`/audit?finding=${encodeURIComponent(f.key)}#findings` as Route} className="no-underline">
+                      <Chip>
+                        Used shared finding on KEP-{f.kep_number ?? numberFromPath(f.kep_path)}: {kindLabel(f.kind).toLowerCase()}
+                      </Chip>
+                    </Link>
+                  ),
+                )}
+                {live.memory && live.memory.recalled.length > 0 ? (
+                  <Link href="/memory" className="no-underline">
+                    <Chip>Recalled from your memory: {live.memory.recalled.length}</Chip>
+                  </Link>
+                ) : null}
+                {live.memory && live.memory.remembered.length > 0 ? (
+                  <Link href="/memory" className="no-underline">
+                    <Chip>Remembered: {live.memory.remembered.join(", ")}</Chip>
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" onClick={() => onCopy("answer")} className="inline-flex h-7 items-center gap-1 rounded-sm border border-border-input px-2 text-sm">
                 <Copy size={14} strokeWidth={1.5} aria-hidden="true" />
@@ -540,10 +578,19 @@ function AnswerView({
                 <Link2 size={14} strokeWidth={1.5} aria-hidden="true" />
                 {copied === "link" ? "Copied" : "Copy link"}
               </button>
+              {exploreNode ? (
+                <Link
+                  href={exploreHref(exploreNode) as Route}
+                  className="inline-flex h-7 items-center gap-1 rounded-sm border border-border-input px-2 text-sm text-fg no-underline"
+                >
+                  <SquareArrowOutUpRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                  Open in Explore
+                </Link>
+              ) : null}
             </div>
             {done ? (
               <p className="mt-2 text-xs text-fg-muted">
-                Diagnostic id <span className="font-mono">{done.request_id}</span>
+                Diagnostic id <span className="ident">{done.request_id}</span>
               </p>
             ) : null}
           </>
@@ -556,14 +603,15 @@ function AnswerView({
           tabs={[
             {
               id: "graph",
-              label: `Graph (${live.graph.nodes.length})`,
+              label: `Graph path (${live.graph.edges.length})`,
               content: (
                 <GraphPanel
                   graph={live.graph}
                   layout={live.graph.nodes.length > 50 ? "fcose" : "dagre"}
                   pathNodeIds={pathNodeIds}
-                  label={`Evidence graph with ${live.graph.nodes.length} nodes and ${live.graph.edges.length} edges`}
-                  emptyText={final ? "The answer read no graph nodes." : "No graph path read yet."}
+                  citations={live.citations}
+                  label={`Graph path with ${live.graph.nodes.length} nodes and ${live.graph.edges.length} edges`}
+                  emptyText={final ? "The answer read no graph nodes." : "The traversed path appears here as the tools run."}
                 />
               ),
             },
@@ -599,20 +647,20 @@ function Steps({ live }: { live: Live }) {
     }
   }
   return (
-    <ol className="space-y-3">
+    <ol className="divide-y divide-border rounded-md border border-border">
       {live.toolCalls.map((t) => (
-        <li key={t.step} className={cx("rounded-md border p-3", t.error ? "border-danger/40 bg-danger-subtle" : "border-border bg-surface-subtle")}>
+        <li key={t.step} className={cx("p-3", t.error ? "bg-danger-subtle" : "bg-surface")}>
           <p className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span>
-              <span className="text-fg-muted">{t.step}.</span> <span className="font-mono font-medium">{t.name}</span>
+              <span className="tabular text-fg-muted">{t.step}.</span> <span className="ident font-medium">{t.name}</span>
             </span>
             <span className="tabular text-fg-secondary">
-              {t.rows} row{t.rows === 1 ? "" : "s"}
+              {plural(t.rows, "row")}
               {t.truncated ? " (truncated)" : ""} · {ms(t.ms)}
             </span>
           </p>
-          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs text-fg-secondary">
-            {JSON.stringify(t.params, null, 2)}
+          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs text-fg-secondary">
+            {JSON.stringify(t.params)}
           </pre>
           {t.error ? (
             <p className="mt-1 text-sm text-danger" role="note">
@@ -622,7 +670,7 @@ function Steps({ live }: { live: Live }) {
           {t.template ? (
             <details className="mt-2">
               <summary className="cursor-pointer text-sm text-fg-secondary">Cypher template (read-only, parameterised)</summary>
-              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-sm border border-border bg-surface p-2 font-mono text-xs">
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-sm border border-border bg-surface-subtle p-2 font-mono text-xs">
                 {t.template}
               </pre>
               <button
@@ -655,7 +703,7 @@ function Sources({ live, final }: { live: Live; final: boolean }) {
         <tbody>
           {live.citations.map((c) => (
             <tr key={c.index} id={`source-${c.index}`}>
-              <td className={cx(tdClass, "font-mono")}>{c.index}</td>
+              <td className={cx(tdClass, "ident tabular")}>{c.index}</td>
               <td className={tdClass}>
                 <span className="text-xs text-fg-muted">{c.label}</span>
                 <br />
@@ -674,8 +722,7 @@ function Sources({ live, final }: { live: Live; final: boolean }) {
   return (
     <div>
       <p className="mb-2 text-xs text-fg-muted">
-        Records read by the tool calls, in the order they were read. The answer&apos;s numbered markers refer to these records; the
-        stream does not carry the numbering itself.
+        Records read by the tool calls, in the order they were read. The numbered list appears once the answer has been checked.
       </p>
       <table className={tableClass}>
         <caption className="sr-only">Evidence records read while answering</caption>

@@ -1,0 +1,18 @@
+# Hand-check record for audit findings (docs/design/05-ui-brief.md section 4.3.1).
+#
+# A person opens a finding on /audit, compares both sides against their source URLs,
+# and records the result here, one entry per finding. The file is committed by a human;
+# the API reads it (GET /v1/findings: summary.hand_checked, summary.precision and each
+# finding's human_verdict) and never writes it.
+#
+# Schema, one entry per finding:
+#   - key: fnd:<kind>:<KEP key>[:<successor key>]   # exact Finding.key from GET /v1/findings
+#     verdict: correct | incorrect | not_checked     # correct = the two sources really disagree as stated
+#     checked_by: <role>                             # a role, not a name or e-mail, e.g. "team member (data)"
+#     checked_at: YYYY-MM-DD                         # date of the check
+#     note: <one line>                               # what was compared, or why it is wrong
+#
+# precision = correct / (correct + incorrect); not_checked entries do not count.
+# Entries with any other verdict value are ignored.
+version: 1
+findings: []

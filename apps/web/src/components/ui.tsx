@@ -85,6 +85,24 @@ export function KepLink({ number, label }: { number: number | null | undefined; 
   );
 }
 
+/** A GitHub login as an identifier, linked to its Person page. */
+export function PersonLink({ login, className }: { login: string; className?: string }) {
+  return (
+    <Link href={`/explore/person/${encodeURIComponent(login)}` as Route} className={cx("quiet-link ident", className)}>
+      @{login}
+    </Link>
+  );
+}
+
+/** A SIG as its directory name, linked to its SIG page. */
+export function SigLink({ sig, className }: { sig: string; className?: string }) {
+  return (
+    <Link href={`/explore/sig/${encodeURIComponent(sig)}` as Route} className={cx("quiet-link ident", className)}>
+      {sig}
+    </Link>
+  );
+}
+
 export function Login({ login, url }: { login: string; url?: string | null }) {
   return (
     <ExtLink href={url ?? `https://github.com/${login}`} label={`@${login} on GitHub`}>
@@ -168,7 +186,7 @@ const ERROR_COPY: Record<string, { title: string; hint: string }> = {
   rate_limited: { title: "Too many requests", hint: "Too many questions from this address; wait a few minutes." },
   capacity_reached: {
     title: "Today's answering budget is used up",
-    hint: "Audit, Explore and Eval still work.",
+    hint: "Today's answering budget for this deployment is used up. Audit, Explore and Eval still work.",
   },
   question_too_long: { title: "Question too long", hint: "Questions are limited to 1,000 characters." },
   forbidden: { title: "Not allowed", hint: "This action is not available on the public deployment." },
@@ -178,8 +196,23 @@ const ERROR_COPY: Record<string, { title: string; hint: string }> = {
 };
 
 /** Inline error where the content would have been. No stack traces, no raw JSON. */
+function copyFor(error: ApiFailure): { title: string; hint: string } {
+  if (error.code === "rate_limited") {
+    if (error.details?.scope === "daily") return ERROR_COPY.capacity_reached;
+    const retry = Number(error.details?.retry_after_s);
+    if (Number.isFinite(retry) && retry > 0) {
+      const minutes = Math.max(1, Math.ceil(retry / 60));
+      return {
+        title: "Too many requests",
+        hint: `Too many questions from this address; try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      };
+    }
+  }
+  return ERROR_COPY[error.code] ?? { title: "The request failed", hint: "Try again in a moment." };
+}
+
 export function ErrorState({ error, what, children }: { error: ApiFailure; what?: string; children?: ReactNode }) {
-  const copy = ERROR_COPY[error.code] ?? { title: "The request failed", hint: "Try again in a moment." };
+  const copy = copyFor(error);
   return (
     <div role="alert" className="rounded-md border border-danger/40 bg-danger-subtle p-4 text-fg">
       <p className="flex items-center gap-2 font-semibold text-danger">
@@ -242,6 +275,16 @@ export function StatTile({ label, value, note }: { label: string; value: ReactNo
   );
 }
 
+/** Horizontal bar for one count against the largest count in its group; the number is always printed beside it. */
+export function MiniBar({ value, max, color = "var(--c-text-muted)" }: { value: number; max: number; color?: string }) {
+  const w = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
+  return (
+    <span aria-hidden="true" className="block h-2 w-full rounded-sm bg-surface-subtle">
+      <span className="block h-2 rounded-sm" style={{ width: `${w}%`, background: color }} />
+    </span>
+  );
+}
+
 /** Definition list of facts: label / value pairs. */
 export function Facts({ items }: { items: { label: string; value: ReactNode }[] }) {
   return (
@@ -263,7 +306,7 @@ export const tdClass = "border-b border-border px-3 py-2 align-top";
 /** Horizontally scrollable, keyboard-reachable region around a wide table. */
 export function TableWrap({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <div className="overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
+    <div className="relative overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
       {children}
     </div>
   );
@@ -271,8 +314,9 @@ export function TableWrap({ children, label }: { children: ReactNode; label: str
 
 export function Dash() {
   return (
-    <span className="text-fg-muted" aria-label="none">
-      —
+    <span className="text-fg-muted">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">none</span>
     </span>
   );
 }

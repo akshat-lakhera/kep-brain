@@ -1,0 +1,12 @@
+{
+  "created_at": "2026-10-15T01:43:44Z",
+  "arms": [
+    "G",
+    "N"
+  ],
+  "reps": 1,
+  "question_set": "judge",
+  "model": "openai/gpt-oss-120b",
+  "pin": "8659e382efab7340d70de52432ee8f3d9979b797",
+  "max_usd": 2.0
+}

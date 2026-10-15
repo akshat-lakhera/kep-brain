@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { serverApi } from "@/lib/api/server";
 import { shortSha } from "@/lib/format";
 
@@ -16,8 +17,8 @@ export async function DataChip() {
   const asOf = meta.data.sources.tickets_as_of;
   return (
     <Link
-      href="/about"
-      className="inline-flex h-7 items-center gap-1 rounded-sm border border-border bg-surface-subtle px-2 text-xs text-fg-secondary hover:border-border-strong"
+      href={"/audit#sync" as Route}
+      className="hidden h-7 items-center gap-1 rounded-sm border border-border bg-surface-subtle px-2 text-xs text-fg-secondary hover:border-border-strong sm:inline-flex"
       title={`kubernetes/enhancements at ${sha ?? "unknown"}${asOf ? `; tickets as of ${asOf}` : ""}`}
     >
       <span className="hidden sm:inline">Data as of</span>
@@ -58,8 +59,11 @@ export async function Footer() {
           <Link href="/about" className="quiet-link">
             About
           </Link>
-          <Link href="/judge" className="quiet-link">
-            Judge path
+          <Link href="/tools" className="quiet-link">
+            Tools
+          </Link>
+          <Link href="/eval" className="quiet-link">
+            Eval
           </Link>
         </span>
         <span className="w-full">

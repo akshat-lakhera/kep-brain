@@ -1,0 +1,36 @@
+{
+  "api": "http://127.0.0.1:8000",
+  "users": 50,
+  "rounds": 10,
+  "concurrency": 25,
+  "requests": 1500,
+  "wall_s": 15.52,
+  "rps": 96.6,
+  "seed_s": 6.38,
+  "endpoints": {
+    "write_fact": {
+      "count": 500,
+      "errors": 0,
+      "p50_ms": 145.5,
+      "p95_ms": 219.0,
+      "p99_ms": 248.7,
+      "mean_ms": 149.6
+    },
+    "recall_me": {
+      "count": 500,
+      "errors": 0,
+      "p50_ms": 301.0,
+      "p95_ms": 406.3,
+      "p99_ms": 433.1,
+      "mean_ms": 297.0
+    },
+    "board": {
+      "count": 500,
+      "errors": 0,
+      "p50_ms": 319.3,
+      "p95_ms": 425.5,
+      "p99_ms": 462.6,
+      "mean_ms": 307.7
+    }
+  }
+}

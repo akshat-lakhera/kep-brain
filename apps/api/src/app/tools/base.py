@@ -110,7 +110,9 @@ class Projector:
         for name in _FIELDS.get(label, ()):
             value = props.get(name)
             if value is not None and value != "" and value != []:
-                out[name] = value
+                # A node property must not overwrite the node label (SIG.label is the
+                # GitHub label name, e.g. "scheduling"; it is projected as sig_label).
+                out[f"{label.lower()}_label" if name == "label" else name] = value
         return out
 
     def edge(self, edge: Edge) -> dict[str, Any]:

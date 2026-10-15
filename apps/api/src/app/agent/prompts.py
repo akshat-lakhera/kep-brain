@@ -8,54 +8,32 @@ from typing import Any
 
 from app.tools.base import Tool
 
-FINAL_TOOL = "final_answer"
+# The answer is the assistant's plain-text reply, not tool-call arguments: on Groq, qwen cuts every string
+# argument of a tool call at about 500 characters (measured 2026-10-15), which truncated answers mid-word.
+ABSTAIN_PREFIX = "ABSTAIN:"
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT = f"""\
 You are KEP Brain. Answer questions about Kubernetes KEPs of sig-node, sig-scheduling and sig-apps ONLY from tool \
-results; never from outside knowledge. Call every tool the question needs in ONE round \
-(parallel calls), then final_answer; a second round only if \
-the rows are insufficient. Pass a KEP number as kep_ref.
-Routes: status/metadata current -> find_contradictions + get_kep. Replaces / what became of -> kep_relations \
+results; never from outside knowledge. Call every tool the question needs in ONE round (parallel calls, \
+including every KEP the question names), then answer; a second round only if the rows are insufficient. \
+Pass a KEP number as kep_ref.
+Routes: status/metadata current -> find_contradictions + get_kep, then report every disagreement they return. \
+Replaces / what became of -> kep_relations \
 (mode=lineage). When/by whom/which PR -> trace_decision with kinds (e.g. [status_transition]); reversals -> \
 status_history. Person to KEP -> path_between, who_approves. Feature gate -> find_entities(kinds=[FeatureGate,KEP]).
-Citations: answer_markdown must contain [[evidence_id]] (12 chars, from tool rows) right after every factual \
-sentence; never invent ids or URLs. Findings carry no evidence_id; cite the KEP, issue, PR, commit or person instead.
-Abstain (abstained=true, still with citations in answer_markdown):
-- no_exact_match or only match='nearest' rows: the thing asked about does not exist in the graph. \
-abstain_reason=no_evidence; say there is no exact match and name the nearest entity. Never present it as the answer.
-- a match='historical' feature gate is declared by no current kep.yaml: abstain_reason=no_evidence; say which KEP \
-formerly declared it and when (formerly_declared_by), and which gate that KEP declares now.
+Answer: reply with concise Markdown text (no tool call); dates YYYY-MM-DD, KEP-<n>, @login. Put \
+[[evidence_id]] (12 chars, from tool rows) right after every factual sentence or list item; never invent ids or \
+URLs. Findings carry no evidence_id; for a disagreement cite the record on each side instead (the kep.yaml \
+document or KEP, and the tracking issue or the successor KEP).
+Abstain by starting the reply with the line "{ABSTAIN_PREFIX} no_evidence" (or "{ABSTAIN_PREFIX} out_of_scope"), \
+then explain with citations:
+- no_exact_match or only match='nearest' rows: the thing asked about does not exist in the graph; say there is \
+no exact match and name the nearest entity. Never present it as the answer.
+- a match='historical' feature gate is declared by no current kep.yaml: say which KEP formerly declared it and \
+when (formerly_declared_by), and which gate that KEP declares now.
 - outside the three SIGs: out_of_scope. No relevant rows: no_evidence.
-Finish with final_answer: concise Markdown, dates YYYY-MM-DD, KEP-<n>, @login; claims list each fact with its ids.
 """
-
-FINAL_ANSWER_SPEC: dict[str, Any] = {
-    "type": "function",
-    "function": {
-        "name": FINAL_TOOL,
-        "description": "Submit the answer once, after the tool calls.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "answer_markdown": {"type": "string", "description": "Markdown with [[evidence_id]] citations"},
-                "claims": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "text": {"type": "string"},
-                            "evidence_ids": {"type": "array", "items": {"type": "string"}},
-                        },
-                        "required": ["text", "evidence_ids"],
-                    },
-                },
-                "abstained": {"type": "boolean"},
-                "abstain_reason": {"type": "string", "description": "no_evidence or out_of_scope"},
-            },
-            "required": ["answer_markdown", "claims", "abstained"],
-        },
-    },
-}
+WRITE_NOW = "Tool budget reached. Write the answer now as Markdown text with [[evidence_id]] citations."
 
 
 def _resolve_refs(schema: Any, defs: dict[str, Any]) -> Any:

@@ -15,10 +15,10 @@ from app.tools.registry import TOOLS, llm_tools, mcp_tools
 
 
 def test_registry_surfaces() -> None:
-    assert len(llm_tools()) == 14
+    llm = {t.name for t in llm_tools()}
     names = {t.name for t in mcp_tools()}
-    assert len(names) == 13
     assert "recall_memory" not in names and "draft_stale_doc_issue" not in names and "get_graph_schema" in names
+    assert names == (llm - {"recall_memory", "draft_stale_doc_issue"}) | {"get_graph_schema"}
 
 
 @pytest.mark.parametrize(

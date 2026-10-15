@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
+from app.api.audit_check import load_verdicts, with_verdicts
 from app.api.deps import pool_of, rows_of
 from app.db.falkordb import GRAPH_KEP
 from app.errors import AppError
@@ -173,6 +174,7 @@ async def get_kep_detail(request: Request, number: int, path: str | None = Query
     pool = pool_of(request)
     detail = rows_of(await pool.ro_query(GRAPH_KEP, DETAIL, {"key": card["key"], "open": VALID_TO_OPEN}))[0]
     findings = rows_of(await pool.ro_query(GRAPH_KEP, KEP_FINDINGS, {"key": card["key"]}))
+    with_verdicts(findings, load_verdicts())
     issues = detail.pop("tracking_issue") or []
     sections = sorted(detail.pop("sections") or [], key=lambda s: (s.get("order") or 0, s.get("anchor") or ""))
     return _detail_out(card, detail, issues, findings, sections)

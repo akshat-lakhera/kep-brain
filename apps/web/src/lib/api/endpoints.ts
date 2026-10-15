@@ -11,6 +11,7 @@ export const paths = {
   kepDecisions: (num: number | string, path?: string) => `/v1/keps/${n(num)}/decisions${qs({ path })}`,
   findings: (p: { kind?: string; sig?: string; state?: string }) => `/v1/findings${qs(p)}`,
   finding: (key: string) => `/v1/findings/${n(key)}`,
+  tools: () => "/v1/tools",
   tool: (name: string) => `/v1/tools/${n(name)}`,
   ask: () => "/v1/ask",
   askStream: () => "/v1/ask/stream",

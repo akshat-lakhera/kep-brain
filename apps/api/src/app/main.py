@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.errors import AppError, install_error_handlers
 from app.logging import configure_logging
-from app.middleware import RequestIdMiddleware
+from app.middleware import BodyLimitMiddleware, RequestIdMiddleware, SecurityHeadersMiddleware
 from app.settings import Settings, get_settings
 
 
@@ -44,6 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Content-Type", "X-Request-ID", "X-Kep-Memory-Id"],
         expose_headers=["X-Request-ID"],
     )
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_body_bytes)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware)
 
     @app.get("/health", include_in_schema=False)

@@ -5,13 +5,16 @@ import { readSse } from "./sse";
 import type {
   AgentsBoard,
   ApiErrorBody,
+  DecisionOut,
   AskEvent,
   AskResponse,
   EvalQuestion,
   FindingDetail,
+  ItemList,
   KepList,
   MemoryMe,
   ToolResult,
+  ToolSpec,
 } from "./types";
 
 /** Browser calls go through the same-origin proxy at /api/* (no CORS, no third-party requests). */
@@ -139,12 +142,20 @@ export const clientApi = {
     return { ok: true };
   },
   finding: (key: string, signal?: AbortSignal) => get<FindingDetail>(paths.finding(key), { signal }),
+  /** Decisions on one KEP; `path` disambiguates a reused number. */
+  kepDecisions: (num: number, path?: string, signal?: AbortSignal) =>
+    get<ItemList<DecisionOut>>(paths.kepDecisions(num, path), { signal }),
   draftIssue: (findingKey: string, signal?: AbortSignal): Promise<ApiResult<ToolResult>> =>
-    request<ToolResult>(`${PROXY}${paths.tool("draft_stale_doc_issue")}`, {
+    clientApi.runTool("draft_stale_doc_issue", { finding_key: findingKey }, signal),
+  tools: (signal?: AbortSignal) => get<ItemList<ToolSpec>>(paths.tools(), { signal }),
+  /** POST /v1/tools/{name} with the parameters as the body. Tool queries may wait on the graph, so 60 s. */
+  runTool: (name: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<ApiResult<ToolResult>> =>
+    request<ToolResult>(`${PROXY}${paths.tool(name)}`, {
       method: "POST",
       headers: headers(false, true),
-      body: JSON.stringify({ finding_key: findingKey }),
+      body: JSON.stringify(params),
       signal,
+      timeoutMs: 60_000,
     }),
   evalQuestions: () => get<{ questions: EvalQuestion[] }>(paths.evalQuestions()),
   memoryMe: () => get<MemoryMe>(paths.memoryMe(), { memory: true }),

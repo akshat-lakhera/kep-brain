@@ -25,6 +25,7 @@ from app.ingest.owners import sync_owners
 from app.logging import configure_logging
 from app.schema.apply import apply_schema
 from app.settings import Settings, get_settings
+from app.worker.runs import RunRecorder, heartbeat
 
 log = structlog.get_logger(__name__)
 
@@ -106,16 +107,29 @@ class Worker:
         rels = {r[0]: r[1] for r in q("MATCH ()-[e]->() RETURN type(e), count(*) ORDER BY type(e)")}
         return {"labels": labels, "relationships": rels}
 
-    def all(self) -> dict[str, Any]:
-        return {
-            "schema-apply": self.schema_apply(),
-            "sync-docs": self.sync_docs(),
-            "sync-history": self.sync_history(),
-            "sync-owners": self.sync_owners(),
-            "sync-tickets": self.sync_tickets(),
-            "derive": self.derive(),
-            "stats": self.stats(),
-        }
+    def all(self, recorder: RunRecorder | None = None) -> dict[str, Any]:
+        steps: list[tuple[str, Callable[[], dict[str, Any]]]] = [
+            ("schema-apply", self.schema_apply),
+            ("sync-docs", self.sync_docs),
+            ("sync-history", self.sync_history),
+            ("sync-owners", self.sync_owners),
+            ("sync-tickets", self.sync_tickets),
+            ("derive", self.derive),
+            ("stats", self.stats),
+        ]
+        return {name: recorder.step(name, fn) if recorder else fn() for name, fn in steps}
+
+    def recorded_all(self) -> dict[str, Any]:
+        """`all`, recorded as a SyncRun in the ops graph; a failed run is recorded and re-raised."""
+        recorder = RunRecorder(self.pool, self.run_id, "all", self.graph)
+        recorder.start()
+        try:
+            result = self.all(recorder)
+        except Exception as exc:
+            recorder.finish(ok=False, error=f"{type(exc).__name__}: {exc}")
+            raise
+        recorder.finish(ok=True)
+        return result
 
 
 COMMANDS = (
@@ -146,21 +160,28 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "schedule":
+        interval_s = args.interval_minutes * 60
         while True:
             worker = Worker(settings, args.graph)
             try:
-                worker.all()
-            except Exception:  # noqa: BLE001 - keep the scheduler alive; the failure is logged
+                heartbeat(worker.pool, None)
+                worker.recorded_all()
+            except Exception:  # noqa: BLE001 - keep the scheduler alive; the failure is logged and recorded
                 log.exception("scheduled_run_failed", sync_run_id=worker.run_id)
+            try:
+                heartbeat(worker.pool, int(time.time()) + interval_s)
+            except Exception:  # noqa: BLE001 - a missed heartbeat must not stop the scheduler
+                log.exception("heartbeat_failed", sync_run_id=worker.run_id)
             finally:
                 worker.close()
-            time.sleep(args.interval_minutes * 60)
+            time.sleep(interval_s)
 
     worker = Worker(settings, args.graph)
     started = time.monotonic()
     log.info("worker_start", command=args.command, graph=args.graph, sync_run_id=worker.run_id)
     try:
-        handler: Callable[[], dict[str, Any]] = getattr(worker, args.command.replace("-", "_"))
+        name = "recorded_all" if args.command == "all" else args.command.replace("-", "_")
+        handler: Callable[[], dict[str, Any]] = getattr(worker, name)
         result = handler()
     finally:
         worker.close()

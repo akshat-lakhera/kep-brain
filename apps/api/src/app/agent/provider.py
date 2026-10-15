@@ -13,8 +13,9 @@ its own quota on Groq) whose quota fits the request now, or waits for the one
 that frees up first. A 429 updates the ledger and blocks that model for the
 wait the provider asks for (at most `LLM_MAX_RETRIES` times per model); the
 request fails only when every remaining model is further than `MAX_WAIT_S`
-away. The api (async) and the freshness worker (sync) share the limiters, the
-retry policy and one client per mode.
+away (a batch caller such as the eval runner may pass a longer `max_wait_s`).
+The api (async) and the freshness worker (sync) share the limiters, the retry
+policy and one client per mode.
 """
 
 from __future__ import annotations
@@ -326,6 +327,7 @@ async def call_with_policy(
     limiter: RateLimiter | None = None,
     tokens: TokenLimiter | None = None,
     sleep: Sleep = asyncio.sleep,
+    max_wait_s: float = MAX_WAIT_S,
 ) -> tuple[str, Any]:
     limiter = limiter or shared_limiter(settings)
     tokens = tokens or shared_token_limiter()
@@ -334,7 +336,7 @@ async def call_with_policy(
     last = Attempt("fail")
     while alive:
         model, wait = pick_model(alive, need_tokens, tokens)
-        if wait > MAX_WAIT_S:
+        if wait > max_wait_s:
             log.warning("provider_quota_wait_too_long", model=model, wait_s=round(wait, 1))
             raise AppError("provider_rate_limited")
         if wait > 0:
@@ -429,7 +431,9 @@ def _limit_kind(exc: Exception) -> str:
 
 
 def _empty(resp: Any) -> bool:
-    return bool(resp.choices) and not resp.choices[0].message.content and not resp.choices[0].message.tool_calls
+    """No tool call and no text; qwen with hidden reasoning sometimes returns only whitespace."""
+    msg = resp.choices[0].message if resp.choices else None
+    return msg is not None and not (msg.content or "").strip() and not msg.tool_calls
 
 
 def _family(model: str) -> str:
@@ -453,6 +457,7 @@ class OpenAICompatibleProvider:
         limiter: RateLimiter | None = None,
         tokens: TokenLimiter | None = None,
         sleep: Sleep = asyncio.sleep,
+        max_wait_s: float = MAX_WAIT_S,
     ) -> None:
         self.settings = settings
         self.model = model or settings.llm_model
@@ -462,11 +467,13 @@ class OpenAICompatibleProvider:
         self._limiter = limiter
         self._tokens = tokens or shared_token_limiter()
         self._sleep = sleep
+        self._max_wait_s = max_wait_s
 
     async def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Turn:
         async def send(model: str) -> Any:
             raw = await self._client.chat.completions.with_raw_response.create(
-                model=model, messages=messages, tools=tools, tool_choice="auto", temperature=0.1,
+                model=model, messages=messages, tools=tools or openai.NOT_GIVEN,
+                tool_choice="auto" if tools else openai.NOT_GIVEN, temperature=0.1,
                 max_tokens=MAX_OUTPUT_TOKENS, extra_body=reasoning_params(model),
             )  # fmt: skip
             self._tokens.observe(model, raw.headers)
@@ -477,10 +484,11 @@ class OpenAICompatibleProvider:
 
         async def run(models: list[str]) -> tuple[str, Any]:
             return await call_with_policy(self.settings, models, send, need_tokens=need, limiter=self._limiter,
-                                          tokens=self._tokens, sleep=self._sleep)  # fmt: skip
+                                          tokens=self._tokens, sleep=self._sleep,
+                                          max_wait_s=self._max_wait_s)  # fmt: skip
 
         model, resp = await run(chain)
-        if tools and _empty(resp):
+        if _empty(resp):
             # gpt-oss on Groq sometimes reasons to an answer and then emits nothing, deterministically for the
             # same prompt; another model family answers it.
             msg = resp.choices[0].message
@@ -597,7 +605,8 @@ class AnthropicProvider:
         )
 
 
-def make_provider(settings: Settings) -> Provider:
+def make_provider(settings: Settings, max_wait_s: float = MAX_WAIT_S) -> Provider:
+    """`max_wait_s`: how long a call may wait for a model's quota (interactive asks fail fast; batch runs wait)."""
     if settings.llm_provider == "anthropic":
         return AnthropicProvider(settings)
-    return OpenAICompatibleProvider(settings)
+    return OpenAICompatibleProvider(settings, max_wait_s=max_wait_s)

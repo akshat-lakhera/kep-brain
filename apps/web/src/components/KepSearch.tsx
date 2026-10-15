@@ -82,7 +82,7 @@ export function KepSearch() {
   }
 
   return (
-    <div ref={boxRef} className="relative w-40 sm:w-56 md:w-64">
+    <div ref={boxRef} className="relative w-36 sm:w-56 md:w-64">
       <label htmlFor={`${id}-input`} className="sr-only">
         Search KEPs by number or title
       </label>

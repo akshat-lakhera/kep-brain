@@ -1,0 +1,165 @@
+{
+  "run_id": "20261015T014344Z",
+  "created_at": "2026-10-15T01:43:44Z",
+  "arms": [
+    "G",
+    "N"
+  ],
+  "reps": 1,
+  "question_set": "judge",
+  "model": "openai/gpt-oss-120b",
+  "pin": "8659e382efab7340d70de52432ee8f3d9979b797",
+  "max_usd": 2.0,
+  "complete": false,
+  "questions": 1,
+  "rows": 2,
+  "errors": 0,
+  "cost_usd": 0.001374,
+  "scoring": "Pass = not abstained and every expected evidence key cited (any_of group and required node labels where recorded); ABS questions pass on an accepted abstain_reason. Questions with expected_evidence 'unknown' are unscored. Fact lists and set equality are not judged by this scorer.",
+  "overall": {
+    "G": {
+      "n": 1,
+      "scored": 1,
+      "unscored": 0,
+      "passed": 0,
+      "accuracy": 0.0,
+      "ci95": [
+        0.0,
+        0.7935
+      ],
+      "false_abstentions": 0,
+      "false_abstention_rate": 0.0,
+      "validator_rescues": 0,
+      "citation_recall": 1.0,
+      "citations": 2,
+      "citation_validity": null,
+      "abstentions": 0,
+      "abstention_precision": null,
+      "abstention_recall": null,
+      "first_tool_hit_rate": 0.0,
+      "cost_usd": 0.0013,
+      "input_tokens": 11791,
+      "output_tokens": 241,
+      "latency_p50_ms": 1098533,
+      "latency_p95_ms": 1098533,
+      "tools_p50_ms": 44.1,
+      "tools_p95_ms": 44.1
+    },
+    "N": {
+      "n": 1,
+      "scored": 1,
+      "unscored": 0,
+      "passed": 0,
+      "accuracy": 0.0,
+      "ci95": [
+        0.0,
+        0.7935
+      ],
+      "false_abstentions": 1,
+      "false_abstention_rate": 1.0,
+      "validator_rescues": 0,
+      "citation_recall": null,
+      "citations": 0,
+      "citation_validity": null,
+      "abstentions": 1,
+      "abstention_precision": 0.0,
+      "abstention_recall": null,
+      "first_tool_hit_rate": null,
+      "cost_usd": 7.4e-05,
+      "input_tokens": 144,
+      "output_tokens": 120,
+      "latency_p50_ms": 20931,
+      "latency_p95_ms": 20931,
+      "tools_p50_ms": 0.0,
+      "tools_p95_ms": 0.0
+    }
+  },
+  "by_kind": {
+    "G/STA": {
+      "arm": "G",
+      "kind": "STA",
+      "n": 1,
+      "scored": 1,
+      "unscored": 0,
+      "passed": 0,
+      "accuracy": 0.0,
+      "ci95": [
+        0.0,
+        0.7935
+      ],
+      "false_abstentions": 0,
+      "false_abstention_rate": 0.0,
+      "validator_rescues": 0,
+      "citation_recall": 1.0,
+      "citations": 2,
+      "citation_validity": null,
+      "abstentions": 0,
+      "abstention_precision": null,
+      "abstention_recall": null
+    },
+    "N/STA": {
+      "arm": "N",
+      "kind": "STA",
+      "n": 1,
+      "scored": 1,
+      "unscored": 0,
+      "passed": 0,
+      "accuracy": 0.0,
+      "ci95": [
+        0.0,
+        0.7935
+      ],
+      "false_abstentions": 1,
+      "false_abstention_rate": 1.0,
+      "validator_rescues": 0,
+      "citation_recall": null,
+      "citations": 0,
+      "citation_validity": null,
+      "abstentions": 1,
+      "abstention_precision": 0.0,
+      "abstention_recall": null
+    }
+  },
+  "per_question": [
+    {
+      "arm": "G",
+      "id": "STA-04",
+      "kind": "STA",
+      "rep": 1,
+      "passed": false,
+      "abstained": false,
+      "abstain_reason": null,
+      "citations": 2,
+      "tools": 2,
+      "latency_ms": 1098533,
+      "cost_usd": 0.0012996000000000001
+    },
+    {
+      "arm": "N",
+      "id": "STA-04",
+      "kind": "STA",
+      "rep": 1,
+      "passed": false,
+      "abstained": true,
+      "abstain_reason": "unsupported_claims",
+      "citations": 0,
+      "tools": 0,
+      "latency_ms": 20931,
+      "cost_usd": 7.44e-05
+    }
+  ],
+  "latency_by_stage": {
+    "total_p50_ms": 1098533,
+    "total_p95_ms": 1098533,
+    "graph_tools_p50_ms": 44.1,
+    "graph_tools_p95_ms": 44.1
+  },
+  "baseline": {
+    "arm": "N (no tools, no sources)",
+    "scored": 1,
+    "passed": 0,
+    "accuracy": 0.0,
+    "validator_rescues": 0
+  },
+  "contradiction_recall": null
+}

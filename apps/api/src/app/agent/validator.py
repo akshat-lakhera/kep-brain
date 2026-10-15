@@ -5,9 +5,12 @@ Rules:
    claim's `evidence_ids`) must come from a tool result of this request.
 2. `Finding`, `Episode` and `Fact` ids are context, never citable.
 3. `abstained = false` needs at least one claim with at least one valid id,
-   and at least one inline citation.
+   and at least one inline citation. Claims are the reply's lines that carry
+   markers (`parse_answer`); explicit references to returned records
+   (`KEP-<n>`, `#<n>`, `@login`) are linked first (`link_mentions`).
 4. Every URL in the Markdown must be the URL of a record returned in this
-   request; other URLs are removed (the link text stays).
+   request; other URLs are removed (the link text stays). `[[...]]` markers
+   that hold no evidence id (e.g. a Finding key) are removed too.
 Any violation of 1–3 turns the answer into an abstention
 (`unsupported_claims`); the rejected text is never returned.
 On success the `[[id]]` markers become `[n]` with a numbered citation list.
@@ -28,6 +31,8 @@ from app.tools.base import NON_EVIDENCE_LABELS as UNCITABLE_LABELS
 MARKER_RE = re.compile(r"\[\[\s*([a-z2-7]{12})\s*\]\]|\[([a-z2-7]{12})\](?!\()")
 URL_RE = re.compile(r"https?://[^\s)\]>\"'`]+")
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
+# A double-bracket marker around something that is not an evidence id (a Finding or node key, a URL).
+NON_ID_MARKER_RE = re.compile(r"\s*\[\[(?!\s*[a-z2-7]{12}\s*\]\])[^\[\]\n]{1,300}\]\]")
 
 
 class Claim(BaseModel):
@@ -96,6 +101,66 @@ def _markers(text: str) -> list[str]:
     return [next(g for g in m.groups() if g) for m in MARKER_RE.finditer(text)]
 
 
+_MENTION_RE = re.compile(
+    r"\bKEP[-‐‑– ]?(\d{1,5})\b"  # KEP-583 (models also write non-breaking hyphens)
+    r"|(?<![\w/])(?:kubernetes/enhancements)?#(\d{1,6})\b"  # #583, kubernetes/enhancements#5761
+    r"|(?<![\w/@])@([A-Za-z0-9][A-Za-z0-9-]{0,38})"  # @login
+)
+_KEP_NUMBER_RE = re.compile(r"^keps/[^/]+/(\d+)-")
+_TICKET_NUMBER_RE = re.compile(r"^kubernetes/enhancements#(\d+)$")
+
+
+def link_mentions(text: str, evidence: dict[str, Evidence]) -> str:
+    """Cite explicit references the answer makes to records returned in this request: `KEP-<n>`, `#<n>` (issue or
+    PR) and `@login` get that record's marker right after the mention, unless the line already cites it. Only
+    records some tool returned are linked, so nothing outside the request becomes citable."""
+    targets: dict[tuple[str, str], str] = {}
+    for eid, ev in evidence.items():
+        if ev.label in UNCITABLE_LABELS:
+            continue
+        if ev.label == "KEP" and (m := _KEP_NUMBER_RE.match(ev.key)):
+            targets.setdefault(("kep", m.group(1)), eid)
+        elif ev.label in ("Issue", "PullRequest") and (m := _TICKET_NUMBER_RE.match(ev.key)):
+            targets.setdefault(("ticket", m.group(1)), eid)
+        elif ev.label == "Person":
+            targets.setdefault(("person", ev.key.lower()), eid)
+
+    def link_line(line: str) -> str:
+        cited = set(_markers(normalise_markers(line)))
+        out, last = [], 0
+        for m in _MENTION_RE.finditer(line):
+            kep, ticket, login = m.groups()
+            key = ("kep", kep) if kep else ("ticket", ticket) if ticket else ("person", (login or "").lower())
+            eid = targets.get(key)
+            if eid is None or eid in cited or line[: m.start()].count("`") % 2:
+                continue
+            cited.add(eid)
+            out.append(line[last : m.end()] + f" [[{eid}]]")
+            last = m.end()
+        return "".join(out) + line[last:]
+
+    return "\n".join(link_line(line) for line in text.split("\n"))
+
+
+_ABSTAIN_RE = re.compile(r"\A[^\w\n]*ABSTAIN(?:ED)?\b[^\w\n]*(no_evidence|out_of_scope)?[^\w\n]*", re.IGNORECASE)
+
+
+def parse_answer(text: str) -> FinalAnswer:
+    """The planner's plain-text reply as a FinalAnswer. A first line `ABSTAIN: <reason>` marks an abstention;
+    each line that carries citation markers becomes one claim with those ids."""
+    body = (text or "").strip()
+    abstained, reason = False, None
+    if m := _ABSTAIN_RE.match(body):
+        abstained, reason = True, (m.group(1) or "no_evidence").lower()
+        body = body[m.end() :].strip()
+    claims = [
+        Claim(text=line.strip()[:2000], evidence_ids=ids)
+        for line in normalise_markers(body).splitlines()
+        if (ids := list(dict.fromkeys(_markers(line))))
+    ]
+    return FinalAnswer(answer_markdown=body, claims=claims, abstained=abstained, abstain_reason=reason)
+
+
 def _strip_unknown_urls(text: str, allowed: set[str]) -> tuple[str, int]:
     removed = 0
 
@@ -125,7 +190,7 @@ def _strip_unknown_urls(text: str, allowed: set[str]) -> tuple[str, int]:
 def validate(answer: FinalAnswer, evidence: dict[str, Evidence], row_urls: set[str]) -> Validated:
     citable = {eid: ev for eid, ev in evidence.items() if ev.label not in UNCITABLE_LABELS}
     violations: list[str] = []
-    text = normalise_markers(answer.answer_markdown or "")
+    text, non_ids = NON_ID_MARKER_RE.subn("", normalise_markers(answer.answer_markdown or ""))
 
     inline = _markers(text)
     for eid in inline:
@@ -161,6 +226,8 @@ def validate(answer: FinalAnswer, evidence: dict[str, Evidence], row_urls: set[s
     md, removed = _strip_unknown_urls(md, _allowed_urls(citable, row_urls))
     if removed:
         violations.append(f"removed {removed} URL(s) not returned by any tool")
+    if non_ids:
+        violations.append(f"removed {non_ids} citation marker(s) that hold no evidence id")
     return Validated(md, cites, False, None, violations)
 
 

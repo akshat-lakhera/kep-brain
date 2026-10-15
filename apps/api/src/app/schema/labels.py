@@ -13,7 +13,7 @@ NODE_LABELS: frozenset[str] = frozenset(
         "SIG", "WorkingGroup", "Committee", "Subproject", "Person", "Alias", "Document", "Section",
         "KEP", "FeatureGate", "Component", "Metric", "Release", "Label", "ExternalRef", "Commit",
         "PullRequest", "Issue", "Review", "Comment", "StatusChange", "Decision", "Finding",
-        "Ticket", "OwnersFile", "AnswerCache",
+        "Ticket", "OwnersFile", "AnswerCache", "SyncRun", "WorkerHeartbeat",
     }
 )  # fmt: skip
 
@@ -49,4 +49,14 @@ FINDING_KINDS = (
     "stage_mismatch",
     "milestone_mismatch",
 )
-BOT_LOGINS = frozenset({"k8s-ci-robot", "k8s-triage-robot", "fejta-bot", "k8s-merge-robot", "dependabot"})
+BOT_LOGINS = frozenset(
+    {
+        "k8s-ci-robot",
+        "k8s-triage-robot",
+        "k8s-github-robot",
+        "kubernetes-prow",
+        "fejta-bot",
+        "k8s-merge-robot",
+        "dependabot",
+    }
+)

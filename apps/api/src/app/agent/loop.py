@@ -20,9 +20,17 @@ import structlog
 from pydantic import ValidationError
 
 from app.agent.cache import AnswerCache
-from app.agent.prompts import FINAL_ANSWER_SPEC, FINAL_TOOL, MEMORY_TOOL, NOT_FOR_PLANNER, SYSTEM_PROMPT, tool_spec
-from app.agent.provider import WAIT_LISTENER, Provider, ToolCall, cost_usd, estimate_tokens, make_provider
-from app.agent.validator import FinalAnswer, Validated, collect_row_urls, validate
+from app.agent.prompts import MEMORY_TOOL, NOT_FOR_PLANNER, SYSTEM_PROMPT, WRITE_NOW, tool_spec
+from app.agent.provider import (
+    CHARS_PER_TOKEN,
+    WAIT_LISTENER,
+    Provider,
+    ToolCall,
+    cost_usd,
+    estimate_tokens,
+    make_provider,
+)
+from app.agent.validator import FinalAnswer, Validated, collect_row_urls, link_mentions, parse_answer, validate
 from app.db.falkordb import FalkorPool
 from app.db.results import Evidence
 from app.errors import AppError
@@ -33,19 +41,20 @@ from app.tools.registry import llm_tools
 
 log = structlog.get_logger(__name__)
 
-MAX_STEPS = 4
+MAX_STEPS = 3
 MAX_TOOL_CALLS = 8
 WALL_BUDGET_S = 90.0
 # Token budgets (prompt estimate, 4 chars per token). Groq's free tier allows 8000 tokens per minute per
 # model and counts the prompt plus the completion; TURN_TOKEN_BUDGET + MAX_OUTPUT_TOKENS stays under it.
 TURN_TOKEN_BUDGET = 5500
 ASK_TOKEN_BUDGET = 20000
-# What the planner sees of one tool result: at most MAX_ROWS rows, strings cut to TEXT_CHARS,
-# the whole result cut to TOOL_RESULT_CHARS by dropping rows; older results shrink to OLD_RESULT_CHARS.
+# What the planner sees of one tool result: at most MAX_ROWS rows, strings cut to TEXT_CHARS, the whole result
+# cut to TOOL_RESULT_CHARS; when a turn is over budget every result shrinks to a common cap of at least
+# MIN_RESULT_CHARS.
 MAX_ROWS = 12
 TEXT_CHARS = 280
 TOOL_RESULT_CHARS = 4000
-OLD_RESULT_CHARS = 900
+MIN_RESULT_CHARS = 200
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
 
@@ -117,6 +126,8 @@ class Agent:
         turn_token_budget: int = TURN_TOKEN_BUDGET,
         ask_token_budget: int = ASK_TOKEN_BUDGET,
         cache: AnswerCache | None = None,
+        use_cache: bool = True,
+        wall_budget_s: float = WALL_BUDGET_S,
     ) -> None:
         self.pool = pool
         self.settings = settings
@@ -124,7 +135,11 @@ class Agent:
         self.tools = {t.name: t for t in llm_tools()}
         self.turn_token_budget = turn_token_budget
         self.ask_token_budget = ask_token_budget
-        self.cache = cache if cache is not None else (AnswerCache(pool) if pool is not None else None)
+        self.wall_budget_s = wall_budget_s
+        if not use_cache:
+            self.cache = None
+        else:
+            self.cache = cache if cache is not None else (AnswerCache(pool) if pool is not None else None)
 
     @property
     def provider(self) -> Provider:
@@ -174,7 +189,7 @@ class Agent:
             tool_spec(t)
             for t in self.tools.values()
             if t.name not in NOT_FOR_PLANNER and (memory_id or t.name != MEMORY_TOOL)
-        ] + [FINAL_ANSWER_SPEC]
+        ]
         final: FinalAnswer | None = None
         nudged = False
         await emit("status", {"phase": "querying_graph", "label": "Querying the graph"})
@@ -187,13 +202,13 @@ class Agent:
         listener = WAIT_LISTENER.set(on_wait)
         for step in range(MAX_STEPS + 1):
             last = step == MAX_STEPS or len(st.tool_calls) >= MAX_TOOL_CALLS
-            if time.perf_counter() - started > WALL_BUDGET_S:
+            if time.perf_counter() - started > self.wall_budget_s:
                 last = True
             if not last and st.prompt_tokens + estimate_tokens(messages, specs) > self.ask_token_budget:
                 last = True
             if last:
-                messages.append({"role": "user", "content": "Tool budget reached. Call final_answer now."})
-            tools = [FINAL_ANSWER_SPEC] if last else specs
+                messages.append({"role": "user", "content": WRITE_NOW})
+            tools = [] if last else specs
             fit_turn(messages, tools, self.turn_token_budget)
             st.prompt_tokens += estimate_tokens(messages, tools)
             turn = await provider.complete(messages, tools)
@@ -211,23 +226,17 @@ class Agent:
             SPEND.add(cost_usd(getattr(provider, "last_model", provider.model), turn.input_tokens, turn.output_tokens))
             messages.append(turn.raw_message)
             if not turn.tool_calls:
+                if turn.text.strip():
+                    final = parse_answer(link_mentions(turn.text, st.evidence))
+                    break
                 if last or nudged:
-                    final = _answer_from_text(turn.text)
                     break
                 nudged = True
-                messages.append({"role": "user", "content": "Call final_answer with your answer and claims."})
+                messages.append({"role": "user", "content": WRITE_NOW.removeprefix("Tool budget reached. ")})
                 continue
-            done = False
             for call in turn.tool_calls:
-                if call.name == FINAL_TOOL:
-                    final = _parse_final(call)
-                    messages.append({"role": "tool", "tool_call_id": call.id, "content": "received"})
-                    done = True
-                    continue
                 content = await self._run_tool(st, call, emit)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": content})
-            if done:
-                break
         WAIT_LISTENER.reset(listener)
 
         return await self._finish(
@@ -274,7 +283,7 @@ class Agent:
             content = json.dumps({"error": f"unknown tool {call.name}"})
         elif len(st.tool_calls) >= MAX_TOOL_CALLS:
             record["error"] = "tool_budget"
-            content = json.dumps({"error": "tool budget reached; call final_answer"})
+            content = json.dumps({"error": "tool budget reached; write the answer"})
         else:
             try:
                 ctx = ToolContext(pool=self.pool)
@@ -387,52 +396,28 @@ class Agent:
         return response
 
 
-def _parse_final(call: ToolCall) -> FinalAnswer:
-    args = dict(call.arguments)
-    if args.get("abstain_reason") == "":
-        args["abstain_reason"] = None
-    claims = args.get("claims")
-    if isinstance(claims, list):
-        args["claims"] = [c for c in claims if isinstance(c, dict)]
-    try:
-        return FinalAnswer.model_validate({k: v for k, v in args.items() if k in FinalAnswer.model_fields})
-    except ValidationError:
-        return FinalAnswer(answer_markdown="", claims=[], abstained=True, abstain_reason="unsupported_claims")
-
-
-def _answer_from_text(text: str) -> FinalAnswer:
-    """A provider that answered in plain text (or wrote the final_answer arguments as text): every inline id
-    must still validate."""
-    from app.agent.validator import MARKER_RE
-
-    try:
-        args = json.loads(text.strip().removeprefix("```json").removesuffix("```"))
-    except json.JSONDecodeError:
-        args = None
-    if isinstance(args, dict) and "answer_markdown" in args:
-        return _parse_final(ToolCall(id="text", name=FINAL_TOOL, arguments=args))
-    ids = [next(g for g in m.groups() if g) for m in MARKER_RE.finditer(text)]
-    claims = [{"text": text[:2000], "evidence_ids": ids}] if ids else []
-    return FinalAnswer.model_validate({"answer_markdown": text, "claims": claims, "abstained": not ids})
-
-
 NO_EXACT_MATCH_NOTE = (
     "Nothing with this exact name exists now. Abstain with abstain_reason=no_evidence and name the nearest match "
     "with its citation; a match='historical' feature gate is declared by no current kep.yaml."
 )
 _DROP_KEYS = frozenset({"url", "source_url", "a_url", "b_url", "metadata_invalid", "is_bot", "kep_path", "sha",
-                        "commit_sha"})  # fmt: skip
+                        "commit_sha", "is_tracking_issue"})  # fmt: skip
+# Descriptive fields a shrunk result gives up before it gives up whole rows.
+_SLIM_KEYS = frozenset({"title", "label", "creation_date", "created_at_iso", "labels_current", "participating"})
 
 
 def compact(value: Any) -> Any:
     """The planner's view of tool rows: evidence ids and facts. Drops URLs, nulls, titles that repeat the key or
-    summary, and keys the node key already carries; long strings are cut to TEXT_CHARS."""
+    summary, keys the node key already carries, and a `path` of node keys next to the `via` edges that spell the
+    same hops; long strings are cut to TEXT_CHARS."""
     if isinstance(value, dict):
         out = {}
         for k, v in value.items():
             if k in _DROP_KEYS or v is None or v == [] or v == "":
                 continue
             if k == "title" and v in (value.get("key"), value.get("summary")):
+                continue
+            if k == "path" and "via" in value:
                 continue
             out[k] = compact(v)
         return out
@@ -463,29 +448,43 @@ def _dump(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":"))
 
 
-def _cap_lists(value: Any, n: int) -> Any:
+def _slim(value: Any) -> Any:
     if isinstance(value, dict):
-        return {k: _cap_lists(v, n) for k, v in value.items()}
+        return {k: _slim(v) for k, v in value.items() if k not in _SLIM_KEYS}
+    if isinstance(value, list):
+        return [_slim(v) for v in value]
+    return value
+
+
+def _cap_lists(value: Any, n: int) -> Any:
+    """Keep the first n items of every nested list; a path is kept whole (its end is the point)."""
+    if isinstance(value, dict):
+        return {k: v if k == "path" else _cap_lists(v, n) for k, v in value.items()}
     if isinstance(value, list):
         return [_cap_lists(v, n) for v in value[:n]]
     return value
 
 
 def fit_rows(payload: dict[str, Any], limit: int) -> str:
-    """Serialise a tool payload within `limit` characters (never mid-JSON): first cap the lists nested inside
-    rows, then drop the last rows."""
+    """Serialise a tool payload within `limit` characters (never mid-JSON): first drop descriptive fields, then
+    cap the lists nested inside rows, and only then drop the last rows."""
     rows = list(payload.get("rows", []))
     omitted = int(payload.get("rows_omitted", 0))
     text = _dump(payload)
+    if len(text) <= limit:
+        return text
+    rows = _slim(rows)
+    text = _dump({**payload, "rows": rows, "fields_cut": True})
     for n in (4, 2, 1):
         if len(text) <= limit:
             return text
         rows = [_cap_lists(r, n) for r in rows]
-        text = _dump({**payload, "rows": rows, "nested_lists_cut": True})
+        text = _dump({**payload, "rows": rows, "fields_cut": True, "nested_lists_cut": True})
     while len(text) > limit and rows:
         drop = max(1, len(rows) // 4)
         rows, omitted = rows[:-drop], omitted + drop
-        text = _dump({**payload, "rows": rows, "nested_lists_cut": True, "rows_omitted": omitted})
+        text = _dump({**payload, "rows": rows, "fields_cut": True, "nested_lists_cut": True,
+                      "rows_omitted": omitted})  # fmt: skip
     return text
 
 
@@ -519,20 +518,33 @@ def _shrink_tool_message(message: dict[str, Any], limit: int) -> int:
     return before - len(message["content"])
 
 
-def fit_turn(messages: list[dict[str, Any]], tools: list[dict[str, Any]], budget: int) -> None:
-    """Shrink tool results, oldest first, until the request fits the per-turn token budget.
+def _even_cap(sizes: list[int], total: int) -> int:
+    """The largest per-result cap c with sum(min(size, c)) <= total: small results stay whole, large ones share
+    the rest equally."""
+    remaining = total
+    ordered = sorted(sizes)
+    for i, size in enumerate(ordered):
+        share = remaining // (len(ordered) - i)
+        if size > share:
+            return share
+        remaining -= size
+    return ordered[-1] if ordered else 0
 
-    Older results go down to OLD_RESULT_CHARS first; the newest result is cut only if that is not enough.
+
+def fit_turn(messages: list[dict[str, Any]], tools: list[dict[str, Any]], budget: int) -> None:
+    """Shrink tool results until the request fits the per-turn token budget.
+
+    Every result is cut to one common cap (at least MIN_RESULT_CHARS), so a fact from the first round is not
+    thrown away to keep a later, larger result whole; inside a result, descriptive fields go before rows.
     """
     tool_msgs = [m for m in messages if m.get("role") == "tool"]
-    over = (estimate_tokens(messages, tools) - budget) * 4
-    for limit in (OLD_RESULT_CHARS, 200):
-        for m in tool_msgs[:-1]:
-            if over <= 0:
-                return
-            over -= _shrink_tool_message(m, limit)
-    if over > 0 and tool_msgs:
-        _shrink_tool_message(tool_msgs[-1], max(200, len(tool_msgs[-1]["content"]) - over))
+    over = int((estimate_tokens(messages, tools) - budget) * CHARS_PER_TOKEN)
+    if over <= 0 or not tool_msgs:
+        return
+    sizes = [len(m["content"]) for m in tool_msgs]
+    cap = max(MIN_RESULT_CHARS, _even_cap(sizes, sum(sizes) - over))
+    for m in tool_msgs:
+        _shrink_tool_message(m, cap)
 
 
 def _graph(evidence: list[Evidence], paths: list[list[str]], prefer: set[str] | None = None) -> dict[str, Any]:

@@ -19,7 +19,12 @@ export interface Meta {
   sigs: string[];
   llm: { provider: string | null; model: string | null; configured: boolean };
   falkordb_image: string | null;
+  /** Releases present in the graph; served by newer API builds only. */
+  releases?: ReleaseRef[];
 }
+
+/** A release as the API may list it: a bare name ("v1.37") or a Release node projection. */
+export type ReleaseRef = string | { key?: string; name?: string; minor?: number; is_future?: boolean; released_at?: string | null };
 
 export interface KepCard {
   key: string;
@@ -80,6 +85,11 @@ export interface Finding {
   detected_at_iso: string | null;
   triage_verdict: string | null;
   assessment: string | null;
+  /** Hand-check record, when the API serves one. */
+  human_verdict?: string | null;
+  human_checked_by?: string | null;
+  human_checked_at?: string | null;
+  human_note?: string | null;
 }
 
 export interface Evidence {
@@ -152,6 +162,10 @@ export interface FindingsSummary {
   total: number;
   by_kind: Record<string, number>;
   by_sig: Record<string, number>;
+  /** Present once hand-check records are loaded. */
+  hand_checked?: number | null;
+  /** Hand-checked correct / hand-checked, 0..1. */
+  precision?: number | null;
 }
 
 export interface FindingsResponse {
@@ -215,6 +229,34 @@ export interface AskResponse {
 /** One finding with the evidence records it was derived from (GET /v1/findings/{key}). */
 export interface FindingDetail extends Finding {
   evidence: Evidence[];
+}
+
+/** A JSON Schema fragment as pydantic emits it for a tool's parameters; only the keywords the form reads are typed. */
+export interface JsonSchema {
+  type?: string | string[];
+  title?: string;
+  description?: string;
+  enum?: (string | number | boolean | null)[];
+  default?: unknown;
+  anyOf?: JsonSchema[];
+  items?: JsonSchema;
+  properties?: Record<string, JsonSchema>;
+  required?: string[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  pattern?: string;
+  [extra: string]: unknown;
+}
+
+/** One entry of GET /v1/tools. */
+export interface ToolSpec {
+  name: string;
+  description: string;
+  params_schema: JsonSchema;
 }
 
 /** POST /v1/tools/{name} (06 C2). */
@@ -379,4 +421,57 @@ export interface AgentsBoard {
   tasks?: Record<string, unknown>[];
   findings_recent?: Record<string, unknown>[];
   [extra: string]: unknown;
+}
+
+/** GET /v1/changes?since=&sig= */
+export interface ChangeItem {
+  kep_number: number | null;
+  kep_title: string | null;
+  owning_sig: string | null;
+  kind: string;
+  field: string;
+  from_value: string | null;
+  to_value: string | null;
+  at_iso: string | null;
+  actor_login: string | null;
+  pr: { number: number; url: string } | null;
+  source_url: string | null;
+}
+
+export interface ChangesResponse {
+  since: string | null;
+  releases: ReleaseRef[];
+  counts: {
+    keps_changed: number;
+    status_transitions: number;
+    stage_changes: number;
+    milestone_changes: number;
+    new_keps: number;
+  };
+  items: ChangeItem[];
+}
+
+/** GET /v1/sync/status */
+export interface SyncStatus {
+  pinned: { enhancements_sha: string | null; community_sha: string | null };
+  tickets_as_of: string | null;
+  last_run: {
+    started_at_iso: string | null;
+    finished_at_iso: string | null;
+    ok: boolean;
+    steps: Record<string, { count?: number | null; ms?: number | null }>;
+  } | null;
+  counts_by_label: Record<string, number>;
+  worker_last_seen_iso: string | null;
+  next_tick_iso: string | null;
+}
+
+/** One SIG as GET /v1/sigs may list it (newer API builds); only `key` is required. */
+export interface SigSummary {
+  key: string;
+  display_name?: string | null;
+  keps?: number | null;
+  open_findings?: number | null;
+  findings?: number | null;
+  url?: string | null;
 }

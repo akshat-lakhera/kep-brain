@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from test_agent_loop import EID, FakeTool, Recorded, call
+from test_agent_loop import EID, FakeTool, Recorded, answer, call
 
 from app.agent.cache import AnswerCache, cache_key, normalise
 from app.agent.loop import Agent
@@ -47,8 +47,7 @@ class FakePool:
         return QueryOutput([], [], 0.0, {"nodes_deleted": deleted})
 
 
-FINAL = {"answer_markdown": f"It is provisional [[{EID}]].", "abstained": False,
-         "claims": [{"text": "It is provisional", "evidence_ids": [EID]}]}  # fmt: skip
+FINAL = f"It is provisional [[{EID}]]."
 
 
 def make_agent(pool: FakePool, turns: list[Any]) -> Agent:
@@ -65,7 +64,7 @@ def test_key_ignores_case_spacing_and_trailing_punctuation_but_not_version() -> 
 
 async def test_second_ask_is_served_from_the_cache_with_replayed_events() -> None:
     pool = FakePool()
-    out = await make_agent(pool, [call("get_kep", {"kep_ref": "583"}, "c1"), call("final_answer", FINAL, "c2")]).ask(
+    out = await make_agent(pool, [call("get_kep", {"kep_ref": "583"}, "c1"), answer(FINAL)]).ask(
         "What is the status of coscheduling?", "r1"
     )
     assert out["cached"] is False and len(pool.rows) == 1 and set(pool.roles) == {Role.OPS}
@@ -84,18 +83,18 @@ async def test_second_ask_is_served_from_the_cache_with_replayed_events() -> Non
 
 async def test_new_graph_version_misses() -> None:
     pool = FakePool()
-    turns = [call("get_kep", {"kep_ref": "583"}, "c1"), call("final_answer", FINAL, "c2")]
+    turns = [call("get_kep", {"kep_ref": "583"}, "c1"), answer(FINAL)]
     await make_agent(pool, turns).ask("What is the status of coscheduling?", "r1")
     pool.version = 101
-    again = [call("get_kep", {"kep_ref": "583"}, "c3"), call("final_answer", FINAL, "c4")]
+    again = [call("get_kep", {"kep_ref": "583"}, "c3"), answer(FINAL)]
     out = await make_agent(pool, again).ask("What is the status of coscheduling?", "r2")
     assert out["cached"] is False and len(pool.rows) == 2
 
 
 async def test_abstained_answers_and_memory_requests_are_not_cached(monkeypatch: pytest.MonkeyPatch) -> None:
     pool = FakePool()
-    abstain = {"answer_markdown": "x", "abstained": True, "abstain_reason": "no_evidence", "claims": []}
-    await make_agent(pool, [call("get_kep", {"kep_ref": "583"}, "c1"), call("final_answer", abstain, "c2")]).ask(
+    abstain = answer(f"ABSTAIN: no_evidence\nNothing found [[{EID}]].")
+    await make_agent(pool, [call("get_kep", {"kep_ref": "583"}, "c1"), abstain]).ask(
         "What is the status of coscheduling?", "r1"
     )
     assert not pool.rows
@@ -109,7 +108,7 @@ async def test_abstained_answers_and_memory_requests_are_not_cached(monkeypatch:
     monkeypatch.setattr("app.memory.store.recall", no_recall)
     monkeypatch.setattr("app.memory.store.remember", no_remember)
     monkeypatch.setattr("app.memory.store.planner_context", lambda _: "")
-    turns = [call("get_kep", {"kep_ref": "583"}, "c1"), call("final_answer", FINAL, "c2")]
+    turns = [call("get_kep", {"kep_ref": "583"}, "c1"), answer(FINAL)]
     a = make_agent(pool, turns)
     a.cache = AnswerCache(pool)  # type: ignore[arg-type]
     await a.ask("What is the status of coscheduling?", "r2", "01ARZ3NDEKTSV4RRFFQ69G5FAV")
