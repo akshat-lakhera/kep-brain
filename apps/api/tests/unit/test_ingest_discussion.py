@@ -70,9 +70,14 @@ class FakeClient:
         self.cost = cost
         self.cache_hits = 0
         self.calls = 0
+        self.points_spent = 0
+
+    def graphql_many(self, calls: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+        return [self.graphql(q, v) for q, v in calls]
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         self.calls += 1
+        self.points_spent += self.cost
         numbers = [int(n) for n in re.findall(r"\bp(\d+): pullRequest", query)]
         repo = {f"p{n}": {"number": n, "reviewThreads": {"pageInfo": {"hasNextPage": False}, "nodes": []}}
                 for n in numbers}  # fmt: skip

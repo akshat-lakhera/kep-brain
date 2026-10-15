@@ -416,7 +416,16 @@ def plan_lifecycle(
 def _write(writer: BatchWriter, hits: Sequence[Hit], updates: Sequence[FindingUpdate], resolved: Sequence[str]) -> None:
     now, run = writer.observed_at, writer.sync_run_id
     rows = [{"key": u.key, "props": {k: v for k, v in u.props.items() if v is not None}} for u in updates]
+    rows = list({r["key"]: r for r in rows}.values())
     for i in range(0, len(rows), 500):
+        # MANDATORY constraints are checked at creation, so new findings are CREATEd with their required properties.
+        writer.query(
+            "UNWIND $rows AS r OPTIONAL MATCH (m:Finding {key: r.key}) WITH r, m WHERE m IS NULL "
+            "CREATE (f:Finding {key: r.key, source_url: r.props.source_url, observed_at: $now, kind: r.props.kind, "
+            "kep_path: r.props.kep_path, state: r.props.state, rule_version: r.props.rule_version}) "
+            "SET f.first_seen_at = $now",
+            {"rows": rows[i : i + 500], "now": now},
+        )
         writer.query(
             "UNWIND $rows AS r MERGE (f:Finding {key: r.key}) "
             "ON CREATE SET f.first_seen_at = $now "

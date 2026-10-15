@@ -229,11 +229,12 @@ def _parse_prr(text: str | None) -> dict[str, str]:
     return approvers
 
 
-def build_corpus(settings: Settings) -> Corpus:
+def build_corpus(settings: Settings, shas: tuple[str, str] | None = None) -> Corpus:
+    """Read the pinned commits into memory. `shas` = (enhancements, community) when the caller already resolved them."""
     started = time.monotonic()
-    sha = ensure_repo(settings, "enhancements")
+    sha = shas[0] if shas else ensure_repo(settings, "enhancements")
     git = Git(clone_path(settings, "enhancements"))
-    community_sha = ensure_repo(settings, "community")
+    community_sha = shas[1] if shas else ensure_repo(settings, "community")
     community_git = Git(clone_path(settings, "community"))
     tree = git.ls_tree(sha, "keps")
     kep_dirs = sorted(p[: -len("/kep.yaml")] for p in tree if p.endswith("/kep.yaml"))

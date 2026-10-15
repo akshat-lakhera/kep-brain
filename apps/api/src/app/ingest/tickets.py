@@ -14,8 +14,14 @@ Writes (03 §4.5, §5.4, §5.5):
 
 Titles are scrubbed; issue comments are kept only for the Prow commands they carry.
 Timelines are fetched one issue per query because batched aliases silently truncate `timelineItems`
-(recon `.recon/contradictions/gql-timeline-batch-probe.json`); issue metadata and PRs are batched 25
-per query (recon `gql-batch25-vs-single.json`, `gql-pr-batch25-vs-single.json`).
+(recon `.recon/contradictions/gql-timeline-batch-probe.json`; re-checked: totalCount lies too); issue metadata
+and PRs are batched 25 per query (recon `gql-batch25-vs-single.json`, `gql-pr-batch25-vs-single.json`).
+Independent queries run with at most four in flight.
+
+Re-runs are incremental. An issue whose `updatedAt` equals the `updated_at` stored on its `Issue` node keeps
+its stored timeline; a pull request whose `updatedAt` equals the stored `updated_at` (and whose threads were
+fetched, `threads_synced`) is neither refetched nor re-read for discussion. Both stamps live on the nodes
+themselves, so a second run fetches only what changed upstream.
 """
 
 from __future__ import annotations
@@ -43,6 +49,7 @@ REPO = ENHANCEMENTS_REPO
 OWNER, NAME = REPO.split("/")
 ISSUE_BATCH = 25
 PR_BATCH = 25
+PR_PROBE_BATCH = 50
 PAGE = 100
 PR_TRIGGER_FIELDS = ("status", "stage", "latest_milestone", "replaces", "superseded_by")
 COMMANDS = ("approve", "lgtm", "hold", "retest", "milestone", "label", "stage")
@@ -275,15 +282,17 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
 """
 
 _PR_FIELDS = """
-  number title state createdAt mergedAt url baseRefName
+  number title state createdAt updatedAt mergedAt url baseRefName
   author { login }
   mergedBy { login }
   mergeCommit { oid }
   reviews(first: 100) {
+    totalCount
     pageInfo { hasNextPage endCursor }
     nodes { databaseId state submittedAt url body author { login } commit { oid } }
   }
   comments(first: 100) {
+    totalCount
     pageInfo { hasNextPage endCursor }
     nodes { databaseId createdAt url body author { login } }
   }
@@ -325,10 +334,12 @@ def _batched(items: Sequence[int], size: int) -> Iterable[Sequence[int]]:
 def fetch_issues(client: GitHubClient, numbers: Sequence[int]) -> dict[int, dict[str, Any]]:
     """Issue metadata, 25 aliases per query. Numbers that are PRs or missing are left out."""
     out: dict[int, dict[str, Any]] = {}
-    for chunk in _batched(sorted(set(numbers)), ISSUE_BATCH):
+    chunks = list(_batched(sorted(set(numbers)), ISSUE_BATCH))
+    calls: list[tuple[str, dict[str, Any]]] = []
+    for chunk in chunks:
         aliases = "\n".join(f"i{n}: issueOrPullRequest(number: {n}) {{ {_ISSUE_FIELDS} }}" for n in chunk)
-        query = f'query {{ repository(owner: "{OWNER}", name: "{NAME}") {{ {aliases} }} }}'
-        data = client.graphql(query)
+        calls.append((f'query {{ repository(owner: "{OWNER}", name: "{NAME}") {{ {aliases} }} }}', {}))
+    for chunk, data in zip(chunks, client.graphql_many(calls), strict=True):
         repo = data.get("repository") or {}
         for n in chunk:
             node = repo.get(f"i{n}")
@@ -339,9 +350,8 @@ def fetch_issues(client: GitHubClient, numbers: Sequence[int]) -> dict[int, dict
     return out
 
 
-def fetch_timeline(client: GitHubClient, number: int) -> list[dict[str, Any]]:
+def fetch_timeline(client: GitHubClient, number: int, after: str | None = None) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
-    after: str | None = None
     while True:
         data = client.graphql(_TIMELINE_QUERY, {"owner": OWNER, "name": NAME, "number": number, "after": after})
         conn = ((data.get("repository") or {}).get("issue") or {}).get("timelineItems") or {}
@@ -352,12 +362,35 @@ def fetch_timeline(client: GitHubClient, number: int) -> list[dict[str, Any]]:
         after = page.get("endCursor")
 
 
+def fetch_timelines(client: GitHubClient, numbers: Sequence[int]) -> dict[int, list[dict[str, Any]]]:
+    """Label/milestone timeline events per issue: one issue per query, four queries in flight.
+
+    Batching issues in one query is not safe here: `timelineItems` came back truncated with a matching
+    `totalCount` and no next page (checked against single-issue results for 46 of 233 issues).
+    """
+    ordered = sorted(set(numbers))
+    calls: list[tuple[str, dict[str, Any]]] = [
+        (_TIMELINE_QUERY, {"owner": OWNER, "name": NAME, "number": n, "after": None}) for n in ordered
+    ]
+    out: dict[int, list[dict[str, Any]]] = {}
+    for n, data in zip(ordered, client.graphql_many(calls), strict=True):
+        conn = ((data.get("repository") or {}).get("issue") or {}).get("timelineItems") or {}
+        events = [e for e in conn.get("nodes") or [] if e]
+        page = conn.get("pageInfo") or {}
+        if page.get("hasNextPage"):
+            events += fetch_timeline(client, n, after=page.get("endCursor"))
+        out[n] = events
+    return out
+
+
 def fetch_prs(client: GitHubClient, numbers: Sequence[int]) -> dict[int, dict[str, Any]]:
     out: dict[int, dict[str, Any]] = {}
-    for chunk in _batched(sorted(set(numbers)), PR_BATCH):
+    chunks = list(_batched(sorted(set(numbers)), PR_BATCH))
+    calls: list[tuple[str, dict[str, Any]]] = []
+    for chunk in chunks:
         aliases = "\n".join(f"p{n}: pullRequest(number: {n}) {{ {_PR_FIELDS} }}" for n in chunk)
-        query = f'query {{ repository(owner: "{OWNER}", name: "{NAME}") {{ {aliases} }} }}'
-        data = client.graphql(query)
+        calls.append((f'query {{ repository(owner: "{OWNER}", name: "{NAME}") {{ {aliases} }} }}', {}))
+    for chunk, data in zip(chunks, client.graphql_many(calls), strict=True):
         repo = data.get("repository") or {}
         for n in chunk:
             node = repo.get(f"p{n}")
@@ -367,10 +400,29 @@ def fetch_prs(client: GitHubClient, numbers: Sequence[int]) -> dict[int, dict[st
     return out
 
 
+def fetch_pr_stamps(client: GitHubClient, numbers: Sequence[int]) -> dict[int, int | None]:
+    """`updatedAt` (epoch) per pull request, `PR_PROBE_BATCH` per query; costs about one point per query."""
+    chunks = list(_batched(sorted(set(numbers)), PR_PROBE_BATCH))
+    calls: list[tuple[str, dict[str, Any]]] = []
+    for chunk in chunks:
+        aliases = "\n".join(f"p{n}: pullRequest(number: {n}) {{ updatedAt }}" for n in chunk)
+        calls.append((f'query {{ repository(owner: "{OWNER}", name: "{NAME}") {{ {aliases} }} }}', {}))
+    out: dict[int, int | None] = {}
+    for chunk, data in zip(chunks, client.graphql_many(calls), strict=True):
+        repo = data.get("repository") or {}
+        for n in chunk:
+            out[n] = epoch((repo.get(f"p{n}") or {}).get("updatedAt"))
+    return out
+
+
 def _complete_pr_pages(client: GitHubClient, pr: dict[str, Any]) -> None:
     for conn_name in ("reviews", "comments"):
         conn = pr.get(conn_name) or {}
         page = conn.get("pageInfo") or {}
+        if not page.get("hasNextPage") and int(conn.get("totalCount") or 0) > len(conn.get("nodes") or []):
+            log.warning("pr_batch_short", number=pr["number"], connection=conn_name)
+            page = {"hasNextPage": True, "endCursor": None}
+            conn["nodes"] = []
         while page.get("hasNextPage"):
             data = client.graphql(
                 _PR_PAGE_QUERIES[conn_name],
@@ -472,6 +524,10 @@ class TicketStats:
     command_comments: int = 0
     github_requests: int = 0
     cache_hits: int = 0
+    timelines_fetched: int = 0
+    timelines_kept: int = 0
+    prs_fetched: int = 0
+    prs_kept: int = 0
     extra: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, int]:
@@ -754,6 +810,7 @@ def write_prs(
         merger = person(pr.get("mergedBy"))
         created = epoch(pr.get("createdAt"))
         merged_at = epoch(pr.get("mergedAt"))
+        updated = epoch(pr.get("updatedAt"))
         pr_rows.append(
             {
                 "key": key,
@@ -765,6 +822,7 @@ def write_prs(
                 "created_at_iso": iso(created) if created else None,
                 "merged_at": merged_at,
                 "merged_at_iso": iso(merged_at) if merged_at else None,
+                "updated_at": updated,
                 "merged_by_login": merger,
                 "merge_commit_sha": (pr.get("mergeCommit") or {}).get("oid"),
                 "base_ref": pr.get("baseRefName"),
@@ -860,6 +918,41 @@ def write_prs(
     stats.command_comments = len(comment_rows)
 
 
+def _stored_stamps(writer: BatchWriter, query: str, numbers: Sequence[int]) -> dict[int, int]:
+    rows = writer.query(query, {"n": list(numbers)}) if numbers else []
+    return {int(n): int(stamp) for n, stamp in rows}
+
+
+def unchanged_issues(writer: BatchWriter, issues: dict[int, dict[str, Any]]) -> set[int]:
+    """Issues whose upstream `updatedAt` equals the `updated_at` stored on their node."""
+    stored = _stored_stamps(
+        writer,
+        "MATCH (i:Issue) WHERE i.number IN $n AND i.updated_at IS NOT NULL RETURN i.number, i.updated_at",
+        list(issues),
+    )
+    return {n for n, node in issues.items() if n in stored and stored[n] == epoch(node.get("updatedAt"))}
+
+
+def unchanged_prs(writer: BatchWriter, client: GitHubClient, numbers: Sequence[int]) -> set[int]:
+    """Pull requests fully ingested before (stamp and threads stored) whose `updatedAt` has not moved."""
+    stored = _stored_stamps(
+        writer,
+        "MATCH (p:PullRequest) WHERE p.number IN $n AND p.updated_at IS NOT NULL AND p.threads_synced = true "
+        "AND coalesce(p.stub, false) = false RETURN p.number, p.updated_at",
+        list(numbers),
+    )
+    if not stored:
+        return set()
+    stamps = fetch_pr_stamps(client, list(stored))
+    return {n for n, at in stored.items() if stamps.get(n) == at}
+
+
+def write_in_pr(writer: BatchWriter, numbers: Iterable[int], commits: dict[int, list[str]]) -> None:
+    """Commit -> PullRequest edges for pull requests kept from an earlier run (new commits can point at them)."""
+    rows = [{"from": c, "to": issue_key(n), "props": {"w": 1}} for n in numbers for c in commits.get(n, [])]
+    writer.upsert_edges("IN_PR", "Commit", "PullRequest", rows)
+
+
 def sync_tickets(
     pool: FalkorPool,
     settings: Settings,
@@ -880,11 +973,17 @@ def sync_tickets(
     try:
         issues = fetch_issues(gh, list(keps_by_number))
         stats.not_issues = len(keps_by_number) - len(issues)
-        timelines = {n: build_timeline_changes(fetch_timeline(gh, n)) for n in sorted(issues)}
+        kept = unchanged_issues(writer, issues)
+        fetched = fetch_timelines(gh, [n for n in issues if n not in kept])
+        timelines = {n: build_timeline_changes(events) for n, events in sorted(fetched.items())}
+        stats.timelines_fetched, stats.timelines_kept = len(fetched), len(kept)
         write_issues(writer, keps_by_number, issues, timelines, stats)
         targets = _pr_targets(writer)
-        prs = fetch_prs(gh, list(targets))
+        kept_prs = unchanged_prs(writer, gh, list(targets))
+        prs = fetch_prs(gh, [n for n in targets if n not in kept_prs])
+        stats.prs_fetched, stats.prs_kept = len(prs), len(kept_prs)
         write_prs(writer, prs, targets, stats)
+        write_in_pr(writer, kept_prs, targets)
         # Imported here: the discussion layer builds on this module's helpers.
         from app.ingest.discussion import ingest_discussion
 
@@ -894,6 +993,12 @@ def sync_tickets(
             discussion_points=disc.points_spent,
             prs_without_threads=disc.prs_without_threads_fetched,
         )
+        done = [n for n in disc.fetched_prs if n in prs]
+        for i in range(0, len(done), 500):
+            writer.query(
+                "UNWIND $n AS num MATCH (p:PullRequest {number: num}) SET p.threads_synced = true",
+                {"n": done[i : i + 500]},
+            )
         stats.github_requests = gh.requests_made
         stats.cache_hits = gh.cache_hits
     finally:

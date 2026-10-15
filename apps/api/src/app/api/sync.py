@@ -8,6 +8,7 @@ the ops graph; the public card shows only `ok`.
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -20,7 +21,7 @@ router = APIRouter(tags=["sync"])
 LAST_RUN = """
 MATCH (r:SyncRun)
 RETURN r.started_at_iso AS started_at_iso, r.finished_at_iso AS finished_at_iso, r.ok AS ok,
- r.steps_json AS steps_json
+ r.steps_json AS steps_json, r.current_step AS current_step, r.observed_at AS observed_at
 ORDER BY r.started_at DESC, r.key DESC
 LIMIT 1
 """
@@ -34,18 +35,27 @@ LIMIT 1
 LABEL_COUNTS = "MATCH (n) UNWIND labels(n) AS label RETURN label, count(*) AS n ORDER BY label"
 
 
-def _steps(raw: Any) -> dict[str, dict[str, int]]:
+# A run whose record has not changed for this long is a worker that died, not one in progress.
+RUNNING_STALE_SECONDS = 3 * 3600
+
+
+def _steps(raw: Any) -> dict[str, dict[str, Any]]:
     try:
         data = json.loads(raw) if isinstance(raw, str) else {}
     except json.JSONDecodeError:
         return {}
     if not isinstance(data, dict):
         return {}
-    return {
-        str(name): {"count": int(v.get("count", 0)), "ms": int(v.get("ms", 0))}
-        for name, v in data.items()
-        if isinstance(v, dict)
-    }
+    out: dict[str, dict[str, Any]] = {}
+    for name, v in data.items():
+        if not isinstance(v, dict):
+            continue
+        step: dict[str, Any] = {"count": int(v.get("count", 0)), "ms": int(v.get("ms", 0))}
+        for extra in ("state", "started_at_iso", "finished_at_iso", "detail"):
+            if extra in v:
+                step[extra] = v[extra]
+        out[str(name)] = step
+    return out
 
 
 @router.get("/sync/status")
@@ -70,12 +80,19 @@ async def sync_status(request: Request) -> dict[str, Any]:
         runs = rows_of(await pool.ro_query(ops, LAST_RUN))
         if runs:
             r = runs[0]
+            finished = r["finished_at_iso"] is not None
+            seen = r["observed_at"]
+            alive = isinstance(seen, int) and time.time() - seen < RUNNING_STALE_SECONDS
+            # `ok` is null while the run is in progress (no finish time yet and the record is fresh).
+            running = not finished and alive and r["ok"] is None
             last_run = {
                 "started_at_iso": r["started_at_iso"],
                 "finished_at_iso": r["finished_at_iso"],
-                "ok": bool(r["ok"]),
+                "ok": None if running else bool(r["ok"]),
                 "steps": _steps(r["steps_json"]),
             }
+            if running:
+                last_run["current_step"] = r["current_step"]
         beats = rows_of(await pool.ro_query(ops, HEARTBEAT))
         beat = beats[0] if beats else {}
 

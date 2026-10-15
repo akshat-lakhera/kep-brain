@@ -19,16 +19,22 @@ from ulid import ULID
 
 from app.db.batch import BatchWriter
 from app.db.falkordb import GRAPH_KEP, WRITE_TIMEOUT_MS, FalkorPool, Role
+from app.ingest.common import COMMUNITY_REPO
 from app.ingest.docs import Corpus, build_corpus, sync_docs
 from app.ingest.history import sync_history
 from app.ingest.owners import sync_owners
 from app.ingest.repos import ensure_repo
+from app.ingest.sigs import SIGS_PATH
 from app.logging import configure_logging
 from app.schema.apply import apply_schema
 from app.settings import Settings, get_settings
 from app.worker.runs import RunRecorder, heartbeat
 
 log = structlog.get_logger(__name__)
+
+# Bump when the doc or history mapping changes, so an unchanged upstream is re-read once with the new code.
+INGEST_VERSION = "1"
+SYNC_MARKER_NODE = f"{COMMUNITY_REPO}:{SIGS_PATH}"  # the sigs.yaml Document carries the per-step sync markers
 
 
 def _optional(module: str, name: str) -> Callable[..., Any] | None:
@@ -44,9 +50,11 @@ def _optional(module: str, name: str) -> Callable[..., Any] | None:
 
 
 class Worker:
-    def __init__(self, settings: Settings, graph: str) -> None:
+    def __init__(self, settings: Settings, graph: str, force: bool = False) -> None:
         self.settings = settings
         self.graph = graph
+        self.force = force
+        self._shas: tuple[str, str] | None = None
         self.pool = FalkorPool(settings)
         self.run_id = str(ULID())
         self._corpus: Corpus | None = None
@@ -62,10 +70,32 @@ class Worker:
     def writer(self) -> BatchWriter:
         return BatchWriter(self.pool, self.graph, self.run_id)
 
+    def source_shas(self) -> tuple[str, str]:
+        """(enhancements, community) commits this run reads; the repositories are cloned or fetched once."""
+        if self._shas is None:
+            self._shas = (ensure_repo(self.settings, "enhancements"), ensure_repo(self.settings, "community"))
+            self._community_sha = self._shas[1]
+        return self._shas
+
     def corpus(self) -> Corpus:
         if self._corpus is None:
-            self._corpus = build_corpus(self.settings)
+            self._corpus = build_corpus(self.settings, self.source_shas())
         return self._corpus
+
+    def _marker(self) -> str:
+        enhancements, community = self.source_shas()
+        return f"{INGEST_VERSION}:{enhancements}:{community}"
+
+    def _is_synced(self, prop: str) -> bool:
+        """True when `prop` on the sigs Document records a finished sync of exactly these commits."""
+        if self.force:
+            return False
+        rows = self.writer().query(f"MATCH (d:Document {{key: $k}}) RETURN d.{prop}", {"k": SYNC_MARKER_NODE})
+        return bool(rows) and rows[0][0] == self._marker()
+
+    def _mark_synced(self, prop: str) -> None:
+        query = f"MATCH (d:Document {{key: $k}}) SET d.{prop} = $m"
+        self.writer().query(query, {"k": SYNC_MARKER_NODE, "m": self._marker()})
 
     def schema_apply(self) -> dict[str, Any]:
         report = apply_schema(self.pool, self.graph)
@@ -74,10 +104,20 @@ class Worker:
         return {"created": len(report.created), "existing": len(report.existing)}
 
     def sync_docs(self) -> dict[str, Any]:
-        return sync_docs(self.writer(), self.corpus(), self.settings)
+        if self._is_synced("docs_synced"):
+            log.info("sync_docs_unchanged", marker=self._marker())
+            return {"skipped": "unchanged"}
+        out = sync_docs(self.writer(), self.corpus(), self.settings)
+        self._mark_synced("docs_synced")
+        return out
 
     def sync_history(self) -> dict[str, Any]:
-        return sync_history(self.writer(), self.corpus())
+        if self._is_synced("history_synced"):
+            log.info("sync_history_unchanged", marker=self._marker())
+            return {"skipped": "unchanged"}
+        out = sync_history(self.writer(), self.corpus())
+        self._mark_synced("history_synced")
+        return out
 
     def community_sha(self) -> str:
         """One community commit per worker run: the doc sync's when it ran, else resolved once here."""
@@ -152,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.worker", description="KEP Brain ingest worker")
     parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("--graph", default=GRAPH_KEP, help="target graph (default: kep)")
+    parser.add_argument("--force", action="store_true", help="re-read sources even when their commits are unchanged")
     parser.add_argument("--interval-minutes", type=int, default=15, help="schedule: minutes between full runs")
     parser.add_argument("--limit", type=int, default=None, help="freshness: maximum findings to triage")
     args = parser.parse_args(argv)
@@ -172,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "schedule":
         interval_s = args.interval_minutes * 60
         while True:
-            worker = Worker(settings, args.graph)
+            worker = Worker(settings, args.graph, args.force)
             try:
                 heartbeat(worker.pool, None)
                 worker.recorded_all()
@@ -186,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
                 worker.close()
             time.sleep(interval_s)
 
-    worker = Worker(settings, args.graph)
+    worker = Worker(settings, args.graph, args.force)
     started = time.monotonic()
     log.info("worker_start", command=args.command, graph=args.graph, sync_run_id=worker.run_id)
     try:

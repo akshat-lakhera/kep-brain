@@ -16,6 +16,7 @@ from typing import Any
 import structlog
 
 from app.db.falkordb import WRITE_TIMEOUT_MS, FalkorPool, Role
+from app.schema.apply import MANDATORY_NODE
 from app.schema.labels import NODE_LABELS, REL_TYPES, VALID_TO_OPEN
 
 log = structlog.get_logger(__name__)
@@ -30,6 +31,15 @@ def content_hash(props: dict[str, Any]) -> str:
 def _chunks(rows: Sequence[dict[str, Any]], size: int = BATCH_SIZE) -> Iterable[Sequence[dict[str, Any]]]:
     for i in range(0, len(rows), size):
         yield rows[i : i + size]
+
+
+def _mandatory_props(label: str) -> tuple[str, ...]:
+    """Properties a MANDATORY constraint requires on `label` nodes at the moment they are created."""
+    seen: dict[str, None] = {}
+    for lab, props in MANDATORY_NODE:
+        if lab == label:
+            seen.update(dict.fromkeys(props))
+    return tuple(seen)
 
 
 def _clean(props: dict[str, Any]) -> dict[str, Any]:
@@ -69,16 +79,33 @@ class BatchWriter:
             props["sync_run_id"] = self.sync_run_id
             prepared.append(props)
         set_labels = "".join(f":{x}" for x in extra_labels)
-        query = (
-            f"UNWIND $rows AS r MERGE (n:{label} {{key: r.key}}) "
-            f"ON CREATE SET n += r, n.first_seen_at = r.observed_at "
-            f"WITH n, r WHERE n.content_hash <> r.content_hash OR n.first_seen_at = r.observed_at "
-            f"SET n += r" + (f" SET n{set_labels}" if set_labels else "")
-        )
         written = 0
-        for chunk in _chunks(prepared):
-            stats = self._run(query, {"rows": list(chunk)})
-            written += stats.get("nodes_created", 0)
+        mandatory = _mandatory_props(label)
+        if mandatory:
+            # FalkorDB checks MANDATORY constraints when a node is created, before any SET runs, so
+            # MERGE ... ON CREATE SET cannot create such a node: CREATE it with the required properties.
+            pattern = ", ".join(["key: r.key", *(f"{p}: r.{p}" for p in mandatory if p != "key")])
+            create = (
+                f"UNWIND $rows AS r OPTIONAL MATCH (m:{label} {{key: r.key}}) WITH r, m WHERE m IS NULL "
+                f"CREATE (n:{label} {{{pattern}}}) SET n += r, n.first_seen_at = r.observed_at"
+                + (f" SET n{set_labels}" if set_labels else "")
+            )
+            update = (
+                f"UNWIND $rows AS r MATCH (n:{label} {{key: r.key}}) WHERE n.content_hash <> r.content_hash "
+                f"SET n += r" + (f" SET n{set_labels}" if set_labels else "")
+            )
+            for chunk in _chunks(list({p["key"]: p for p in prepared}.values())):
+                written += self._run(create, {"rows": list(chunk)}).get("nodes_created", 0)
+                self._run(update, {"rows": list(chunk)})
+        else:
+            query = (
+                f"UNWIND $rows AS r MERGE (n:{label} {{key: r.key}}) "
+                f"ON CREATE SET n += r, n.first_seen_at = r.observed_at "
+                f"WITH n, r WHERE n.content_hash <> r.content_hash OR n.first_seen_at = r.observed_at "
+                f"SET n += r" + (f" SET n{set_labels}" if set_labels else "")
+            )
+            for chunk in _chunks(prepared):
+                written += self._run(query, {"rows": list(chunk)}).get("nodes_created", 0)
         log.info("upsert_nodes", label=label, rows=len(prepared), created=written)
         return written
 

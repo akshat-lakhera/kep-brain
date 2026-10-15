@@ -22,7 +22,7 @@ import structlog
 
 from app.db.batch import BatchWriter
 from app.ingest.common import ENHANCEMENTS_REPO, is_bot, iso
-from app.ingest.github import GitHubClient
+from app.ingest.github import MAX_IN_FLIGHT, GitHubClient
 from app.ingest.tickets import _COMMAND_RE, ensure_nodes, epoch, issue_key, person_row, scrub
 
 log = structlog.get_logger(__name__)
@@ -72,6 +72,7 @@ class DiscussionStats:
     comments_seen: int = 0
     points_spent: int = 0
     prs_without_threads_fetched: int = 0
+    fetched_prs: list[int] = field(default_factory=list)
     by_source: dict[str, int] = field(default_factory=dict)
 
 
@@ -112,33 +113,58 @@ def fetch_review_threads(
     exceed `budget` points; PRs left out are counted in `stats.prs_without_threads_fetched`."""
     out: dict[int, list[dict[str, Any]]] = {}
     ordered = sorted(set(numbers))
-    for i in range(0, len(ordered), THREAD_BATCH):
-        chunk = ordered[i : i + THREAD_BATCH]
-        if stats.points_spent + len(chunk) + 1 > budget:
-            stats.prs_without_threads_fetched += len(ordered) - i
-            log.warning("discussion_budget_reached", spent=stats.points_spent, left_out=len(ordered) - i)
+    chunks = [ordered[i : i + THREAD_BATCH] for i in range(0, len(ordered), THREAD_BATCH)]
+    done = 0
+    while done < len(chunks):
+        # A wave runs up to MAX_IN_FLIGHT batches at once; its worst-case cost must fit the remaining budget.
+        wave: list[list[int]] = []
+        worst = stats.points_spent
+        for chunk in chunks[done : done + MAX_IN_FLIGHT]:
+            if worst + len(chunk) + 1 > budget:
+                break
+            worst += len(chunk) + 1
+            wave.append(chunk)
+        if not wave:
+            left = sum(len(c) for c in chunks[done:])
+            stats.prs_without_threads_fetched += left
+            log.warning("discussion_budget_reached", spent=stats.points_spent, left_out=left)
             break
-        data = _counted(client, stats, _thread_batch_query(chunk), {})
-        repo = data.get("repository") or {}
-        for n in chunk:
-            node = repo.get(f"p{n}")
-            if not node:
-                continue
-            conn = node.get("reviewThreads") or {}
-            threads = [t for t in conn.get("nodes") or [] if t]
-            page = conn.get("pageInfo") or {}
-            while page.get("hasNextPage") and stats.points_spent + 2 <= budget:
-                more_data = _counted(
-                    client,
-                    stats,
-                    _THREAD_PAGE_QUERY,
-                    {"owner": OWNER, "name": NAME, "number": n, "after": page.get("endCursor")},
-                )
-                more = ((more_data.get("repository") or {}).get("pullRequest") or {}).get("reviewThreads") or {}
-                threads.extend(t for t in more.get("nodes") or [] if t)
-                page = more.get("pageInfo") or {}
-            out[n] = threads
+        done += len(wave)
+        results = _counted_many(client, stats, [(_thread_batch_query(c), {}) for c in wave])
+        for chunk, data in zip(wave, results, strict=True):
+            repo = data.get("repository") or {}
+            for n in chunk:
+                node = repo.get(f"p{n}")
+                if not node:
+                    continue
+                conn = node.get("reviewThreads") or {}
+                threads = [t for t in conn.get("nodes") or [] if t]
+                page = conn.get("pageInfo") or {}
+                while page.get("hasNextPage") and stats.points_spent + 2 <= budget:
+                    more_data = _counted(
+                        client,
+                        stats,
+                        _THREAD_PAGE_QUERY,
+                        {"owner": OWNER, "name": NAME, "number": n, "after": page.get("endCursor")},
+                    )
+                    more = ((more_data.get("repository") or {}).get("pullRequest") or {}).get("reviewThreads") or {}
+                    threads.extend(t for t in more.get("nodes") or [] if t)
+                    page = more.get("pageInfo") or {}
+                if not page.get("hasNextPage"):
+                    out[n] = threads
+                    stats.fetched_prs.append(n)
+                else:
+                    out[n] = threads  # budget ran out mid-PR: keep what was read, but do not mark it complete
     return out
+
+
+def _counted_many(
+    client: GitHubClient, stats: DiscussionStats, calls: Sequence[tuple[str, dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    before = client.points_spent
+    results = client.graphql_many(calls)
+    stats.points_spent += client.points_spent - before
+    return results
 
 
 def _counted(client: GitHubClient, stats: DiscussionStats, query: str, variables: dict[str, Any]) -> dict[str, Any]:

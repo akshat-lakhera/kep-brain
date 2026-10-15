@@ -15,9 +15,11 @@ import hashlib
 import json
 import shutil
 import subprocess
+import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -33,6 +35,7 @@ GRAPHQL_URL = "https://api.github.com/graphql"
 CacheMode = Literal["off", "record", "replay"]
 MAX_ATTEMPTS = 7
 MAX_SLEEP_SECONDS = 900.0
+MAX_IN_FLIGHT = 4  # concurrent GraphQL requests; GitHub asks integrations to stay well below 100
 
 
 class GitHubError(RuntimeError):
@@ -56,6 +59,8 @@ def resolve_token(settings: Settings) -> str:
 
 
 def default_cache_mode(settings: Settings) -> CacheMode:
+    if settings.github_cache != "auto":
+        return settings.github_cache
     return "record" if settings.env in ("dev", "test") else "off"
 
 
@@ -95,6 +100,10 @@ class GitHubClient:
         )
         self.requests_made = 0
         self.cache_hits = 0
+        self.points_spent = 0  # GraphQL rate-limit cost of the queries that reached the network
+        self._lock = threading.Lock()
+        self._pause_until = 0.0  # monotonic deadline shared by concurrent requests after a backoff
+        self._concurrent = False
 
     @classmethod
     def from_settings(cls, settings: Settings, cache_mode: CacheMode | None = None) -> GitHubClient:
@@ -151,7 +160,8 @@ class GitHubClient:
         path = self._cache_path(query, variables)
         cached = self._cache_read(path)
         if cached is not None:
-            self.cache_hits += 1
+            with self._lock:
+                self.cache_hits += 1
             return cached
         if self._cache_mode == "replay":
             raise GitHubError("replay mode: query not in cache")
@@ -159,21 +169,50 @@ class GitHubClient:
         self._cache_write(path, variables, data)
         return data
 
+    def graphql_many(self, calls: Sequence[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+        """Run independent queries with at most MAX_IN_FLIGHT in flight; results keep the order of `calls`.
+
+        A backoff (Retry-After, secondary limit, primary reset) observed by one request holds the others too.
+        """
+        if len(calls) < 2:
+            return [self.graphql(q, v) for q, v in calls]
+        self._concurrent = True
+        try:
+            with ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT) as pool:
+                return list(pool.map(lambda c: self.graphql(c[0], c[1]), calls))
+        finally:
+            self._concurrent = False
+
+    def _hold(self, seconds: float) -> None:
+        """Sleep `seconds`, and make concurrent requests wait out the same window."""
+        if self._concurrent:
+            with self._lock:
+                self._pause_until = max(self._pause_until, time.monotonic() + seconds)
+        self._sleep(seconds)
+
+    def _wait_for_pause(self) -> None:
+        if self._concurrent:
+            remaining = self._pause_until - time.monotonic()
+            if remaining > 0:
+                self._sleep(remaining)
+
     def _post_with_retry(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         delay = 5.0
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            self._wait_for_pause()
             try:
                 resp = self._http.post(GRAPHQL_URL, json={"query": query, "variables": variables})
             except httpx.TransportError as exc:
                 log.warning("github_transport_error", attempt=attempt, error=type(exc).__name__)
-                self._sleep(delay)
+                self._hold(delay)
                 delay = min(delay * 2, MAX_SLEEP_SECONDS)
                 continue
-            self.requests_made += 1
+            with self._lock:
+                self.requests_made += 1
             wait = self._retry_wait(resp, delay)
             if wait is not None:
                 log.warning("github_backoff", attempt=attempt, status=resp.status_code, sleep_s=round(wait, 1))
-                self._sleep(wait)
+                self._hold(wait)
                 delay = min(delay * 2, MAX_SLEEP_SECONDS)
                 continue
             if resp.status_code != 200:
@@ -183,7 +222,7 @@ class GitHubClient:
             if any(e.get("type") == "RATE_LIMITED" for e in errors):
                 wait = self._reset_wait(resp) or delay
                 log.warning("github_rate_limited", attempt=attempt, sleep_s=round(wait, 1))
-                self._sleep(wait)
+                self._hold(wait)
                 delay = min(delay * 2, MAX_SLEEP_SECONDS)
                 continue
             data = body.get("data")
@@ -192,13 +231,17 @@ class GitHubClient:
                 raise GitHubError(f"GitHub GraphQL returned no data (errors: {kinds})")
             if errors:
                 log.info("github_partial_errors", count=len(errors), types=sorted({str(e.get("type")) for e in errors}))
+            cost = (data.get("rateLimit") or {}).get("cost")
+            if isinstance(cost, int):
+                with self._lock:
+                    self.points_spent += cost
             self._pace(resp)
             return data
         raise GitHubError(f"GitHub GraphQL failed after {MAX_ATTEMPTS} attempts")
 
     def _retry_wait(self, resp: httpx.Response, delay: float) -> float | None:
         status = resp.status_code
-        if status in (502, 503, 504):
+        if status in (408, 499, 500, 502, 503, 504):
             return delay
         if status in (403, 429):
             retry_after = resp.headers.get("retry-after")
@@ -223,4 +266,4 @@ class GitHubClient:
             wait = self._reset_wait(resp)
             if wait:
                 log.warning("github_budget_low", remaining=int(remaining), sleep_s=round(wait, 1))
-                self._sleep(wait)
+                self._hold(wait)

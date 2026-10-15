@@ -89,3 +89,7 @@ $COMPOSE up -d --force-recreate api worker mcp
 git pull
 $COMPOSE up -d --build
 ```
+
+## Measured cold start
+
+Fresh cache and an empty graph, one worker process per step, GitHub token with read access to public repositories (a classic token with no scopes, or a fine-grained read-only token, is enough; the sync only reads public data). Measured before the optimisations: schema-apply 7 s, sync-docs 115 s (clones 47 s), sync-history 48 s, sync-owners 158 s (282 REST requests), sync-tickets about 780 s (about 370 GraphQL requests, 148 points), derive 18 s; about 19 minutes in total. The optimised cold and warm timings were not measured; `--force` on the worker re-reads sources whose commits did not change.

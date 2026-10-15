@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     sigs: str = SIG_SCOPE_DEFAULT
     tickets_as_of: str | None = None
     github_token: SecretStr | None = None
+    # Disk cache of GitHub GraphQL responses: auto = record in dev/test, off in prod. Delete the cache dir to refresh.
+    github_cache: Literal["auto", "off", "record", "replay"] = "auto"
 
     llm_provider: Literal["anthropic", "openai_compatible"] = "openai_compatible"
     llm_model: str = "openai/gpt-oss-120b"

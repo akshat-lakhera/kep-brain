@@ -13,8 +13,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -102,6 +104,7 @@ def parse_aliases(text: str) -> dict[str, list[str]]:
 
 _KK_RAW = re.compile(r"^https://raw\.githubusercontent\.com/kubernetes/kubernetes/[^/]+/(.+)$")
 MAX_NEW_FETCHES = 400
+MAX_IN_FLIGHT = 4  # concurrent contents-API requests
 Origin = tuple[str, str]  # (graph label, key) of the SIG or Subproject a directory was derived from
 
 
@@ -150,6 +153,7 @@ def select_owners(
     scope: set[str],
     read: Callable[[str], str],
     is_cached: Callable[[str], bool] = lambda _p: True,
+    prefetch: Callable[[list[str]], None] | None = None,
 ) -> Selection:
     """OWNERS files of the in-scope SIGs, derived from public data only.
 
@@ -179,6 +183,8 @@ def select_owners(
     misses = [p for p in candidates if not is_cached(p)]
     if len(misses) > MAX_NEW_FETCHES:
         raise RuntimeError(f"OWNERS label scan needs {len(misses)} new requests (limit {MAX_NEW_FETCHES})")
+    if prefetch is not None and misses:
+        prefetch(misses)
     label_counts: dict[str, set[str]] = {}
     for path in candidates:
         labels = parse_owners(path, all_owners[path], read(path)).labels
@@ -218,14 +224,20 @@ def load_chart(settings: Settings, community_sha: str | None = None) -> OrgChart
 
 
 class OwnersSource:
-    """Contents-API reader with a per-commit disk cache."""
+    """Contents-API reader with a disk cache keyed by blob SHA, so a later commit refetches only changed files."""
 
     def __init__(self, settings: Settings, sha: str | None = None) -> None:
         self.sha = sha or ensure_repo(settings, "owners")
         self.cache = Path(settings.repo_cache_dir) / "owners" / self.sha
         self.cache.mkdir(parents=True, exist_ok=True)
+        self.blob_cache = self.cache.parent / "blobs"
+        self.blob_cache.mkdir(parents=True, exist_ok=True)
+        self._blobs: dict[str, str] = {}  # path -> git blob sha at this commit, from the tree
         self._token = resolve_token(settings)
         self._http = httpx.Client(headers=self._headers("application/vnd.github.raw+json"), timeout=60)
+        self._pause_until = 0.0  # a rate-limit wait observed by any request holds all of them
+        self._lock = threading.Lock()
+        self.requests = 0
 
     def _headers(self, accept: str) -> dict[str, str]:
         return {"Authorization": f"bearer {self._token}", "Accept": accept, "User-Agent": "kep-brain-worker"}
@@ -235,11 +247,15 @@ class OwnersSource:
 
     def _get(self, url: str, accept: str) -> httpx.Response:
         for attempt in range(6):
+            time.sleep(max(0.0, self._pause_until - time.monotonic()))
             resp = self._http.get(url, headers=self._headers(accept))
+            with self._lock:
+                self.requests += 1
             if resp.status_code in (403, 429) or resp.status_code >= 500:
-                wait = float(resp.headers.get("retry-after", 2 ** (attempt + 1)))
+                wait = min(float(resp.headers.get("retry-after", 2 ** (attempt + 1))), 60.0)
                 log.warning("owners_fetch_retry", url=url, status=resp.status_code, wait=wait)
-                time.sleep(min(wait, 60))
+                with self._lock:
+                    self._pause_until = max(self._pause_until, time.monotonic() + wait)
                 continue
             resp.raise_for_status()
             return resp
@@ -250,6 +266,7 @@ class OwnersSource:
         cached = self.cache / "_tree.json"
         if cached.exists():
             tree: list[dict[str, Any]] = json.loads(cached.read_text(encoding="utf-8"))
+            self._blobs = {e["path"]: e["sha"] for e in tree}
             return tree
         resp = self._get(f"{API}/repos/{KK_REPO}/git/trees/{self.sha}?recursive=1", "application/vnd.github+json")
         payload = resp.json()
@@ -257,13 +274,26 @@ class OwnersSource:
             raise RuntimeError(f"{KK_REPO}@{self.sha} tree is truncated")
         tree = [{"path": e["path"], "type": e["type"], "sha": e["sha"]} for e in payload["tree"]]
         cached.write_text(json.dumps(tree), encoding="utf-8")
+        self._blobs = {e["path"]: e["sha"] for e in tree}
         return tree
 
+    def _file(self, path: str) -> Path:
+        blob = self._blobs.get(path)
+        return self.blob_cache / blob if blob else self.cache / path.replace("/", "__")
+
     def is_cached(self, path: str) -> bool:
-        return (self.cache / path.replace("/", "__")).exists()
+        return self._file(path).exists()
+
+    def prefetch(self, paths: Iterable[str]) -> None:
+        """Fill the disk cache for `paths` with up to MAX_IN_FLIGHT concurrent requests."""
+        todo = [p for p in dict.fromkeys(paths) if not self.is_cached(p)]
+        if len(todo) < 2:
+            return
+        with ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT) as pool:
+            list(pool.map(self.read, todo))
 
     def read(self, path: str) -> str:
-        cached = self.cache / path.replace("/", "__")
+        cached = self._file(path)
         if cached.exists():
             return cached.read_text(encoding="utf-8")
         resp = self._get(
@@ -339,7 +369,7 @@ def sync_owners(
 
 def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[str]) -> dict[str, int]:
     sha = src.sha
-    selection = select_owners(src.tree(), chart, scope, src.read, src.is_cached)
+    selection = select_owners(src.tree(), chart, scope, src.read, src.is_cached, lambda paths: src.prefetch(paths))
     log.info(
         "owners_selected",
         files=len(selection.paths),
@@ -348,6 +378,7 @@ def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[st
         labelled=selection.labelled_dirs,
     )
     selected = selection.paths
+    src.prefetch([*selected, ALIASES_PATH])
     files = [parse_owners(path, blob, src.read(path)) for path, blob in selected.items()]
     aliases_text = src.read(ALIASES_PATH)
     aliases = parse_aliases(aliases_text)
