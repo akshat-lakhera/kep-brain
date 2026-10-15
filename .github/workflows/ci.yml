@@ -77,6 +77,8 @@ jobs:
           cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # Generates the PageProps/LayoutProps/RouteContext route types that tsc needs.
+      - run: pnpm exec next typegen
       - run: pnpm exec tsc --noEmit
       - run: pnpm build
 

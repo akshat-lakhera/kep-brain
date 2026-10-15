@@ -92,4 +92,16 @@ $COMPOSE up -d --build
 
 ## Measured cold start
 
-Fresh cache and an empty graph, one worker process per step, GitHub token with read access to public repositories (a classic token with no scopes, or a fine-grained read-only token, is enough; the sync only reads public data). Measured before the optimisations: schema-apply 7 s, sync-docs 115 s (clones 47 s), sync-history 48 s, sync-owners 158 s (282 REST requests), sync-tickets about 780 s (about 370 GraphQL requests, 148 points), derive 18 s; about 19 minutes in total. The optimised cold and warm timings were not measured; `--force` on the worker re-reads sources whose commits did not change.
+Fresh cache and an empty graph, one worker process per step, GitHub token with read access to public repositories (a classic token with no scopes, or a fine-grained read-only token, is enough; the sync only reads public data). Measured on 2026-10-15 with the concurrent ingest (one run each; GitHub clone speed varies by several minutes between runs):
+
+| Step | Cold (empty graph, empty cache) | Warm (same graph, nothing changed upstream) |
+|---|---|---|
+| schema-apply | 7 s | - |
+| sync-docs | 342 s, of which the two clones took about 290 s | 6 s (skipped, commits unchanged) |
+| sync-history | 48 s | 8 s (skipped, commits unchanged) |
+| sync-owners | 37 s (176 REST requests, fetched in parallel) | 7 s |
+| sync-tickets | 556 s (122 GraphQL points; 233 issues, one issue per query) | 26 s (3 points; only issues updated since the last run) |
+| derive | 6 s | 5 s |
+| total | about 17 minutes | about 1 minute |
+
+An earlier serial run of the same steps took about 19 minutes, with sync-owners at 158 s and sync-tickets at about 780 s. The cold graph matched a graph loaded serially node for node (apart from upstream activity in between). `--force` on the worker re-reads sources whose commits did not change.

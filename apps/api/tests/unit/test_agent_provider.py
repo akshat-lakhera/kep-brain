@@ -91,7 +91,8 @@ async def test_retry_after_is_honoured_then_succeeds() -> None:
     script = Script({"big": [(429, {"retry-after": "3"})]})
     sleeps: list[float] = []
     turn = await provider(script, sleeps).complete([{"role": "user", "content": "q"}], [])
-    assert script.calls == ["big", "big"] and 3.0 in sleeps
+    # The wait is measured against the clock, so it comes out a few microseconds under the header value.
+    assert script.calls == ["big", "big"] and sleeps == [pytest.approx(3.0, abs=0.05)]
     assert turn.tool_calls[0].name == "get_kep" and turn.input_tokens == 10
 
 
@@ -134,7 +135,7 @@ async def test_server_error_backs_off() -> None:
     script = Script({"big": [(503, {})]})
     sleeps: list[float] = []
     await provider(script, sleeps).complete([{"role": "user", "content": "q"}], [])
-    assert script.calls == ["big", "big"] and sleeps == [1.0]
+    assert script.calls == ["big", "big"] and sleeps == [pytest.approx(1.0, abs=0.05)]
 
 
 async def test_spent_token_quota_switches_to_the_cheap_model_before_the_fallback() -> None:
@@ -175,7 +176,7 @@ async def test_long_waits_are_reported_to_the_listener() -> None:
         )
     finally:
         WAIT_LISTENER.reset(token)
-    assert heard == [pytest.approx(3.0)]
+    assert heard == [pytest.approx(3.0, abs=0.05)]
 
 
 async def test_empty_turn_is_answered_by_another_model_family() -> None:
