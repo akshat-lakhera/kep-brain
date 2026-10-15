@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS base
+FROM node:25-alpine AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
 
-FROM node:24-alpine AS runtime
+FROM node:25-alpine AS runtime
 ARG API_INTERNAL_URL=http://api:8000
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 API_INTERNAL_URL=$API_INTERNAL_URL
 WORKDIR /app
