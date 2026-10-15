@@ -13,9 +13,12 @@ from app.tools.t01.impact import ImpactOfChange
 from app.tools.t01.who_knows import WhoKnows
 from app.tools.t02.memory_findings import RecallFindings, RecallMemory
 from app.tools.t03.audit import FindContradictions, KepRelations
+from app.tools.t03.discussion import ContestedPoints
 from app.tools.t03.find_entities import FindEntities
 from app.tools.t03.get_kep import GetKep
 from app.tools.t03.history import StatusHistory, TraceDecision, WhatsChanged
+from app.tools.t03.rationale import WhyDesigned
+from app.tools.t03.risk import KnowledgeRisk
 from app.tools.t03.who import WhoApproves, WhoOwns
 
 _ALL: tuple[Tool, ...] = (
@@ -28,6 +31,9 @@ _ALL: tuple[Tool, ...] = (
     WhatsChanged(),
     FindContradictions(),
     KepRelations(),
+    WhyDesigned(),
+    ContestedPoints(),
+    KnowledgeRisk(),
     PathBetween(),
     RankPeople(),
     WhoKnows(),

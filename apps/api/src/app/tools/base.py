@@ -52,7 +52,7 @@ _FIELDS: dict[str, tuple[str, ...]] = {
     ),
     "Commit": ("sha", "authored_at_iso", "subject", "pr_number"),
     "Review": ("state", "author_login", "submitted_at_iso"),
-    "Comment": ("author_login", "created_at_iso", "commands"),
+    "Comment": ("author_login", "created_at_iso", "commands", "kind"),
     "Release": ("name", "is_future"),
     "FeatureGate": ("name",),
     "Document": ("kind", "path"),

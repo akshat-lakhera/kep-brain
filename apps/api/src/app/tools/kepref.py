@@ -36,13 +36,13 @@ def _coerce(value: Any) -> str:
             text = m.group(1)
     if _NUM_RE.match(text) or _PATH_RE.match(text) or _DIR_RE.match(text):
         return text
-    raise ValueError("kep_ref must be a KEP number (e.g. 1287 or KEP-1287) or a path like keps/sig-node/1287-...")
+    raise ValueError("kep_ref must be a KEP number or a repository path under keps/")
 
 
 KepRef = Annotated[
     str,
     BeforeValidator(_coerce),
-    Field(description="KEP number (e.g. 583) or repository path (e.g. keps/sig-scheduling/583-coscheduling)"),
+    Field(description="KEP number or repository path under keps/"),
 ]
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import pytest
@@ -35,12 +36,10 @@ def client() -> Iterator[TestClient]:
 
 def test_sync_status(client: TestClient) -> None:
     body = client.get("/v1/sync/status").json()
-    assert body["pinned"] == {
-        "enhancements_sha": "8659e382efab7340d70de52432ee8f3d9979b797",
-        "community_sha": "53c338ecba4a2a9240f6654cca1d6a9dac25c785",
-    }
+    assert all(re.fullmatch(r"[0-9a-f]{40}", body["pinned"][k]) for k in ("enhancements_sha", "community_sha"))
     assert body["tickets_as_of"]
-    assert body["counts_by_label"]["KEP"] == 238 and body["counts_by_label"]["Finding"] >= 59
+    meta = client.get("/v1/meta").json()["graph"]
+    assert body["counts_by_label"]["KEP"] == meta["keps"] and body["counts_by_label"]["Finding"] == meta["findings"]
     run = body["last_run"]
     assert run is None or (isinstance(run["ok"], bool) and isinstance(run["steps"], dict))
     assert set(body) == {"pinned", "tickets_as_of", "last_run", "counts_by_label", "worker_last_seen_iso",

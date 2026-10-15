@@ -10,6 +10,7 @@ from pydantic import Field, field_validator
 
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
+from app.tools.noise import automation_label_predicate
 
 DecisionKind = Literal[
     "status_transition", "stage_graduation", "milestone_retarget", "prr_approval", "replacement", "withdrawal"
@@ -142,6 +143,7 @@ def _changed_template(limit: int) -> str:
     return f"""
 MATCH (c:StatusChange)
 WHERE c.at >= $t AND (size($kinds) = 0 OR c.kind IN $kinds) AND (size($fields) = 0 OR c.field IN $fields)
+ AND (c.kind <> 'label' OR $include_labels OR NOT {automation_label_predicate()})
 MATCH (k:KEP {{key: c.kep_path}})
 WHERE $sig = '' OR k.owning_sig = $sig
 RETURN k AS kep, c AS change
@@ -169,6 +171,9 @@ class WhatsChangedParams(ToolParams):
     kinds: list[Literal["metadata", "label", "milestone"]] = Field(default_factory=list)
     fields: list[str] = Field(default_factory=list, max_length=10)
     limit: Literal[50, 100, 200] = 100
+    include_labels: bool = Field(
+        default=False, description="Also return automation label toggles (tracked/*, lgtm, approved, cncf-cla, size/*)"
+    )
 
     @field_validator("since")
     @classmethod
@@ -188,7 +193,7 @@ class WhatsChanged(Tool):
     description = (
         "What changed across the corpus since a release (uses its release date) or an ISO date: status changes "
         "(kep.yaml metadata, issue labels and milestones) grouped by KEP, newest first, plus derived decisions "
-        "in the window. Optional sig filter (e.g. sig-node) and kinds filter (metadata|label|milestone)."
+        "in the window. Optional sig filter and kinds filter (metadata|label|milestone)."
     )
     Params = WhatsChangedParams
 
@@ -206,7 +211,13 @@ class WhatsChanged(Tool):
         else:
             dt = datetime.fromisoformat(p.since)
             t = int((dt if dt.tzinfo else dt.replace(tzinfo=UTC)).timestamp())
-        args = {"t": t, "kinds": list(p.kinds), "fields": p.fields, "sig": p.sig or ""}
+        args = {
+            "t": t,
+            "kinds": list(p.kinds),
+            "fields": p.fields,
+            "sig": p.sig or "",
+            "include_labels": p.include_labels,
+        }
         changes = await run.query(CHANGED[p.limit], args, limit=p.limit)
         decisions = await run.query(DECISIONS_SINCE, {"t": t, "sig": p.sig or ""}, limit=100)
         by_kep: dict[str, dict[str, Any]] = {}

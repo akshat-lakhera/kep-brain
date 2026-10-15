@@ -30,7 +30,7 @@ Edit `.env`:
 - `FALKORDB_PASSWORD`, `ADMIN_TOKEN`, `MCP_TOKEN`: long random values, for example `openssl rand -hex 32`. Compose refuses to start without `FALKORDB_PASSWORD` and `MCP_TOKEN`.
 - `OPENAI_API_KEY`: key for the endpoint in `OPENAI_BASE_URL` (Groq by default). Without it `/v1/ask` returns 503.
 - `GITHUB_TOKEN`: read-only token for the ticket sync.
-- `COMMUNITY_PIN_SHA`: commit of kubernetes/community to build from.
+- `ENHANCEMENTS_PIN_SHA`, `COMMUNITY_PIN_SHA`, `OWNERS_PIN_SHA`: leave empty. The worker clones the public repositories on its first run and fetches them on every sync, so the graph follows the upstream default branches. Set them only for a reproducible snapshot.
 - `PUBLIC_HOST=<dns name>`: used by the prod override and Caddy. Compose reads it from `.env` in the project directory.
 - `REPO_CACHE_HOST`: leave unset on the VM (a named volume is used).
 
@@ -45,7 +45,7 @@ $COMPOSE config --quiet
 
 ## 4. First data load
 
-The worker needs a populated graph before the api has anything to serve. This starts FalkorDB, builds the image and runs the full pipeline (about 5 minutes on the dev machine; ticket sync is rate-limited by GitHub):
+The worker needs a populated graph before the api has anything to serve. This starts FalkorDB, builds the image and runs the full pipeline. On a fresh server the first run also clones kubernetes/enhancements and kubernetes/community into the cache volume (allow several extra minutes; later runs only fetch) and reads the OWNERS files from the GitHub API. Ticket sync is rate-limited by GitHub:
 
 ```
 $COMPOSE run --rm worker all

@@ -110,9 +110,9 @@ class WhoKnowsParams(ToolParams):
         default=None,
         min_length=2,
         max_length=120,
-        description="A KEP number/path (e.g. 4671) or a topic term (e.g. 'gang scheduling'); optional with sig",
+        description="A KEP number or path, or a topic term; optional when sig is given",
     )
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="e.g. sig-scheduling")
+    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="Scope to one SIG key")
     metric: Literal["weighted_degree", "pagerank"] = "weighted_degree"
     limit: Literal[5, 10, 20] = 10
 

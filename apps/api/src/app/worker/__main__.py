@@ -22,6 +22,7 @@ from app.db.falkordb import GRAPH_KEP, WRITE_TIMEOUT_MS, FalkorPool, Role
 from app.ingest.docs import Corpus, build_corpus, sync_docs
 from app.ingest.history import sync_history
 from app.ingest.owners import sync_owners
+from app.ingest.repos import ensure_repo
 from app.logging import configure_logging
 from app.schema.apply import apply_schema
 from app.settings import Settings, get_settings
@@ -49,6 +50,7 @@ class Worker:
         self.pool = FalkorPool(settings)
         self.run_id = str(ULID())
         self._corpus: Corpus | None = None
+        self._community_sha: str | None = None
 
     def close(self) -> None:
         self.pool.close()
@@ -77,8 +79,16 @@ class Worker:
     def sync_history(self) -> dict[str, Any]:
         return sync_history(self.writer(), self.corpus())
 
+    def community_sha(self) -> str:
+        """One community commit per worker run: the doc sync's when it ran, else resolved once here."""
+        if self._corpus is not None:
+            return self._corpus.community_sha
+        if self._community_sha is None:
+            self._community_sha = ensure_repo(self.settings, "community")
+        return self._community_sha
+
     def sync_owners(self) -> dict[str, Any]:
-        return sync_owners(self.writer(), self.settings)
+        return sync_owners(self.writer(), self.settings, community_sha=self.community_sha())
 
     def sync_tickets(self) -> dict[str, Any]:
         fn = _optional("app.ingest.tickets", "sync_tickets")

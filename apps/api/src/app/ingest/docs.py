@@ -42,6 +42,7 @@ from app.ingest.common import (
     tree_url,
 )
 from app.ingest.kep_yaml import MILESTONE_STAGES, KepMeta, load_yaml, parse_kep_yaml, release_minor
+from app.ingest.repos import clone_path, ensure_repo
 from app.ingest.sections import ParsedSection, split_sections, summary_text
 from app.ingest.sigs import OrgChart, sync_sigs
 from app.schema.labels import VALID_TO_OPEN
@@ -230,11 +231,10 @@ def _parse_prr(text: str | None) -> dict[str, str]:
 
 def build_corpus(settings: Settings) -> Corpus:
     started = time.monotonic()
-    cache = Path(settings.repo_cache_dir)
-    git = Git(cache / "enhancements")
-    sha = git.resolve(settings.enhancements_pin_sha)
-    community_git = Git(cache / "community")
-    community_sha = community_git.resolve(settings.community_pin_sha or "HEAD")
+    sha = ensure_repo(settings, "enhancements")
+    git = Git(clone_path(settings, "enhancements"))
+    community_sha = ensure_repo(settings, "community")
+    community_git = Git(clone_path(settings, "community"))
     tree = git.ls_tree(sha, "keps")
     kep_dirs = sorted(p[: -len("/kep.yaml")] for p in tree if p.endswith("/kep.yaml"))
     scope = settings.sig_list

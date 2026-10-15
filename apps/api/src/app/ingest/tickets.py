@@ -9,8 +9,10 @@ Writes (03 §4.5, §5.4, §5.5):
 - `PullRequest:Ticket` enrichment for the PRs whose commits changed `status`, `stage`, a milestone
   field or a replacement field, with `Review`, command `Comment`, `SUBMITTED`, `COMMENTED`, `ON`,
   `OPENED`, `MERGED` and `IN_PR` (Commit -> PullRequest).
+- Substantive review discussion on those PRs (`Comment {kind: review_comment}` with a 600-character
+  excerpt), written by `app.ingest.discussion`.
 
-No body text is stored: titles are scrubbed, and comments are kept only for the Prow commands they carry.
+Titles are scrubbed; issue comments are kept only for the Prow commands they carry.
 Timelines are fetched one issue per query because batched aliases silently truncate `timelineItems`
 (recon `.recon/contradictions/gql-timeline-batch-probe.json`); issue metadata and PRs are batched 25
 per query (recon `gql-batch25-vs-single.json`, `gql-pr-batch25-vs-single.json`).
@@ -883,6 +885,15 @@ def sync_tickets(
         targets = _pr_targets(writer)
         prs = fetch_prs(gh, list(targets))
         write_prs(writer, prs, targets, stats)
+        # Imported here: the discussion layer builds on this module's helpers.
+        from app.ingest.discussion import ingest_discussion
+
+        disc = ingest_discussion(writer, gh, prs)
+        stats.extra.update(
+            review_comments=disc.review_bodies + disc.thread_comments,
+            discussion_points=disc.points_spent,
+            prs_without_threads=disc.prs_without_threads_fetched,
+        )
         stats.github_requests = gh.requests_made
         stats.cache_hits = gh.cache_hits
     finally:

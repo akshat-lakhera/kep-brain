@@ -137,7 +137,7 @@ def test_changes_since_release(client: TestClient) -> None:
     body = client.get("/v1/changes").json()
     assert body["since"] == "v1.36" and body["releases"] == ["v1.35", "v1.36", "v1.37"]
     assert body["window"] == {"start_iso": "2025-12-17T19:33:20Z", "basis": "tracking_issue_milestone"}
-    assert body["counts"] == {"keps_changed": 1, "status_transitions": 1, "stage_changes": 0, "milestone_changes": 1,
+    assert body["counts"] == {"keps_changed": 1, "status_transitions": 1, "stage_changes": 0, "milestone_changes": 1, "label_changes": 0,
                               "new_keps": 1}  # fmt: skip
     status, milestone = body["items"]
     assert status == {

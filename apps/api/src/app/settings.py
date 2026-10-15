@@ -44,11 +44,17 @@ class Settings(BaseSettings):
     falkordb_writer_password: SecretStr | None = None
     falkordb_image: str = "falkordb/falkordb:v4.22.0"
 
-    enhancements_pin_sha: str = "8659e382efab7340d70de52432ee8f3d9979b797"
+    # Public sources. Pins are optional overrides: unset means "latest default-branch head at sync start".
+    enhancements_repo_url: str = "https://github.com/kubernetes/enhancements.git"
+    community_repo_url: str = "https://github.com/kubernetes/community.git"
+    # Holds the OWNERS files; read through the GitHub API, never cloned.
+    owners_repo_url: str = "https://github.com/kubernetes/kubernetes.git"
+    enhancements_pin_sha: str | None = None
     community_pin_sha: str | None = None
+    owners_pin_sha: str | None = None
+    git_timeout_seconds: int = Field(default=600, ge=10)
     repo_cache_dir: str = "./repo_cache"
     sigs: str = SIG_SCOPE_DEFAULT
-    sync_mode: Literal["pinned", "live"] = "pinned"
     tickets_as_of: str | None = None
     github_token: SecretStr | None = None
 

@@ -1,7 +1,9 @@
-"""OWNERS layer: OWNERS files of the directories the three SIGs maintain plus the root `OWNERS_ALIASES` (03 §4.1, §5.1).
+"""OWNERS layer: OWNERS files of the directories the in-scope SIGs maintain (see `select_owners`) plus
+the root `OWNERS_ALIASES` (03 §4.1, §5.1).
 
-Files come from the GitHub contents API at a pinned `kubernetes/kubernetes` commit (ADR 0007: no clone of
-that repository) and are cached under `<REPO_CACHE_DIR>/owners/<sha>/`. Ownership is a snapshot source, so
+Files come from the GitHub contents API at one `kubernetes/kubernetes` commit (the default-branch head at
+sync start unless OWNERS_PIN_SHA is set; the repository is never cloned) and are cached under
+`<REPO_CACHE_DIR>/owners/<sha>/`. Ownership is a snapshot source, so
 every state edge starts at first observation (`valid_from_basis = first_observed`) and a later sync closes
 the edges the file no longer lists (03 §7.6).
 """
@@ -10,7 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -21,49 +25,18 @@ import structlog
 import yaml
 
 from app.db.batch import BatchWriter
-from app.ingest.common import blob_url, is_bot, iso, normalise_login, open_state_props, person_url
+from app.ingest.common import Git, blob_url, is_bot, iso, normalise_login, open_state_props, person_url
 from app.ingest.github import resolve_token
+from app.ingest.repos import clone_path, ensure_repo
+from app.ingest.sigs import SIGS_PATH, OrgChart, parse_sigs_yaml
 from app.schema.labels import VALID_TO_OPEN
 from app.settings import Settings
 
 log = structlog.get_logger(__name__)
 
 KK_REPO = "kubernetes/kubernetes"
-# kubernetes/kubernetes master on 2026-10-14; the OWNERS layer never moves unless this is changed.
-KK_PIN_SHA = "2fb87b41a29b74e95c06b70fb61ba318fb580bf3"
 ALIASES_PATH = "OWNERS_ALIASES"
 API = "https://api.github.com"
-
-# Component -> source directories (03 §5.1 `COMPONENT_DIR`): the code and tests the three SIGs maintain.
-COMPONENT_DIRECTORIES: dict[str, tuple[str, ...]] = {
-    "kubelet": (
-        "pkg/kubelet",
-        "cmd/kubelet",
-        "staging/src/k8s.io/kubelet",
-        "staging/src/k8s.io/cri-api",
-        "test/e2e_node",
-        "test/e2e/node",
-    ),
-    "kube-scheduler": (
-        "pkg/scheduler",
-        "cmd/kube-scheduler",
-        "staging/src/k8s.io/kube-scheduler",
-        "test/e2e/scheduling",
-        "test/integration/scheduler",
-        "test/integration/scheduler_perf",
-    ),
-    "kube-controller-manager": (
-        "pkg/controller",
-        "cmd/kube-controller-manager",
-        "staging/src/k8s.io/kube-controller-manager",
-        "staging/src/k8s.io/controller-manager",
-        "pkg/apis/apps",
-        "pkg/apis/batch",
-        "pkg/registry/apps",
-        "pkg/registry/batch",
-        "test/e2e/apps",
-    ),
-}
 
 
 @dataclass
@@ -127,35 +100,129 @@ def parse_aliases(text: str) -> dict[str, list[str]]:
     return {str(name): _names(members) for name, members in raw.items()}
 
 
-def wanted_directory(directory: str) -> bool:
-    return any(directory == p or directory.startswith(p + "/") for dirs in COMPONENT_DIRECTORIES.values() for p in dirs)
+_KK_RAW = re.compile(r"^https://raw\.githubusercontent\.com/kubernetes/kubernetes/[^/]+/(.+)$")
+MAX_NEW_FETCHES = 400
+Origin = tuple[str, str]  # (graph label, key) of the SIG or Subproject a directory was derived from
 
 
-def select_owner_paths(tree: list[dict[str, Any]]) -> dict[str, str]:
-    """OWNERS path -> blob sha for every wanted directory and every ancestor of one (so inheritance resolves)."""
+@dataclass
+class Selection:
+    paths: dict[str, str]  # OWNERS path -> blob sha
+    origins: dict[str, list[Origin]]  # OWNERS path -> SIG / Subproject it was derived from
+    seed_dirs: dict[str, int] = field(default_factory=dict)  # sig dir -> directories from sigs.yaml (step 1)
+    labelled_dirs: dict[str, int] = field(default_factory=dict)  # sig dir -> directories from `labels:` (step 2)
+    fetches: int = 0  # network requests the selection needed (cache misses)
+
+
+def _directory_of(path: str) -> str:
+    parent = str(PurePosixPath(path).parent)
+    return "" if parent == "." else parent
+
+
+def seed_directories(chart: OrgChart, scope: set[str]) -> dict[str, list[tuple[str, str]]]:
+    """Step 1: kubernetes/kubernetes directory -> [(sig dir, subproject key)] from in-scope `owners:` URLs."""
+    seeds: dict[str, list[tuple[str, str]]] = {}
+    for sp in chart.subprojects:
+        if sp["sig_dir"] not in scope:
+            continue
+        for url in sp.get("owners_urls") or []:
+            m = _KK_RAW.match(url)
+            if m:
+                owner = (sp["sig_dir"], sp["key"])
+                found = seeds.setdefault(_directory_of(m.group(1)), [])
+                if owner not in found:
+                    found.append(owner)
+    return seeds
+
+
+def _region_prefix(directory: str) -> str:
+    parts = directory.split("/")
+    return "/".join(parts[: 4 if parts[0] == "staging" else 2])
+
+
+def _under(directory: str, root: str) -> bool:
+    return root == "" or directory == root or directory.startswith(root + "/")
+
+
+def select_owners(
+    tree: list[dict[str, Any]],
+    chart: OrgChart,
+    scope: set[str],
+    read: Callable[[str], str],
+    is_cached: Callable[[str], bool] = lambda _p: True,
+) -> Selection:
+    """OWNERS files of the in-scope SIGs, derived from public data only.
+
+    1. Directories named by `owners:` URLs of the SIGs' subprojects in sigs.yaml, and everything below them.
+    2. Any OWNERS file in the same part of the tree (within three path components of a step 1 directory) whose own
+       `labels:` carries `sig/<scope sig>`.
+    Ancestors of the selected directories are added without an origin so inheritance resolves.
+    """
     all_owners = {
         e["path"]: e["sha"] for e in tree if e.get("type") == "blob" and PurePosixPath(e["path"]).name == "OWNERS"
     }
-    ancestors = {""}
-    for dirs in COMPONENT_DIRECTORIES.values():
-        for d in dirs:
-            parts = d.split("/")
-            ancestors.update("/".join(parts[:i]) for i in range(1, len(parts) + 1))
+    seeds = seed_directories(chart, scope)
+    origins: dict[str, list[Origin]] = {}
     chosen: dict[str, str] = {}
+    seed_counts: dict[str, set[str]] = {}
     for path, sha in all_owners.items():
-        parent = str(PurePosixPath(path).parent)
-        directory = "" if parent == "." else parent
-        if directory in ancestors or wanted_directory(directory):
+        directory = _directory_of(path)
+        owners = [o for root, found in seeds.items() if _under(directory, root) and root != "" for o in found]
+        if owners:
             chosen[path] = sha
-    return dict(sorted(chosen.items()))
+            for sig, key in owners:
+                if ("Subproject", key) not in origins.setdefault(path, []):
+                    origins[path].append(("Subproject", key))
+                seed_counts.setdefault(sig, set()).add(path)
+    regions = {_region_prefix(d) for d in seeds if d}
+    candidates = [p for p in all_owners if p not in chosen and any(_under(_directory_of(p), r) for r in regions)]
+    misses = [p for p in candidates if not is_cached(p)]
+    if len(misses) > MAX_NEW_FETCHES:
+        raise RuntimeError(f"OWNERS label scan needs {len(misses)} new requests (limit {MAX_NEW_FETCHES})")
+    label_counts: dict[str, set[str]] = {}
+    for path in candidates:
+        labels = parse_owners(path, all_owners[path], read(path)).labels
+        sigs = [f"sig-{x[4:]}" for x in labels if x.startswith("sig/") and f"sig-{x[4:]}" in scope]
+        if sigs:
+            chosen[path] = all_owners[path]
+            origins[path] = [("SIG", s) for s in sigs]
+            for s in sigs:
+                label_counts.setdefault(s, set()).add(path)
+    ancestors = {""}
+    for path in chosen:
+        parts = _directory_of(path).split("/")
+        ancestors.update("/".join(parts[:i]) for i in range(1, len(parts)))
+    for path, sha in all_owners.items():
+        if _directory_of(path) in ancestors:
+            chosen.setdefault(path, sha)
+    return Selection(
+        paths=dict(sorted(chosen.items())),
+        origins=origins,
+        seed_dirs={k: len(v) for k, v in seed_counts.items()},
+        labelled_dirs={k: len(v) for k, v in label_counts.items()},
+        fetches=len(misses),
+    )
+
+
+def load_chart(settings: Settings, community_sha: str | None = None) -> OrgChart:
+    """Parse sigs.yaml of the community clone at `community_sha` (default: resolve it, fetching the clone)."""
+    sha = community_sha or ensure_repo(settings, "community")
+    git = Git(clone_path(settings, "community"))
+    try:
+        text = git.read(sha, SIGS_PATH)
+    finally:
+        git.close()
+    if text is None:
+        raise FileNotFoundError(f"{SIGS_PATH} missing at {sha}")
+    return parse_sigs_yaml(text, sha, set(settings.sig_list))
 
 
 class OwnersSource:
     """Contents-API reader with a per-commit disk cache."""
 
-    def __init__(self, settings: Settings, sha: str = KK_PIN_SHA) -> None:
-        self.sha = sha
-        self.cache = Path(settings.repo_cache_dir) / "owners" / sha
+    def __init__(self, settings: Settings, sha: str | None = None) -> None:
+        self.sha = sha or ensure_repo(settings, "owners")
+        self.cache = Path(settings.repo_cache_dir) / "owners" / self.sha
         self.cache.mkdir(parents=True, exist_ok=True)
         self._token = resolve_token(settings)
         self._http = httpx.Client(headers=self._headers("application/vnd.github.raw+json"), timeout=60)
@@ -191,6 +258,9 @@ class OwnersSource:
         tree = [{"path": e["path"], "type": e["type"], "sha": e["sha"]} for e in payload["tree"]]
         cached.write_text(json.dumps(tree), encoding="utf-8")
         return tree
+
+    def is_cached(self, path: str) -> bool:
+        return (self.cache / path.replace("/", "__")).exists()
 
     def read(self, path: str) -> str:
         cached = self.cache / path.replace("/", "__")
@@ -251,19 +321,33 @@ def _close_absent(writer: BatchWriter, rel: str, from_label: str, current: dict[
         )
 
 
-def sync_owners(writer: BatchWriter, settings: Settings, source: OwnersSource | None = None) -> dict[str, int]:
+def sync_owners(
+    writer: BatchWriter,
+    settings: Settings,
+    source: OwnersSource | None = None,
+    chart: OrgChart | None = None,
+    community_sha: str | None = None,
+) -> dict[str, int]:
     own = source is None
     src = source or OwnersSource(settings)
     try:
-        return _sync(writer, src)
+        return _sync(writer, src, chart or load_chart(settings, community_sha), set(settings.sig_list))
     finally:
         if own:
             src.close()
 
 
-def _sync(writer: BatchWriter, src: OwnersSource) -> dict[str, int]:
+def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[str]) -> dict[str, int]:
     sha = src.sha
-    selected = select_owner_paths(src.tree())
+    selection = select_owners(src.tree(), chart, scope, src.read, src.is_cached)
+    log.info(
+        "owners_selected",
+        files=len(selection.paths),
+        fetches=selection.fetches,
+        seeds=selection.seed_dirs,
+        labelled=selection.labelled_dirs,
+    )
+    selected = selection.paths
     files = [parse_owners(path, blob, src.read(path)) for path, blob in selected.items()]
     aliases_text = src.read(ALIASES_PATH)
     aliases = parse_aliases(aliases_text)
@@ -400,6 +484,20 @@ def _sync(writer: BatchWriter, src: OwnersSource) -> dict[str, int]:
     _close_absent(writer, "APPLIES_LABEL", "Document", sig_current)
     _merge_open(writer, "APPLIES_LABEL", "Document", "SIG", sig_rows)
 
+    component_rows: dict[str, list[dict[str, Any]]] = {"SIG": [], "Subproject": []}
+    component_current: dict[str, dict[str, list[str]]] = {
+        "SIG": {k: [] for k in scope},
+        "Subproject": {sp["key"]: [] for sp in chart.subprojects if sp["sig_dir"] in scope},
+    }
+    for path, origin_list in selection.origins.items():
+        props = {**open_state_props(t, blob_url(KK_REPO, sha, path), "first_observed"), "w": 4}
+        for label, key in origin_list:
+            component_rows[label].append({"from": key, "to": f"{KK_REPO}:{path}", "props": props})
+            component_current[label].setdefault(key, []).append(f"{KK_REPO}:{path}")
+    for label, rows in component_rows.items():
+        _close_absent(writer, "COMPONENT_DIR", label, component_current[label])
+        _merge_open(writer, "COMPONENT_DIR", label, "Document", rows)
+
     by_dir = {f.directory: f for f in files}
     parent_rows: list[dict[str, Any]] = []
     for f in files:
@@ -427,6 +525,7 @@ def _sync(writer: BatchWriter, src: OwnersSource) -> dict[str, int]:
         "member_of": len(member_rows),
         "applies_label": len(sig_rows),
         "parent_owners": len(parent_rows),
+        "component_dir": sum(len(r) for r in component_rows.values()),
         **{k.lower(): v for k, v in counts.items()},
     }
     log.info("owners_loaded", sha=sha, **result)

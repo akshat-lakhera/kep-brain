@@ -70,7 +70,7 @@ ORDER BY kind
 
 class FindContradictionsParams(ToolParams):
     kep_ref: KepRef | None = Field(default=None, description="Scope to one KEP (number or path)")
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="Scope to a SIG, e.g. sig-node")
+    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="Scope to one SIG key")
     kinds: list[FindingKind] = Field(default_factory=list, description="Predicates; empty means all five")
     include_closed: bool = Field(default=False, description="Also return dismissed and resolved findings")
     limit: Literal[20, 50, 100] = 20

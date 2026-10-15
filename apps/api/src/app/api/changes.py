@@ -14,14 +14,16 @@ reused: it starts at the release's ship date, which leaves out the release's own
 
 Items: kep.yaml changes to status, stage, latest_milestone, milestone.*, replaces and superseded_by
 (`metadata`), tracking-issue milestone events (`milestone`), and tracking-issue label events for the
-enhancement-tracking labels stage/*, tracked/* and lead-opted-in (`label`; lifecycle, sig and triage
-label noise is left out). `actor_login` is the event's actor for issue events and the author of the
+enhancement-tracking labels stage/* and lead-opted-in (`label`; lifecycle, sig and triage label noise
+is left out). Automation labels (`app.tools.noise`: tracked/*, lgtm, approved, cncf-cla*, size/*) are left
+out unless `include_labels=true`. `actor_login` is the event's actor for issue events and the author of the
 pull request that merged the kep.yaml change otherwise. Default `since`: the latest shipped release
 (the graph also holds planned future releases, which have no cycle yet).
 
 Counts cover the whole window (not only the returned page): `status_transitions` and `stage_changes`
 count kep.yaml status and stage changes, `milestone_changes` counts kep.yaml milestone changes plus
-issue milestone events, `new_keps` counts KEPs whose first kep.yaml change falls in the window.
+issue milestone events, `label_changes` counts the label events in the window (same label filter as the
+items), `new_keps` counts KEPs whose first kep.yaml change falls in the window.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ from fastapi import APIRouter, Query, Request
 from app.api.deps import graph_of, pool_of, rows_of
 from app.db.falkordb import FalkorPool
 from app.errors import AppError
+from app.tools.noise import automation_label_predicate
 
 router = APIRouter(tags=["changes"])
 
@@ -62,10 +65,11 @@ WHERE c.to_value = $release AND c.field IN $milestone_fields
 RETURN min(c.at) AS t
 """
 
-IN_WINDOW = """c.at >= $t AND (
+IN_WINDOW = f"""c.at >= $t AND (
   (c.kind = 'metadata' AND c.field IN $metadata_fields)
   OR c.kind = 'milestone'
-  OR (c.kind = 'label' AND (c.field STARTS WITH 'stage/' OR c.field IN $tracking_labels)))"""
+  OR (c.kind = 'label' AND (c.field STARTS WITH 'stage/' OR c.field IN $tracking_labels)
+      AND ($include_labels OR NOT {automation_label_predicate()})))"""
 
 
 def _items_template(limit: int) -> str:
@@ -97,7 +101,8 @@ RETURN count(DISTINCT k) AS keps_changed,
  sum(CASE WHEN c.kind = 'metadata' AND c.field = 'status' THEN 1 ELSE 0 END) AS status_transitions,
  sum(CASE WHEN c.kind = 'metadata' AND c.field = 'stage' THEN 1 ELSE 0 END) AS stage_changes,
  sum(CASE WHEN c.kind = 'milestone' OR (c.kind = 'metadata' AND c.field IN $milestone_fields) THEN 1 ELSE 0 END)
-   AS milestone_changes
+   AS milestone_changes,
+ sum(CASE WHEN c.kind = 'label' THEN 1 ELSE 0 END) AS label_changes
 """
 
 NEW_KEPS = """
@@ -150,6 +155,7 @@ async def list_changes(
     since: str | None = Query(default=None, max_length=12),
     sig: str = Query(default="", max_length=60),
     limit: int = Query(default=200, ge=1, le=500),
+    include_labels: bool = Query(default=False),
 ) -> dict[str, Any]:
     pool, graph = pool_of(request), graph_of(request)
     releases = await release_keys(pool, graph)
@@ -171,16 +177,19 @@ async def list_changes(
         "metadata_fields": METADATA_FIELDS,
         "milestone_fields": MILESTONE_FIELDS,
         "tracking_labels": TRACKING_LABELS,
+        "include_labels": include_labels,
     }
     variant = next(n for n in LIMITS if n >= limit)
     items = rows_of(await pool.ro_query(graph, ITEMS[variant], args, timeout_ms=5000))[:limit]
     counts_rows = rows_of(await pool.ro_query(graph, COUNTS, args, timeout_ms=5000))
     new_rows = rows_of(await pool.ro_query(graph, NEW_KEPS, args, timeout_ms=5000))
     counts = {k: int(counts_rows[0].get(k) or 0) if counts_rows else 0
-              for k in ("keps_changed", "status_transitions", "stage_changes", "milestone_changes")}  # fmt: skip
+              for k in ("keps_changed", "status_transitions", "stage_changes", "milestone_changes",
+                        "label_changes")}  # fmt: skip
     counts["new_keps"] = int(new_rows[0]["new_keps"]) if new_rows else 0
     return {
         "since": since,
+        "include_labels": include_labels,
         "window": {"start_iso": datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "basis": basis},
         "releases": releases,
         "counts": counts,

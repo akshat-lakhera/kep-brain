@@ -39,12 +39,18 @@ async def source_pins(pool: FalkorPool, settings: Settings, graph: str = GRAPH_K
     sigs_doc = await pool.ro_query(graph, "MATCH (d:Document {kind: 'sigs_yaml'}) RETURN d.source_sha LIMIT 1")
     if sigs_doc.rows and sigs_doc.rows[0][0]:
         community_sha = str(sigs_doc.rows[0][0])
+    enhancements_sha = settings.enhancements_pin_sha
+    kep_row = await pool.ro_query(graph, "MATCH (k:KEP) RETURN k.source_url LIMIT 1")
+    if kep_row.rows and kep_row.rows[0][0]:
+        found = re.search(r"/tree/([0-9a-f]{40})/", str(kep_row.rows[0][0]))
+        if found:
+            enhancements_sha = found.group(1)
     if tickets_as_of is None:
         seen = await pool.ro_query(graph, "MATCH (i:Issue) RETURN max(i.observed_at)")
         if seen.rows and seen.rows[0][0] is not None:
             tickets_as_of = datetime.fromtimestamp(int(seen.rows[0][0]), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
-        "enhancements_sha": settings.enhancements_pin_sha,
+        "enhancements_sha": enhancements_sha,
         "community_sha": community_sha,
         "tickets_as_of": tickets_as_of,
     }

@@ -50,7 +50,7 @@ def test_sig_page(client: TestClient) -> None:
     assert body["keps_by_status"] == {"implementable": 38, "implemented": 18, "provisional": 3}
     assert len(body["keps"]) == 59 and body["open_findings"] == 20 and len(body["findings"]) == 20
     assert all("human_verdict" in f for f in body["findings"])
-    assert body["subprojects"] == []  # not loaded by the ingest yet
+    assert body["subprojects"] and all(s["name"] and s["url"].startswith("https://") for s in body["subprojects"])
     leads = {p["login"]: p["roles"] for p in body["people"][:5]}
     assert "tech_lead" in leads["dom4ha"]
     assert client.get("/v1/sigs/sig-does-not-exist").status_code == 404

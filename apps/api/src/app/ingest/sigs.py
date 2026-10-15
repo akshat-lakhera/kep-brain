@@ -68,9 +68,11 @@ def _parse_subprojects(group: dict[str, Any], gdir: str, sig_url: str, source: s
             continue
         seen.add(key)
         url = next((u for u in map(owners_directory_url, map(str, sp.get("owners") or [])) if u), sig_url)
+        owner_urls = [str(u) for u in sp.get("owners") or [] if isinstance(u, str)]
         chart.subprojects.append(
             {
                 "key": key,
+                "owners_urls": owner_urls or None,
                 "name": name,
                 "sig_dir": gdir,
                 "description": (sp.get("description") or "").strip() or None,
@@ -201,8 +203,12 @@ def sync_sigs(writer: BatchWriter, git: Git, sha: str, in_scope: set[str]) -> Or
         for wg, sig in chart.stakeholders
     ]
     _write_snapshot_edges(writer, "STAKEHOLDER", "WorkingGroup", "SIG", stake_rows, chart, t)
-    log.info("sigs_loaded", **{label: len(rows) for label, rows in chart.nodes.items()}, people=len(chart.people),
-             subprojects=len(chart.subprojects))
+    log.info(
+        "sigs_loaded",
+        **{label: len(rows) for label, rows in chart.nodes.items()},
+        people=len(chart.people),
+        subprojects=len(chart.subprojects),
+    )
     return chart
 
 
