@@ -122,8 +122,20 @@ def _rows(header: Sequence[str], rows: Sequence[Sequence[Any]]) -> list[dict[str
     return [dict(zip(header, row, strict=False)) for row in rows]
 
 
+# Graphs known to exist, with the time that knowledge expires. A graph never stops existing on its own, so a
+# positive answer can be reused for a while; a negative one is re-checked every time (a GRAPH.LIST round trip).
+_KNOWN: dict[str, float] = {}
+_KNOWN_TTL_S = 30.0
+
+
 async def _exists(pool: FalkorPool, memory_id: str) -> bool:
-    return memory_graph_name(memory_id) in await pool.ping()
+    now = time.monotonic()
+    if _KNOWN.get(memory_id, 0.0) > now:
+        return True
+    found = memory_graph_name(memory_id) in await pool.ping()
+    if found:
+        _KNOWN[memory_id] = now + _KNOWN_TTL_S
+    return found
 
 
 async def _read(pool: FalkorPool, memory_id: str, query: str, params: dict[str, Any] | None = None) -> list[Any]:
@@ -318,6 +330,7 @@ async def forget(pool: FalkorPool, memory_id: str) -> bool:
         return False
     graph = pool.graph(Role.MEMORY, memory_graph_name(memory_id))
     await anyio.to_thread.run_sync(graph.delete)
+    _KNOWN.pop(memory_id, None)
     return True
 
 
