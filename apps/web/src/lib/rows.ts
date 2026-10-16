@@ -1,6 +1,6 @@
 /** Rows-per-page settings shared by server pages and the client control. */
 export const ROWS_PRESETS = [10, 25, 50, 100] as const;
-export const ROWS_DEFAULT = 25;
+export const ROWS_DEFAULT = 10;
 export const ROWS_MAX = 10_000;
 
 /** Parse `?rows=`: a preset or custom positive integer, `all`, or the default. */
