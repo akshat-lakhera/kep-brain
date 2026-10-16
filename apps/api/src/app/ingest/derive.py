@@ -28,6 +28,7 @@ import structlog
 
 from app.db.batch import BatchWriter
 from app.ingest.common import is_bot, iso
+from app.ingest.kep_yaml import release_minor
 
 log = structlog.get_logger(__name__)
 
@@ -35,13 +36,7 @@ TERMINAL = {"withdrawn", "rejected", "deferred"}
 STAGE_RANK = {"alpha": 1, "beta": 2, "stable": 3, "deprecated": 4, "disabled": 5, "removed": 6}
 ROLE_ORDER = ("approver", "approve_command", "lgtm", "prr_approver", "author", "merger", "actor")
 _SHA_IN_URL = re.compile(r"/blob/([0-9a-f]{40})/")
-_RELEASE = re.compile(r"^v1\.(\d+)$")
 REPO = "kubernetes/enhancements"
-
-
-def release_minor(value: str | None) -> int | None:
-    m = _RELEASE.match(value or "")
-    return int(m.group(1)) if m else None
 
 
 def kep_ref(number: int | None, key: str) -> str:

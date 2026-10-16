@@ -40,6 +40,7 @@ from app.db.batch import BatchWriter
 from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.ingest.common import ENHANCEMENTS_REPO, is_bot, iso, path_weight, person_url, pr_url
 from app.ingest.github import GitHubClient
+from app.ingest.kep_yaml import release_key
 from app.schema.labels import NODE_LABELS, REL_TYPES, VALID_TO_OPEN
 from app.settings import Settings
 
@@ -54,7 +55,6 @@ PAGE = 100
 PR_TRIGGER_FIELDS = ("status", "stage", "latest_milestone", "replaces", "superseded_by")
 COMMANDS = ("approve", "lgtm", "hold", "retest", "milestone", "label", "stage")
 _COMMAND_RE = re.compile(r"^\s*/(" + "|".join(COMMANDS) + r")\b[ \t]*([^\r\n]*)$", re.MULTILINE)
-_RELEASE_RE = re.compile(r"^v?1\.(\d{1,3})$")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _KEEP_REVIEW_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
 STAGE_PREFIX = "stage/"
@@ -73,14 +73,6 @@ def scrub(text: str | None) -> str | None:
     if text is None:
         return None
     return _EMAIL_RE.sub("[email removed]", text)
-
-
-def release_key(title: str | None) -> str | None:
-    """`"v1.31"`/`"1.31"` -> `"v1.31"`; anything else -> None (not a Release)."""
-    if not title:
-        return None
-    m = _RELEASE_RE.match(title.strip())
-    return f"v1.{int(m.group(1))}" if m else None
 
 
 def parse_commands(body: str | None) -> list[str]:

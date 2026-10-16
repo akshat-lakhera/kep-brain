@@ -24,6 +24,7 @@ import structlog
 
 from app.db.batch import BatchWriter
 from app.ingest.common import iso
+from app.ingest.kep_yaml import release_minor
 from app.schema.labels import FINDING_KINDS, VALID_TO_OPEN
 
 log = structlog.get_logger(__name__)
@@ -87,13 +88,6 @@ def _doc_evidence(doc_key: str | None, kep_key: str, url: str) -> tuple[str, str
     if doc_key:
         return ("Document", doc_key, "kep_yaml", url)
     return ("KEP", kep_key, "kep_yaml", url)
-
-
-def release_minor(key: str | None) -> int | None:
-    if not key or not key.startswith("v1."):
-        return None
-    tail = key[3:]
-    return int(tail) if tail.isdigit() else None
 
 
 # -- predicate 1: active_status_closed_issue -----------------------------------------------

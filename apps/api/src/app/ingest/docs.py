@@ -702,11 +702,12 @@ def sync_docs(writer: BatchWriter, corpus: Corpus, settings: Settings) -> dict[s
     minors: set[int] = set()
     for src in loaded:
         for pr in src.revisions:
-            minors.update(release_minor(r) for r in pr.meta.milestones.values())
-            if pr.meta.latest_milestone:
-                minors.add(release_minor(pr.meta.latest_milestone))
+            minors.update(m for m in map(release_minor, pr.meta.milestones.values()) if m is not None)
+            latest = release_minor(pr.meta.latest_milestone)
+            if latest is not None:
+                minors.add(latest)
     dates = fetch_release_dates(settings, corpus.sha_time)
-    latest_ga = max((release_minor(r) for r in dates), default=0)
+    latest_ga = max((m for m in map(release_minor, dates) if m is not None), default=0)
     release_rows = []
     for minor in range(min(minors, default=0), max(minors | {latest_ga}) + 1):
         name = f"v1.{minor}"

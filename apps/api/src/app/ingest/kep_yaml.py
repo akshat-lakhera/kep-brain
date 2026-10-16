@@ -74,8 +74,19 @@ def normalise_milestone(raw: Any) -> str | None:
     return f"v{int(m.group(1))}.{int(m.group(2))}"
 
 
-def release_minor(release: str) -> int:
-    return int(release.split(".")[1])
+_RELEASE_RE = re.compile(r"^v?1\.(\d{1,3})$")
+
+
+def release_minor(release: str | None) -> int | None:
+    """`v1.31` or `1.31` -> 31; anything else (None, junk, a patch version) -> None."""
+    m = _RELEASE_RE.match((release or "").strip())
+    return int(m.group(1)) if m else None
+
+
+def release_key(title: str | None) -> str | None:
+    """`v1.31`/`1.31` -> `v1.31`; anything else -> None (not a Release)."""
+    minor = release_minor(title)
+    return f"v1.{minor}" if minor is not None else None
 
 
 def parse_date(raw: Any) -> tuple[str | None, bool]:
