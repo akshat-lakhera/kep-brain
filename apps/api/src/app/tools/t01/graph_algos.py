@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from app.errors import AppError
+from app.ingest.common import normalise_login
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import _coerce, resolve_kep, unresolved_rows
 
@@ -74,7 +75,7 @@ class PathBetween(Tool):
                     return run.result(unresolved_rows(ref, res))
                 keys.append(res.key)
             elif label == "Person":
-                keys.append(key.lower())
+                keys.append(normalise_login(key) or key.lower())
             elif label in ("Issue", "PullRequest") and re.fullmatch(r"#?\d{1,6}", key):
                 keys.append(f"kubernetes/enhancements#{key.lstrip('#')}")
             else:

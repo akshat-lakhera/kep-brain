@@ -16,6 +16,7 @@ import structlog
 from pydantic import Field
 from redis.exceptions import ResponseError
 
+from app.ingest.common import normalise_login
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 
 log = structlog.get_logger(__name__)
@@ -127,7 +128,7 @@ class FindEntities(Tool):
                     key = f"kubernetes/enhancements#{int(ticket.group(1))}"
                     add(await run.query(EXACT[label], {"ticket": key}, limit=1), "exact")
         if "Person" in kinds:
-            add(await run.query(EXACT["Person"], {"login": q.lstrip("@").lower()}, limit=1), "exact")
+            add(await run.query(EXACT["Person"], {"login": normalise_login(q) or q.lower()}, limit=1), "exact")
         if "SIG" in kinds:
             add(await run.query(EXACT["SIG"], {"sig": q.lower().replace(" ", "-")}, limit=1), "exact")
         if "FeatureGate" in kinds:

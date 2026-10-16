@@ -38,7 +38,7 @@ from ulid import ULID
 
 from app.db.batch import BatchWriter
 from app.db.falkordb import GRAPH_KEP, FalkorPool
-from app.ingest.common import ENHANCEMENTS_REPO, is_bot, iso, path_weight, person_url, pr_url
+from app.ingest.common import ENHANCEMENTS_REPO, is_bot, iso, normalise_login, path_weight, person_url, pr_url
 from app.ingest.github import GitHubClient
 from app.ingest.kep_yaml import release_key
 from app.schema.labels import NODE_LABELS, REL_TYPES, VALID_TO_OPEN
@@ -103,7 +103,7 @@ def label_category(name: str) -> str:
 def login_of(actor: dict[str, Any] | None) -> str | None:
     if not actor or not actor.get("login"):
         return None
-    return str(actor["login"]).lower()
+    return normalise_login(actor["login"]) or str(actor["login"]).lower()
 
 
 def issue_key(number: int) -> str:

@@ -21,6 +21,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from app.errors import AppError
+from app.ingest.common import normalise_login
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 from app.tools.t03.history import DecisionKind
@@ -93,7 +94,7 @@ class PathToDecisionParams(ToolParams):
     @field_validator("person")
     @classmethod
     def _login(cls, v: str) -> str:
-        v = v.strip().lstrip("@").lower()
+        v = normalise_login(v) or ""
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.\-\[\]]{0,59}", v):
             raise ValueError("person must be a GitHub login")
         return v

@@ -16,11 +16,11 @@ came from.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import Field
 
+from app.ingest.common import iso
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 
 TERMINAL_STATUSES = ["implemented", "withdrawn", "replaced", "rejected"]
@@ -94,7 +94,7 @@ LIMIT {IDLE_LIMIT}
 def _iso(epoch: Any) -> str | None:
     if not isinstance(epoch, int | float):
         return None
-    return datetime.fromtimestamp(int(epoch), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return iso(int(epoch))
 
 
 def idle_window(shipped: list[dict[str, Any]]) -> tuple[int, str] | None:

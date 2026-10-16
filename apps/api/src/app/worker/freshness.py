@@ -22,6 +22,7 @@ from falkordb import Node
 from app.agent.provider import call_with_policy_sync, cost_usd, model_chain, sync_client
 from app.db.falkordb import GRAPH_KEP, GRAPH_OPS, FalkorPool, Role
 from app.db.results import node_evidence
+from app.ingest.common import iso
 from app.settings import Settings
 
 log = structlog.get_logger(__name__)
@@ -299,7 +300,7 @@ def triage_finding(
             "model": llm.model,
             "ids": triage.evidence_ids,
             "now": now,
-            "now_iso": datetime.fromtimestamp(now, UTC).isoformat(),
+            "now_iso": iso(int(now)),
         },
         read_only=False,
         timeout_ms=10000,

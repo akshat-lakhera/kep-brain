@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
+from app.ingest.common import iso
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 
 FIELD_GROUPS: dict[str, tuple[str, ...]] = {
@@ -126,7 +126,7 @@ class ChangedSince(Tool):
             )
         summary = {
             "release": release,
-            "after": datetime.fromtimestamp(int(t), UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "after": iso(int(t)),
             "changes": len(out),
             "keps": len(keps),
             "by_field": dict(Counter(str(r["change"].get("field", "")) for r in out)),

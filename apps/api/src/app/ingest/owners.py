@@ -60,8 +60,9 @@ def _names(value: object) -> list[str]:
         return []
     seen: dict[str, None] = {}
     for item in value:
-        if isinstance(item, str) and item.strip():
-            seen.setdefault(item.strip().lstrip("@").lower(), None)
+        login = normalise_login(item)
+        if login:
+            seen.setdefault(login, None)
     return list(seen)
 
 

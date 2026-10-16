@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Query, Request
@@ -15,6 +14,7 @@ from app.api.deps import pool_of, settings_of, variant_for
 from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.errors import AppError
 from app.eval.questions import judge_questions, latest_summary, load_questions, public_question
+from app.ingest.common import iso
 from app.memory.store import valid_memory_id
 from app.schema.labels import NODE_LABELS, VALID_TO_OPEN
 from app.settings import Settings
@@ -48,7 +48,7 @@ async def source_pins(pool: FalkorPool, settings: Settings, graph: str = GRAPH_K
     if tickets_as_of is None:
         seen = await pool.ro_query(graph, "MATCH (i:Issue) RETURN max(i.observed_at)")
         if seen.rows and seen.rows[0][0] is not None:
-            tickets_as_of = datetime.fromtimestamp(int(seen.rows[0][0]), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            tickets_as_of = iso(int(seen.rows[0][0]))
     return {
         "enhancements_sha": enhancements_sha,
         "community_sha": community_sha,

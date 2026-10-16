@@ -29,7 +29,6 @@ items), `new_keps` counts KEPs whose first kep.yaml change falls in the window.
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -37,6 +36,7 @@ from fastapi import APIRouter, Query, Request
 from app.api.deps import graph_of, pool_of, rows_of, variant_for
 from app.db.falkordb import FalkorPool
 from app.errors import AppError
+from app.ingest.common import iso
 from app.tools.noise import automation_label_predicate
 
 router = APIRouter(tags=["changes"])
@@ -190,7 +190,7 @@ async def list_changes(
     return {
         "since": since,
         "include_labels": include_labels,
-        "window": {"start_iso": datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "basis": basis},
+        "window": {"start_iso": iso(int(t)), "basis": basis},
         "releases": releases,
         "counts": counts,
         "items": items,

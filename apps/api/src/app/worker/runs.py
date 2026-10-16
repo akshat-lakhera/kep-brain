@@ -15,10 +15,10 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
 from app.db.falkordb import GRAPH_OPS, WRITE_TIMEOUT_MS, FalkorPool, Role
+from app.ingest.common import iso
 
 HEARTBEAT_KEY = "worker"
 STEP_LABELS = {
@@ -53,10 +53,6 @@ BEAT = """
 MERGE (h:WorkerHeartbeat {key: $key})
 SET h.last_seen = $at, h.last_seen_iso = $at_iso, h.next_tick = $next, h.next_tick_iso = $next_iso, h.observed_at = $at
 """
-
-
-def iso(t: int) -> str:
-    return datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _write(pool: FalkorPool, ops_graph: str, query: str, params: dict[str, Any]) -> None:

@@ -11,13 +11,13 @@ import hashlib
 import re
 import time
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
 from typing import Any
 
 import anyio
 
 from app.db.falkordb import FalkorPool, Role
 from app.errors import AppError
+from app.ingest.common import iso
 from app.memory.classify import facts_from_question, kep_numbers, question_kind
 
 MEMORY_ID_RE = re.compile(r"[0-9A-Z]{26}")
@@ -189,7 +189,7 @@ async def remember(pool: FalkorPool, memory_id: str, ask_result: Mapping[str, An
             "abstained": abstained,
             "evidence_keys": _evidence_keys(citations),
             "tools": tools,
-            "now_iso": datetime.fromtimestamp(now, UTC).isoformat(),
+            "now_iso": iso(int(now)),
             "now_ms": int(now * 1000),
             "procedure_key": f"{kind}:{hashlib.sha1('|'.join(tools).encode()).hexdigest()[:12]}",
             "description": f"For {kind} questions: " + (" -> ".join(tools) if tools else "answer without tools"),

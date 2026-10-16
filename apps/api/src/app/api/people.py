@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from app.api.deps import graph_of, pool_of, rows_of
 from app.api.keps import CARD, OPEN_STATES, _card
 from app.errors import AppError
+from app.ingest.common import normalise_login
 from app.schema.labels import CUR, LEAD_ROLE_NAMES, VALID_TO_OPEN
 
 router = APIRouter(tags=["people"])
@@ -84,7 +85,7 @@ def _decision_role(roles: list[str]) -> str:
 @router.get("/people/{login}")
 async def get_person(request: Request, login: str) -> dict[str, Any]:
     pool, graph = pool_of(request), graph_of(request)
-    key = login.strip().lstrip("@").lower()
+    key = normalise_login(login) or ""
     person = rows_of(await pool.ro_query(graph, PERSON, {"key": key}))
     if not key or not person:
         raise AppError("not_found", {"login": login[:100]})

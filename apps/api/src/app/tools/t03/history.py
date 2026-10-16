@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
+from app.ingest.common import iso
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 from app.tools.noise import automation_label_predicate
@@ -228,7 +229,7 @@ class WhatsChanged(Tool):
         for row in decisions:
             entry = by_kep.setdefault(row["kep"]["key"], {"kep": row["kep"], "changes": [], "decisions": []})
             entry["decisions"].append(row["decision"])
-        since_iso = datetime.fromtimestamp(t, UTC).isoformat()
+        since_iso = iso(int(t))
         summary = {
             "since": p.since,
             "since_at_iso": since_iso,

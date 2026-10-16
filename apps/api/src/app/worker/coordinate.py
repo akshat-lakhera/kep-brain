@@ -13,7 +13,6 @@ import re
 import socket
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -22,6 +21,7 @@ from ulid import ULID
 
 from app.db.falkordb import GRAPH_KEP, GRAPH_OPS, FalkorPool, Role
 from app.errors import AppError
+from app.ingest.common import iso
 from app.settings import Settings
 from app.worker.freshness import (
     CITATION,
@@ -192,7 +192,7 @@ class ClaimedTask:
 
 def _stamp() -> dict[str, Any]:
     now = int(time.time())
-    return {"now": now, "iso": datetime.fromtimestamp(now, UTC).isoformat()}
+    return {"now": now, "iso": iso(now)}
 
 
 def _run(pool: FalkorPool, graph: str, query: str, params: dict[str, Any] | None = None) -> list[list[Any]]:
