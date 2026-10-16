@@ -17,9 +17,10 @@ log = structlog.get_logger(__name__)
 # Observed-at stamps are rewritten only when a node's content hash changes, so these maxima move only when
 # the corpus does (a re-sync that finds nothing new leaves them alone).
 GRAPH_VERSION = (
-    "MATCH (k:KEP) WITH max(k.observed_at) AS kep MATCH (i:Issue) WITH kep, max(i.observed_at) AS issue "
-    "MATCH (f:Finding) RETURN kep, issue, max(f.observed_at)"
-)
+    "OPTIONAL MATCH (k:KEP) WITH max(k.observed_at) AS kep "
+    "OPTIONAL MATCH (i:Issue) WITH kep, max(i.observed_at) AS issue "
+    "OPTIONAL MATCH (f:Finding) RETURN kep, issue, max(f.observed_at)"
+)  # OPTIONAL so a graph without findings (or issues) still yields one row and the version keeps moving
 LOOKUP = "MATCH (c:AnswerCache {key: $key}) RETURN c.response_json, c.created_at"
 STORE = (
     "MERGE (c:AnswerCache {key: $key}) "
