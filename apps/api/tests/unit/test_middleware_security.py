@@ -76,3 +76,10 @@ def test_daily_cap(monkeypatch: pytest.MonkeyPatch) -> None:
     assert 1 <= ei.value.details["retry_after_s"] <= 86400
     lim._day = "1999-01-01"  # a new UTC day resets the counter
     lim.check("c", 10)
+
+
+def test_unsupported_method_is_405_not_500() -> None:
+    c = TestClient(_app())
+    r = c.put("/v1/keps")
+    assert r.status_code == 405
+    assert r.json()["error"]["code"] == "method_not_allowed"

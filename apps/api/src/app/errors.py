@@ -22,6 +22,7 @@ MESSAGES: dict[str, tuple[int, str]] = {
     "unauthorized": (401, "A valid bearer token is required."),
     "forbidden": (403, "This operation is not allowed."),
     "not_found": (404, "The requested resource does not exist."),
+    "method_not_allowed": (405, "The method is not allowed on this path."),
     "kep_not_found": (404, "No KEP matches that reference."),
     "tool_not_found": (404, "No tool with that name is registered."),
     "ambiguous_reference": (409, "The reference matches more than one KEP."),
@@ -74,9 +75,17 @@ _STATUS_CODES = {
     401: "unauthorized",
     403: "forbidden",
     404: "not_found",
+    405: "method_not_allowed",
     413: "payload_too_large",
     429: "rate_limited",
 }
+
+
+def _code_for_status(status: int) -> str:
+    """Known statuses keep their code; any other client error is a bad request, anything else is internal."""
+    if status in _STATUS_CODES:
+        return _STATUS_CODES[status]
+    return "bad_request" if 400 <= status < 500 else "internal_error"
 
 
 def install_error_handlers(app: FastAPI) -> None:
@@ -91,7 +100,7 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        return envelope(_STATUS_CODES.get(exc.status_code, "internal_error"), _request_id(request))
+        return envelope(_code_for_status(exc.status_code), _request_id(request))
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
