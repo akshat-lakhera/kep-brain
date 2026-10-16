@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from conftest import live_graph_pinned
 from fastapi.testclient import TestClient
 
-from app.db.falkordb import GRAPH_KEP, FalkorPool, Role
+from app.db.falkordb import FalkorPool
 from app.main import create_app
 from app.settings import Settings
 
@@ -16,13 +17,7 @@ from app.settings import Settings
 def client() -> Iterator[TestClient]:
     pool = FalkorPool(Settings())
     try:
-        loaded = (
-            GRAPH_KEP in pool.list_graphs()
-            and pool.run_sync(
-                Role.READER, GRAPH_KEP, "MATCH (k:KEP) RETURN count(k)", read_only=True, timeout_ms=2000
-            ).rows[0][0]
-            >= 238
-        )
+        loaded = live_graph_pinned(pool)
     except Exception:  # noqa: BLE001
         loaded = False
     finally:

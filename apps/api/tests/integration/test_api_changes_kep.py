@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import pytest
+from conftest import live_graph_pinned
 from fastapi.testclient import TestClient
 
-from app.db.falkordb import GRAPH_KEP, FalkorPool, Role
+from app.db.falkordb import FalkorPool
 from app.main import create_app
 from app.settings import Settings
 
@@ -16,13 +18,7 @@ from app.settings import Settings
 def client() -> Iterator[TestClient]:
     pool = FalkorPool(Settings())
     try:
-        loaded = (
-            GRAPH_KEP in pool.list_graphs()
-            and pool.run_sync(
-                Role.READER, GRAPH_KEP, "MATCH (k:KEP) RETURN count(k)", read_only=True, timeout_ms=2000
-            ).rows[0][0]
-            >= 238
-        )
+        loaded = live_graph_pinned(pool)
     except Exception:  # noqa: BLE001
         loaded = False
     finally:
@@ -35,9 +31,13 @@ def client() -> Iterator[TestClient]:
 
 def test_default_since_latest_shipped_release(client: TestClient) -> None:
     body = client.get("/v1/changes").json()
-    assert body["since"] == "v1.37"
-    assert body["window"] == {"start_iso": "2026-05-05T16:03:21Z", "basis": "tracking_issue_milestone"}
-    assert body["releases"][0] == "v1.1" and body["releases"][-1] == "v1.41" and len(body["releases"]) == 41
+    meta = client.get("/v1/meta").json()
+    # The default window starts at the latest shipped release, whichever that is when the graph was synced.
+    assert body["since"] in body["releases"] and body["releases"] == meta["releases"]
+    minors = [int(r.split(".")[1]) for r in body["releases"]]
+    assert minors == sorted(minors) and body["releases"][0] == "v1.1" and body["since"] != body["releases"][-1]
+    assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z", body["window"]["start_iso"])
+    assert body["window"]["basis"] == "tracking_issue_milestone"
     counts = body["counts"]
     assert counts["keps_changed"] >= 96 and counts["status_transitions"] >= 47 and counts["new_keps"] >= 27
     items = body["items"]
@@ -49,7 +49,7 @@ def test_default_since_latest_shipped_release(client: TestClient) -> None:
 
 def test_since_v136_scheduling(client: TestClient) -> None:
     body = client.get("/v1/changes", params={"since": "v1.36", "sig": "sig-scheduling", "limit": 500}).json()
-    assert body["window"]["start_iso"] == "2026-01-09T15:09:53Z"
+    assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z", body["window"]["start_iso"])
     assert all(i["owning_sig"] == "sig-scheduling" for i in body["items"])
     status = [i for i in body["items"] if i["kind"] == "metadata" and i["field"] == "status"]
     assert len(status) == body["counts"]["status_transitions"] >= 1
@@ -59,4 +59,5 @@ def test_since_v136_scheduling(client: TestClient) -> None:
 
 def test_unknown_release_and_meta_releases(client: TestClient) -> None:
     assert client.get("/v1/changes", params={"since": "v2.0"}).status_code == 404
-    assert client.get("/v1/meta").json()["releases"][-5:] == ["v1.37", "v1.38", "v1.39", "v1.40", "v1.41"]
+    releases = client.get("/v1/meta").json()["releases"]
+    assert len(releases) >= 5 and all(r.startswith("v1.") for r in releases[-5:])

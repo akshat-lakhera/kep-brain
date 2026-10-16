@@ -7,9 +7,10 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from conftest import live_graph_pinned
 from fastapi.testclient import TestClient
 
-from app.db.falkordb import GRAPH_KEP, FalkorPool, Role
+from app.db.falkordb import FalkorPool
 from app.main import create_app
 from app.settings import Settings
 from app.tools.base import ToolContext, ToolResult
@@ -26,17 +27,7 @@ REVIEW_COMMENTS = 12087
 def pool() -> Iterator[FalkorPool]:
     p = FalkorPool(Settings())
     try:
-        loaded = (
-            GRAPH_KEP in p.list_graphs()
-            and p.run_sync(
-                Role.READER,
-                GRAPH_KEP,
-                "MATCH (c:Comment {kind: 'review_comment'}) RETURN count(c)",
-                read_only=True,
-                timeout_ms=5000,
-            ).rows[0][0]
-            >= REVIEW_COMMENTS
-        )
+        loaded = live_graph_pinned(p, "MATCH (c:Comment {kind: 'review_comment'}) RETURN count(c)", REVIEW_COMMENTS)
     except Exception:  # noqa: BLE001
         loaded = False
     if not loaded:

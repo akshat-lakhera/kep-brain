@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from conftest import live_graph_pinned
 
 from app.db.falkordb import GRAPH_KEP, FalkorPool, Role
 from app.settings import Settings
@@ -21,13 +22,7 @@ K583 = "keps/sig-scheduling/583-coscheduling"
 def pool() -> Iterator[FalkorPool]:
     p = FalkorPool(Settings())
     try:
-        loaded = (
-            GRAPH_KEP in p.list_graphs()
-            and p.run_sync(
-                Role.READER, GRAPH_KEP, "MATCH (f:Finding) RETURN count(f)", read_only=True, timeout_ms=2000
-            ).rows[0][0]
-            >= FINDINGS_TOTAL
-        )
+        loaded = live_graph_pinned(p, "MATCH (f:Finding) RETURN count(f)", FINDINGS_TOTAL)
     except Exception:  # noqa: BLE001
         loaded = False
     if not loaded:
@@ -121,5 +116,14 @@ async def test_changed_since_v137_status(pool: FalkorPool) -> None:
 
 
 async def test_changed_since_future_release(pool: FalkorPool) -> None:
-    r = await TOOLS["changed_since"].invoke(ToolContext(pool=pool), {"release": "v1.39"})
+    future = pool.run_sync(
+        Role.READER,
+        GRAPH_KEP,
+        "MATCH (r:Release) WHERE r.is_future RETURN r.key ORDER BY r.key DESC LIMIT 1",
+        read_only=True,
+        timeout_ms=2000,
+    ).rows
+    if not future:
+        pytest.skip("every Release in the graph has shipped")
+    r = await TOOLS["changed_since"].invoke(ToolContext(pool=pool), {"release": future[0][0]})
     assert r.rows[0]["not_released_yet"] is True

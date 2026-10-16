@@ -6,9 +6,10 @@ from collections.abc import Iterator
 
 import httpx
 import pytest
+from conftest import live_graph_pinned
 from fastapi.testclient import TestClient
 
-from app.db.falkordb import GRAPH_KEP, FalkorPool, Role
+from app.db.falkordb import FalkorPool
 from app.main import create_app
 from app.mcp.__main__ import build_app
 from app.settings import Settings
@@ -21,12 +22,7 @@ FLAGGED_KEPS = 50
 def _graph_loaded() -> bool:
     pool = FalkorPool(Settings())
     try:
-        if GRAPH_KEP not in pool.list_graphs():
-            return False
-        rows = pool.run_sync(
-            Role.READER, GRAPH_KEP, "MATCH (f:Finding) RETURN count(f)", read_only=True, timeout_ms=2000
-        ).rows
-        return bool(rows[0][0] >= FINDINGS_TOTAL)
+        return live_graph_pinned(pool, "MATCH (f:Finding) RETURN count(f)", FINDINGS_TOTAL)
     except Exception:  # noqa: BLE001
         return False
     finally:
