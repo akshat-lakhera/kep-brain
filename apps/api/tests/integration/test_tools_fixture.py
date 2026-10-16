@@ -110,7 +110,9 @@ async def test_who_tools(ctx: ToolContext) -> None:
 
 async def test_rank_whats_changed_findings_draft(ctx: ToolContext) -> None:
     r = await call(ctx, "rank_people", sig="sig-scheduling")
-    assert r.rows[0]["metric_used"] == "degree"
+    assert r.rows[0]["metric_used"] == "pagerank"  # the fixture stores Person.pagerank as the worker does
+    by_degree = await call(ctx, "rank_people", sig="sig-scheduling", metric="degree")
+    assert by_degree.rows[0]["metric_used"] == "degree"
     assert all(row["person"]["key"] != "k8s-ci-robot" for row in r.rows[1:])
     w = await call(ctx, "whats_changed", since="2025-01-01")
     assert w.rows[0]["keps_changed"] == 1

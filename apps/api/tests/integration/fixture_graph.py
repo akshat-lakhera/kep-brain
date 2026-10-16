@@ -7,6 +7,8 @@ they are test fixtures only and never reach the product graph.
 
 from __future__ import annotations
 
+from app.ingest.derive import PAGERANK_Q
+
 OPEN = 4102444800
 GH = "https://github.com/kubernetes/enhancements"
 
@@ -78,4 +80,5 @@ CREATE (sn:SIG {{key: 'sig-node', display_name: 'Node', url: 'https://github.com
     "CREATE FULLTEXT INDEX FOR (n:Person) ON (n.login)",
     "CREATE INDEX FOR (n:KEP) ON (n.key)",
     "CREATE INDEX FOR (n:KEP) ON (n.number)",
+    PAGERANK_Q,  # the worker's derive step stores Person.pagerank; the API reads it
 ]
