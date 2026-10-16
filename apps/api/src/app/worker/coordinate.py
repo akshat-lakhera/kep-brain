@@ -38,6 +38,7 @@ log = structlog.get_logger(__name__)
 
 LEASE_MS = 300_000
 MAX_ATTEMPTS = 3
+RETRY_COOLDOWN_S = 24 * 3600  # a done or failed task blocks a new one for the same finding this long
 MAX_PER_ROLE_PER_TICK = 25
 STATE_JSON_MAX = 8192
 AGENTS: dict[str, str] = {"freshness": "llm_agent", "action": "worker_role", "verifier": "worker_role"}
@@ -107,6 +108,7 @@ RETURN count(t)
 """
 ENQUEUE = """
 OPTIONAL MATCH (e:Task {kind: $kind, finding_key: $finding_key})
+WHERE e.status IN ['queued', 'running'] OR e.updated_at > $retry_after
 WITH count(e) AS existing WHERE existing = 0
 CREATE (t:Task {key: $key, kind: $kind, role: $role, status: 'queued', finding_key: $finding_key,
  payload_json: $payload, created_at: $now, created_at_iso: $iso, updated_at: $now, updated_at_iso: $iso,
@@ -222,14 +224,19 @@ def enqueue_task(
     payload: dict[str, Any] | None = None,
     graph: str = GRAPH_OPS,
 ) -> str | None:
-    """Create a queued task unless one of this kind already exists for the finding."""
+    """Create a queued task unless one of this kind is queued or running for the finding, or finished recently.
+
+    A finished (done or failed) task blocks a new one only for RETRY_COOLDOWN_S, so a rejected triage or a
+    finding reopened later is tried again, but not on every tick.
+    """
     key = str(ULID())
+    stamp = _stamp()
     rows = _run(
         pool,
         graph,
         ENQUEUE,
         {"key": key, "kind": kind, "role": role, "finding_key": finding_key,
-         "payload": json.dumps(payload or {}), **_stamp()},
+         "payload": json.dumps(payload or {}), "retry_after": stamp["now"] - RETRY_COOLDOWN_S, **stamp},
     )  # fmt: skip
     return key if rows else None
 
