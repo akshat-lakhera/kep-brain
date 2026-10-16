@@ -58,6 +58,7 @@ REPLAYED_RELS = frozenset(
      "SUPERSEDED_BY", "SEE_ALSO", "REFERS_TO", "GATED_BY", "TARGETS", "LATEST"}
 )  # fmt: skip
 KK_RELEASES_URL = "https://api.github.com/repos/kubernetes/kubernetes/releases"
+RELEASES_CACHE_SECONDS = 24 * 3600
 
 
 # --------------------------------------------------------------------------- corpus
@@ -332,7 +333,9 @@ def fetch_release_dates(settings: Settings, cutoff: int) -> dict[str, int]:
     """
     cache_file = Path(settings.repo_cache_dir) / "kubernetes-releases.json"
     releases: list[dict[str, Any]]
-    if cache_file.exists():
+    # Re-read the cache for a day, then refetch: a scheduled worker must notice a newly shipped release.
+    fresh = cache_file.exists() and time.time() - cache_file.stat().st_mtime < RELEASES_CACHE_SECONDS
+    if fresh:
         releases = json.loads(cache_file.read_text(encoding="utf-8"))
     else:
         headers = {"Accept": "application/vnd.github+json"}
