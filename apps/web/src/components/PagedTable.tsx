@@ -1,10 +1,9 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
-import { ROWS_DEFAULT, ROWS_MAX, ROWS_PRESETS } from "@/lib/rows";
+import { useState, type ReactNode } from "react";
+import { ROWS_DEFAULT, type Rows } from "@/lib/rows";
+import { RowsSelect } from "@/components/RowsSelect";
 import { TableWrap, tableClass } from "@/components/ui";
-
-type Rows = number | "all";
 
 /** Page state for a list of `total` items: rows per page (preset, custom or all) and the current page. */
 export function usePaging(total: number, defaultRows: Rows = ROWS_DEFAULT) {
@@ -37,31 +36,8 @@ export type Paging = ReturnType<typeof usePaging>;
  * (10, 25, 50, 100, All or a custom number) on the right.
  */
 export function PagerBar({ paging, note }: { paging: Paging; note?: ReactNode }) {
-  const id = useId();
   const { rows, page, pages, start, end, total, setRows, setPage } = paging;
-  const isPreset = rows !== "all" && (ROWS_PRESETS as readonly number[]).includes(rows);
-  const [custom, setCustom] = useState(!isPreset && rows !== "all");
-  const [draft, setDraft] = useState(rows === "all" ? "" : String(rows));
-  const field = "h-8 rounded-sm border border-border-input bg-surface px-2 text-sm";
-
-  function onSelect(v: string) {
-    if (v === "custom") {
-      setCustom(true);
-      return;
-    }
-    setCustom(false);
-    setRows(v === "all" ? "all" : Number.parseInt(v, 10));
-    setDraft(v === "all" ? "" : v);
-  }
-
-  function submitCustom() {
-    const n = Number.parseInt(draft, 10);
-    if (Number.isFinite(n) && n > 0) setRows(Math.min(n, ROWS_MAX));
-  }
-
-  const selectValue = custom ? "custom" : rows === "all" ? "all" : String(rows);
   const link = "quiet-link disabled:text-fg-muted disabled:no-underline";
-
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-fg-muted">
       <span>{note}</span>
@@ -79,46 +55,7 @@ export function PagerBar({ paging, note }: { paging: Paging; note?: ReactNode })
             </button>
           </>
         ) : null}
-        <label htmlFor={`${id}-rows`} className="ml-2 text-fg-secondary">
-          Rows
-        </label>
-        <select id={`${id}-rows`} className={field} value={selectValue} onChange={(e) => onSelect(e.target.value)}>
-          {ROWS_PRESETS.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-          <option value="all">All</option>
-          <option value="custom">Custom…</option>
-        </select>
-        {custom ? (
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitCustom();
-            }}
-          >
-            <label htmlFor={`${id}-custom`} className="sr-only">
-              Custom number of rows
-            </label>
-            <input
-              id={`${id}-custom`}
-              type="number"
-              min={1}
-              max={ROWS_MAX}
-              inputMode="numeric"
-              className={`${field} w-24 tabular`}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={submitCustom}
-              autoFocus
-            />
-            <button type="submit" className="quiet-link">
-              Apply
-            </button>
-          </form>
-        ) : null}
+        <RowsSelect value={rows} onChange={setRows} className="ml-2 text-fg-secondary" />
       </span>
     </div>
   );

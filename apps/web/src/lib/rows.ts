@@ -2,6 +2,7 @@
 export const ROWS_PRESETS = [10, 25, 50, 100] as const;
 export const ROWS_DEFAULT = 10;
 export const ROWS_MAX = 10_000;
+export type Rows = number | "all";
 
 /** Parse `?rows=`: a preset or custom positive integer, `all`, or the default. */
 export function parseRows(raw: string | string[] | undefined): number | "all" {
