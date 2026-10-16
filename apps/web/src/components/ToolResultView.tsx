@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import type { ToolResult } from "@/lib/api/types";
-import { ms } from "@/lib/format";
+import { ms, pluralS } from "@/lib/format";
 import { pathsToGraph } from "@/lib/toolgraph";
 import { RowsTable } from "./DataView";
 import { EvidenceChain } from "./EvidenceChain";
@@ -20,15 +20,15 @@ export function ToolResultView({ name, params, result }: { name: string; params:
         <span className="font-mono text-fg">{name}</span>
         <span>·</span>
         <span className="tabular">
-          {n.toLocaleString("en-US")} row{n === 1 ? "" : "s"}
+          {n.toLocaleString("en-US")} row{pluralS(n)}
         </span>
         <span>·</span>
         <span className="tabular">
-          {result.evidence.length.toLocaleString("en-US")} evidence record{result.evidence.length === 1 ? "" : "s"}
+          {result.evidence.length.toLocaleString("en-US")} evidence record{pluralS(result.evidence.length)}
         </span>
         <span>·</span>
         <span className="tabular">
-          {result.paths.length.toLocaleString("en-US")} path{result.paths.length === 1 ? "" : "s"}
+          {result.paths.length.toLocaleString("en-US")} path{pluralS(result.paths.length)}
         </span>
         <span>·</span>
         <span className="tabular">{ms(result.ms)}</span>

@@ -4,10 +4,9 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { serverApi } from "@/lib/api/server";
 import { routes } from "@/lib/routes";
-import { auditApi } from "@/lib/api/audit";
 import type { ChangesResponse, FindingsResponse, SyncStatus } from "@/lib/api/types";
 import type { ApiResult } from "@/lib/api/core";
-import { FINDING_KIND_TEXT, isoUtc, ms, shortSha } from "@/lib/format";
+import { FINDING_KIND_TEXT, isoUtc, ms, pct, shortSha } from "@/lib/format";
 import { kindLabel, kindTones, toneColor } from "@/lib/kinds";
 import { releaseNames } from "@/lib/releases";
 import { FindingsTable } from "@/components/FindingsTable";
@@ -85,8 +84,8 @@ async function AuditBody({ searchParams }: { searchParams: PageProps<"/audit">["
   const [all, filtered, changes, sync] = await Promise.all([
     serverApi.findings({}),
     filtering ? serverApi.findings({ kind: filter.kind, sig: filter.sig, state: filter.state }) : Promise.resolve(null),
-    auditApi.changes({ since: filter.since, sig: filter.sig }),
-    auditApi.syncStatus(),
+    serverApi.changes({ since: filter.since, sig: filter.sig }),
+    serverApi.syncStatus(),
   ]);
   if (!all.ok) return <ErrorState error={all.error} what="Findings" />;
   const view: FindingsResponse | null = filtered === null ? all.data : filtered.ok ? filtered.data : null;
@@ -187,9 +186,6 @@ function Filters({ data, filter }: { data: FindingsResponse; filter: Search }) {
   );
 }
 
-function pct(v: number): string {
-  return `${(v * 100).toFixed(1).replace(/\.0$/, "")}%`;
-}
 
 function Summary({ data, tones, filtering }: { data: FindingsResponse; tones: Map<string, number | null>; filtering: boolean }) {
   const s = data.summary;
@@ -213,7 +209,7 @@ function Summary({ data, tones, filtering }: { data: FindingsResponse; tones: Ma
         />
         <StatTile
           label="Precision"
-          value={precision !== null && checked ? pct(precision) : <Dash />}
+          value={precision !== null && checked ? pct(precision, true) : <Dash />}
           note={precision !== null && checked ? `correct of n = ${checked.toLocaleString("en-US")} hand-checked` : `0 of ${s.total.toLocaleString("en-US")} hand-checked`}
         />
       </div>

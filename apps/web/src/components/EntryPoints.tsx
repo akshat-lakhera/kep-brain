@@ -3,7 +3,8 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import type { ApiResult } from "@/lib/api/core";
 import { routes } from "@/lib/routes";
-import type { ChangesResponse, Finding, FindingsSummary, SigSummary } from "@/lib/api/types";
+import type { ChangesResponse, Finding, FindingsSummary, ItemList } from "@/lib/api/types";
+import type { SigCard } from "@/lib/api/types-explore";
 import { isoDate, numberFromPath } from "@/lib/format";
 import { kindLabel } from "@/lib/kinds";
 import { Dash, ErrorState, KepLink, SigLink } from "./ui";
@@ -22,12 +23,6 @@ function Panel({ title, action, children }: { title: string; action?: ReactNode;
   );
 }
 
-function sigItems(res: ApiResult<{ items: SigSummary[] } | SigSummary[]>): SigSummary[] | null {
-  if (!res.ok) return null;
-  const list = Array.isArray(res.data) ? res.data : res.data.items;
-  return Array.isArray(list) ? list.filter((s) => typeof s?.key === "string") : null;
-}
-
 /** Where to start, from the data itself: recent changes, the SIGs, and the open findings. */
 export function EntryPoints({
   changes,
@@ -37,17 +32,16 @@ export function EntryPoints({
   summary,
 }: {
   changes: ApiResult<ChangesResponse>;
-  sigs: ApiResult<{ items: SigSummary[] } | SigSummary[]>;
+  sigs: ApiResult<ItemList<SigCard>>;
   metaSigs: string[];
   findings: Finding[];
   summary: FindingsSummary | null;
 }) {
-  const sigList = sigItems(sigs);
   // Only the SIGs whose KEPs are loaded; the rest of sigs.yaml has no KEP data behind it.
   const loaded = new Set(metaSigs);
-  const teams: SigSummary[] = sigList
-    ? sigList.filter((s) => loaded.has(s.key))
-    : metaSigs.map((key) => ({ key }));
+  const teams: Pick<SigCard, "key" | "display_name" | "keps" | "open_findings">[] = sigs.ok
+    ? sigs.data.items.filter((s) => loaded.has(s.key))
+    : metaSigs.map((key) => ({ key, display_name: null, keps: 0, open_findings: summary?.by_sig[key] ?? 0 }));
   const open = findings.filter((f) => f.state === "open");
   const byKep = new Map<string, Finding[]>();
   for (const f of open) byKep.set(f.kep_path, [...(byKep.get(f.kep_path) ?? []), f]);
@@ -70,22 +64,20 @@ export function EntryPoints({
             <thead>
               <tr className="text-xs text-fg-secondary">
                 <th className="py-1 text-left font-normal">SIG</th>
-                {sigList?.some((s) => typeof s.keps === "number") ? <th className="py-1 text-right font-normal">KEPs</th> : null}
+                <th className="py-1 text-right font-normal">KEPs</th>
                 <th className="py-1 text-right font-normal">Findings</th>
               </tr>
             </thead>
             <tbody>
               {teams.map((s) => {
-                const count = s.open_findings ?? s.findings ?? summary?.by_sig[s.key] ?? 0;
+                const count = s.open_findings;
                 return (
                   <tr key={s.key} className="border-t border-border">
                     <td className="py-1.5">
                       <SigLink sig={s.key} />
                       {s.display_name ? <span className="block text-xs text-fg-muted">{s.display_name}</span> : null}
                     </td>
-                    {sigList?.some((x) => typeof x.keps === "number") ? (
-                      <td className="tabular py-1.5 text-right">{typeof s.keps === "number" ? s.keps.toLocaleString("en-US") : <Dash />}</td>
-                    ) : null}
+                    <td className="tabular py-1.5 text-right">{sigs.ok ? s.keps.toLocaleString("en-US") : <Dash />}</td>
                     <td className="py-1.5 text-right">
                       {count === 0 ? (
                         <span className="tabular text-fg-muted">0</span>

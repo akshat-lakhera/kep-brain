@@ -1,5 +1,6 @@
 import type { EvalArm, EvalArmNotRun, EvalRun } from "./api/types";
 import { isRecord } from "@/components/DataView";
+import { finiteNumber, pct } from "./format";
 
 /** One arm as the Eval page shows it; every number is null when the summary does not carry it. */
 export interface ArmRow {
@@ -13,9 +14,7 @@ export interface ArmRow {
   errored: number | null;
 }
 
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
+const num = finiteNumber;
 
 /** Accuracies may be written as 0..1 or as percentages; both become a fraction. */
 function fraction(v: unknown): number | null {
@@ -95,6 +94,4 @@ export function readByKind(run: EvalRun, armOrder: string[]): KindRow[] {
   return rows;
 }
 
-export function pct(v: number | null): string {
-  return v === null ? "—" : `${(v * 100).toFixed(1)}%`;
-}
+export { pct };

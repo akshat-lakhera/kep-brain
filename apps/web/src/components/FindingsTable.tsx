@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy } from "lucide-reac
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure, ApiResult } from "@/lib/api/core";
 import type { DecisionOut, Evidence, Finding, FindingDetail, IssueDraft, ItemList } from "@/lib/api/types";
-import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, ms, numberFromPath } from "@/lib/format";
+import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, ms, numberFromPath, pluralS } from "@/lib/format";
 import { kindLabel, toneColor } from "@/lib/kinds";
 import { Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, PersonLink, SigLink, TableWrap, cx, tableClass, tdClass, thClass } from "./ui";
 
@@ -155,7 +155,7 @@ export function FindingsTable({
       <section className="rounded-md border border-border bg-surface" aria-labelledby={`${base}-t`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
           <h3 id={`${base}-t`} className="text-md font-semibold">
-            {items.length.toLocaleString("en-US")} finding{items.length === 1 ? "" : "s"}
+            {items.length.toLocaleString("en-US")} finding{pluralS(items.length)}
           </h3>
           <p className="text-xs text-fg-muted">
             Click or Enter expands a row · d drafts a fix for the focused row · nothing on this page posts to GitHub
@@ -647,7 +647,7 @@ function DraftFixDialog({ finding, onClose }: { finding: Finding; onClose: () =>
               />
             </div>
             <p className="text-xs text-fg-muted">
-              {state.draft.evidence_keys.length} evidence record{state.draft.evidence_keys.length === 1 ? "" : "s"} listed · composed in {ms(state.ms)} ·
+              {state.draft.evidence_keys.length} evidence record{pluralS(state.draft.evidence_keys.length)} listed · composed in {ms(state.ms)} ·
               tool <span className="font-mono">draft_stale_doc_issue</span>
             </p>
           </>

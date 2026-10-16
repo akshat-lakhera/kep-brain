@@ -73,24 +73,3 @@ export interface SigDetail extends Omit<SigCard, "keps"> {
   findings: Finding[];
 }
 
-export interface ChangeItem {
-  kep_number: number | null;
-  kep_title: string | null;
-  owning_sig: string | null;
-  kind: string;
-  field: string;
-  from_value: string | null;
-  to_value: string | null;
-  at_iso: string | null;
-  actor_login: string | null;
-  pr: { number: number; url: string } | null;
-  source_url: string | null;
-}
-
-/** GET /v1/changes?since=&sig= */
-export interface ChangesOut {
-  since: string | null;
-  releases: string[];
-  counts: Record<string, number>;
-  items: ChangeItem[];
-}

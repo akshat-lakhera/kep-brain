@@ -9,6 +9,7 @@ import type { ToolResult, ToolSpec } from "@/lib/api/types";
 import { buildParams, fieldsOf, initialValues, type Field, type FieldValue } from "@/lib/schema";
 import { ToolResultView } from "./ToolResultView";
 import { EmptyState, ErrorState, cx } from "./ui";
+import { pluralS } from "@/lib/format";
 
 type Run =
   | { kind: "idle" }
@@ -134,7 +135,7 @@ function ToolPanel({ tool }: { tool: ToolSpec }) {
           ) : (
             <>
               <p className="text-xs text-fg-muted">
-                {required === 0 ? "Every parameter is optional; empty fields take the API's defaults." : `${required} required parameter${required === 1 ? "" : "s"}; empty optional fields take the API's defaults.`}
+                {required === 0 ? "Every parameter is optional; empty fields take the API's defaults." : `${required} required parameter${pluralS(required)}; empty optional fields take the API's defaults.`}
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 {fields.map((f) => (

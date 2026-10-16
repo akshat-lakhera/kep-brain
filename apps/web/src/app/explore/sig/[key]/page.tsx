@@ -6,7 +6,7 @@ import { connection } from "next/server";
 import { apiInternalUrl } from "@/lib/api/server";
 import { exploreApi, explorePaths, exploreTemplates, isNotFound, routeServed } from "@/lib/api/explore";
 import type { SigDetail } from "@/lib/api/types-explore";
-import { FINDING_KIND_TEXT, isoDate } from "@/lib/format";
+import { FINDING_KIND_TEXT, isoDate, pluralS } from "@/lib/format";
 import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, PersonLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { KepTable } from "@/components/explore/KepTable";
 import { StatusBars } from "@/components/explore/StatusBars";
@@ -61,11 +61,11 @@ export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
         <h1 className="text-xl font-semibold">{s.display_name ?? s.key}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Chip>
-            {s.keps.length.toLocaleString("en-US")} KEP{s.keps.length === 1 ? "" : "s"}
+            {s.keps.length.toLocaleString("en-US")} KEP{pluralS(s.keps.length)}
           </Chip>
           {s.open_findings > 0 ? (
             <Chip tone="warning">
-              {s.open_findings.toLocaleString("en-US")} open finding{s.open_findings === 1 ? "" : "s"}
+              {s.open_findings.toLocaleString("en-US")} open finding{pluralS(s.open_findings)}
             </Chip>
           ) : (
             <Chip tone="success">no open findings</Chip>
@@ -143,7 +143,7 @@ function Findings({ s, open }: { s: SigDetail; open: SigDetail["findings"] }) {
     return (
       <EmptyState title="Nothing unresolved">
         {s.findings.length
-          ? `${s.findings.length.toLocaleString("en-US")} finding${s.findings.length === 1 ? "" : "s"} for this SIG, all closed or triaged.`
+          ? `${s.findings.length.toLocaleString("en-US")} finding${pluralS(s.findings.length)} for this SIG, all closed or triaged.`
           : "The detector found no disagreement between kep.yaml, tracking issues and replacement declarations for this SIG's KEPs."}
       </EmptyState>
     );
@@ -151,7 +151,7 @@ function Findings({ s, open }: { s: SigDetail; open: SigDetail["findings"] }) {
     <TableWrap label="Open findings">
       <table className={tableClass}>
         <caption className="mb-1 text-left text-xs text-fg-muted">
-          {open.length.toLocaleString("en-US")} place{open.length === 1 ? "" : "s"} where this SIG&apos;s records disagree; each links to both sides in the audit.
+          {open.length.toLocaleString("en-US")} place{pluralS(open.length)} where this SIG&apos;s records disagree; each links to both sides in the audit.
         </caption>
         <thead>
           <tr>

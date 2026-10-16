@@ -4,7 +4,6 @@ import { FindingsChain } from "@/components/FindingsChain";
 import { EntryPoints } from "@/components/EntryPoints";
 import { InstrumentStrip } from "@/components/InstrumentStrip";
 import { EmptyState, ErrorState, SkeletonBlock } from "@/components/ui";
-import { auditApi } from "@/lib/api/audit";
 import { serverApi } from "@/lib/api/server";
 
 export default function AskPage() {
@@ -30,8 +29,8 @@ async function Home() {
   const [meta, findings, changes, sigs] = await Promise.all([
     serverApi.meta(),
     serverApi.findings({}),
-    auditApi.changes({}),
-    auditApi.sigs(),
+    serverApi.changes(),
+    serverApi.sigs(),
   ]);
 
   const map = !findings.ok ? (

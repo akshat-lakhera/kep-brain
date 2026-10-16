@@ -7,7 +7,7 @@ import { serverApi } from "@/lib/api/server";
 import { routes } from "@/lib/routes";
 import type { ApiResult } from "@/lib/api/core";
 import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, KepDetail, KepRef, StatusChangeOut, ToolSpec } from "@/lib/api/types";
-import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, shortSha } from "@/lib/format";
+import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, pluralS, shortSha } from "@/lib/format";
 import { fieldsOf } from "@/lib/schema";
 import { EvidenceChain } from "@/components/EvidenceChain";
 import { Tabs } from "@/components/Tabs";
@@ -201,7 +201,7 @@ function Header({ k }: { k: KepDetail }) {
         {k.latest_milestone ? <Chip mono>latest {k.latest_milestone}</Chip> : null}
         {k.open_findings > 0 ? (
           <Chip tone="warning">
-            {k.open_findings} open finding{k.open_findings === 1 ? "" : "s"}
+            {k.open_findings} open finding{pluralS(k.open_findings)}
           </Chip>
         ) : null}
       </div>

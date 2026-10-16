@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useId, useMemo } from "react";
 import type { Finding, FindingsSummary, GraphOut } from "@/lib/api/types";
 import { routes } from "@/lib/routes";
-import { FINDING_KIND_TEXT, numberFromPath } from "@/lib/format";
+import { FINDING_KIND_TEXT, numberFromPath, pluralS } from "@/lib/format";
 import { kindLabel } from "@/lib/kinds";
 import { EvidenceChain } from "./EvidenceChain";
 
@@ -70,7 +70,7 @@ export function FindingsChain({
           </h2>
           <p className="text-sm text-fg-secondary">
             <span className="tabular">{summary.total.toLocaleString("en-US")}</span> findings on{" "}
-            <span className="tabular">{kepCount.toLocaleString("en-US")}</span> KEPs in {sigCount} SIG{sigCount === 1 ? "" : "s"}: kep.yaml, the
+            <span className="tabular">{kepCount.toLocaleString("en-US")}</span> KEPs in {sigCount} SIG{pluralS(sigCount)}: kep.yaml, the
             tracking issue or a replacement declaration say different things
             {sha ? (
               <>

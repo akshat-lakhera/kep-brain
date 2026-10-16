@@ -6,7 +6,7 @@ import { Search } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
 import { routes } from "@/lib/routes";
 import type { KepCard } from "@/lib/api/types";
-import { numberFromPath } from "@/lib/format";
+import { numberFromPath, pluralS } from "@/lib/format";
 
 type State =
   | { kind: "idle" }
@@ -169,7 +169,7 @@ export function KepSearch() {
                   <span className="block text-xs text-fg-muted">
                     <span className="font-mono">{k.owning_sig ?? ""}</span>
                     {k.status ? ` · ${k.status}` : ""}
-                    {k.open_findings > 0 ? ` · ${k.open_findings} open finding${k.open_findings === 1 ? "" : "s"}` : ""}
+                    {k.open_findings > 0 ? ` · ${k.open_findings} open finding${pluralS(k.open_findings)}` : ""}
                   </span>
                 </li>
               );

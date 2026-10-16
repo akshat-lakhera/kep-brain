@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, CircleDot, ExternalLink, XCircle } from "lucide-react";
 import type { ApiFailure } from "@/lib/api/core";
 import { routes } from "@/lib/routes";
+import { pluralS } from "@/lib/format";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -196,7 +197,7 @@ function copyFor(error: ApiFailure): { title: string; hint: string } {
       const minutes = Math.max(1, Math.ceil(retry / 60));
       return {
         title: "Too many requests",
-        hint: `Too many questions from this address; try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+        hint: `Too many questions from this address; try again in ${minutes} minute${pluralS(minutes)}.`,
       };
     }
   }

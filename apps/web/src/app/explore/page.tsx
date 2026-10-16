@@ -6,9 +6,9 @@ import { Suspense } from "react";
 import { apiInternalUrl, serverApi } from "@/lib/api/server";
 import { exploreApi, explorePaths, isNotFound } from "@/lib/api/explore";
 import type { ApiResult } from "@/lib/api/core";
-import type { Finding, FindingsResponse } from "@/lib/api/types";
-import type { ChangesOut, SigCard } from "@/lib/api/types-explore";
-import { isoUtc } from "@/lib/format";
+import type { ChangesResponse, Finding, FindingsResponse } from "@/lib/api/types";
+import type { SigCard } from "@/lib/api/types-explore";
+import { isoUtc, pluralS } from "@/lib/format";
 import { Card, Dash, EmptyState, ErrorState, ExtLink, KepLink, PageHeader, PersonLink, SigLink, SkeletonBlock, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { ExploreSearch } from "@/components/explore/ExploreSearch";
 import { RowsPerPage } from "@/components/explore/RowsPerPage";
@@ -168,7 +168,7 @@ function SigStrip({ result, loadedSigs }: { result: ApiResult<{ items: SigCard[]
           </p>
           <p className="mt-1 text-sm">
             <span className="tabular">{s.keps.toLocaleString("en-US")}</span> KEPs ·{" "}
-            <span className="tabular">{s.open_findings.toLocaleString("en-US")}</span> open finding{s.open_findings === 1 ? "" : "s"}
+            <span className="tabular">{s.open_findings.toLocaleString("en-US")}</span> open finding{pluralS(s.open_findings)}
           </p>
           <p className="mt-1 text-sm text-fg-secondary">
             Chairs:{" "}
@@ -269,7 +269,7 @@ function Changes({
   rows,
   page,
 }: {
-  result: ApiResult<ChangesOut>;
+  result: ApiResult<ChangesResponse>;
   since?: string;
   rows: number | "all";
   page: number;

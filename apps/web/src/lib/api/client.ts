@@ -8,7 +8,6 @@ import type {
   DecisionOut,
   AskEvent,
   AskResponse,
-  EvalQuestion,
   FindingDetail,
   GraphOut,
   ItemList,
@@ -161,7 +160,6 @@ export const clientApi = {
       signal,
       timeoutMs: 60_000,
     }),
-  evalQuestions: () => get<{ questions: EvalQuestion[] }>(paths.evalQuestions()),
   memoryMe: () => get<MemoryMe>(paths.memoryMe(), { memory: true }),
   forgetMemory: () =>
     request<{ deleted: boolean }>(`${PROXY}${paths.memoryMe()}`, { method: "DELETE", headers: headers(true) }),

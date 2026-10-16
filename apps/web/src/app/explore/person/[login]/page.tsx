@@ -7,7 +7,7 @@ import { apiInternalUrl } from "@/lib/api/server";
 import { exploreApi, explorePaths, exploreTemplates, isNotFound, routeServed } from "@/lib/api/explore";
 import type { PersonOut } from "@/lib/api/types-explore";
 import type { KepCard } from "@/lib/api/types";
-import { isoDate, isoUtc } from "@/lib/format";
+import { isoDate, isoUtc, pluralS } from "@/lib/format";
 import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, SigLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { KepTable } from "@/components/explore/KepTable";
 import { Tabs } from "@/components/Tabs";
@@ -72,10 +72,10 @@ export default async function PersonPage(props: PageProps<"/explore/person/[logi
             </Chip>
           ))}
           <Chip>
-            {total.toLocaleString("en-US")} KEP role{total === 1 ? "" : "s"}
+            {total.toLocaleString("en-US")} KEP role{pluralS(total)}
           </Chip>
           <Chip>
-            {p.decisions.length.toLocaleString("en-US")} decision{p.decisions.length === 1 ? "" : "s"}
+            {p.decisions.length.toLocaleString("en-US")} decision{pluralS(p.decisions.length)}
           </Chip>
           <Chip>
             {p.owners.length.toLocaleString("en-US")} OWNERS entr{p.owners.length === 1 ? "y" : "ies"}
@@ -222,7 +222,7 @@ function Decisions({ p }: { p: PersonOut }) {
   return (
     <PagedTable
       label="Decisions"
-      caption={`${sorted.length.toLocaleString("en-US")} decision${sorted.length === 1 ? "" : "s"} this person is on, newest first.`}
+      caption={`${sorted.length.toLocaleString("en-US")} decision${pluralS(sorted.length)} this person is on, newest first.`}
       head={
         <tr>
           <th className={thClass}>Decided</th>

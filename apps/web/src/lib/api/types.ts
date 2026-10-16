@@ -344,13 +344,6 @@ export type AskEvent =
   | { event: "done"; data: SseDone }
   | { event: "error"; data: SseError };
 
-export interface EvalQuestion {
-  id: string;
-  kind?: string | null;
-  text: string;
-  judge_order?: number | null;
-}
-
 /** One arm's result in an eval summary (04 §7, §8.2). Accuracy is a fraction 0..1. */
 export interface EvalArm {
   arm: string;
@@ -440,8 +433,9 @@ export interface ChangeItem {
 
 export interface ChangesResponse {
   since: string | null;
-  releases: ReleaseRef[];
-  counts: {
+  /** Release keys, oldest first (`v1.1` ... ). */
+  releases: string[];
+  counts: Record<string, number> & {
     keps_changed: number;
     status_transitions: number;
     stage_changes: number;
@@ -466,12 +460,3 @@ export interface SyncStatus {
   next_tick_iso: string | null;
 }
 
-/** One SIG as GET /v1/sigs may list it (newer API builds); only `key` is required. */
-export interface SigSummary {
-  key: string;
-  display_name?: string | null;
-  keps?: number | null;
-  open_findings?: number | null;
-  findings?: number | null;
-  url?: string | null;
-}

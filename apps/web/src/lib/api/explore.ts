@@ -1,15 +1,10 @@
-import { qs, request, type ApiFailure, type ApiResult } from "./core";
-import type { ItemList } from "./types";
-import type { ChangesOut, PersonOut, SigCard, SigDetail } from "./types-explore";
+import { request, type ApiFailure, type ApiResult } from "./core";
+import { paths } from "./endpoints";
+import type { ChangesResponse, ItemList } from "./types";
+import type { PersonOut, SigCard, SigDetail } from "./types-explore";
 
-const n = (v: string) => encodeURIComponent(v);
-
-export const explorePaths = {
-  person: (login: string) => `/v1/people/${n(login)}`,
-  sigs: () => "/v1/sigs",
-  sig: (key: string) => `/v1/sigs/${n(key)}`,
-  changes: (p: { since?: string; sig?: string }) => `/v1/changes${qs(p)}`,
-};
+/** The explore routes' paths, from the shared path table. */
+export const explorePaths = { person: paths.person, sigs: paths.sigs, sig: paths.sig, changes: paths.changes };
 
 /** Path templates as the OpenAPI document lists them, for feature detection. */
 export const exploreTemplates = {
@@ -45,8 +40,8 @@ export function exploreApi(base: string, signal?: AbortSignal) {
     person: (login: string) => get<PersonOut>(explorePaths.person(login)),
     sigs: () => get<ItemList<SigCard>>(explorePaths.sigs()),
     sig: (key: string) => get<SigDetail>(explorePaths.sig(key)),
-    changes: (p: { since?: string; sig?: string } = {}) => get<ChangesOut>(explorePaths.changes(p)),
-    openapi: () => get<{ paths?: Record<string, unknown> }>("/openapi.json"),
+    changes: (p: { since?: string; sig?: string } = {}) => get<ChangesResponse>(explorePaths.changes(p)),
+    openapi: () => get<{ paths?: Record<string, unknown> }>(paths.openapi()),
   };
 }
 

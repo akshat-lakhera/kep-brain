@@ -1,5 +1,5 @@
 import type { JsonSchema } from "./api/types";
-import { humanize } from "./format";
+import { finiteNumber, humanize } from "./format";
 
 export type FieldKind = "text" | "integer" | "number" | "boolean" | "enum" | "enum-list" | "text-list" | "json";
 
@@ -54,9 +54,7 @@ function kindOf(s: JsonSchema): { kind: FieldKind; options: (string | number)[] 
   return { kind: "json", options: [] };
 }
 
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
+const num = finiteNumber;
 
 /** The ordered fields of an object schema. Optional means: not required, nullable, or carrying a default. */
 export function fieldsOf(schema: JsonSchema): Field[] {

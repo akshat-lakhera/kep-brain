@@ -31,6 +31,28 @@ export function humanize(value: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** "s" unless the count is exactly one. */
+export function pluralS(n: number): string {
+  return n === 1 ? "" : "s";
+}
+
+/** A formatted count with its noun: "1 node", "12 nodes". */
+export function plural(n: number, word: string): string {
+  return `${n.toLocaleString("en-US")} ${word}${pluralS(n)}`;
+}
+
+/** A finite number, or null for anything else (strings, NaN, Infinity, missing). */
+export function finiteNumber(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** A fraction as a percentage; `trimZero` drops a trailing ".0". */
+export function pct(v: number | null, trimZero = false): string {
+  if (v === null) return "—";
+  const text = `${(v * 100).toFixed(1)}%`;
+  return trimZero ? text.replace(/\.0%$/, "%") : text;
+}
+
 /** Plain-language explanation of each finding kind (03 §7.5). */
 export const FINDING_KIND_TEXT: Record<string, string> = {
   active_status_closed_issue:

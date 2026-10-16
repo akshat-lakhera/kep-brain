@@ -21,7 +21,7 @@ import type {
   SseStatus,
   SseToolCall,
 } from "@/lib/api/types";
-import { isoUtc, ms, numberFromPath, shortSha } from "@/lib/format";
+import { isoUtc, ms, numberFromPath, plural, shortSha } from "@/lib/format";
 import { mergeGraph } from "@/lib/graph";
 import { kindLabel } from "@/lib/kinds";
 import { AnswerMarkdown } from "./AnswerMarkdown";
@@ -138,10 +138,6 @@ function statusText(status: SseStatus | null): string {
     return `Waiting for the model (rate limit)${wait}`;
   }
   return status.label || status.phase;
-}
-
-function plural(n: number, word: string): string {
-  return `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
 }
 
 export function AskClient({

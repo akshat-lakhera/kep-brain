@@ -1,6 +1,7 @@
 import { qs } from "./core";
 
-const n = (v: number | string) => encodeURIComponent(String(v));
+export const enc = (v: number | string) => encodeURIComponent(String(v));
+const n = enc;
 
 /** Paths of the /v1 API, shared by the server and browser clients. */
 export const paths = {
@@ -16,7 +17,12 @@ export const paths = {
   ask: () => "/v1/ask",
   askStream: () => "/v1/ask/stream",
   evalLatest: () => "/v1/eval/latest",
-  evalQuestions: () => "/v1/eval/questions",
   memoryMe: () => "/v1/memory/me",
   agentsBoard: () => "/v1/agents/board",
+  person: (login: string) => `/v1/people/${n(login)}`,
+  sigs: () => "/v1/sigs",
+  sig: (key: string) => `/v1/sigs/${n(key)}`,
+  changes: (p: { since?: string; sig?: string }) => `/v1/changes${qs(p)}`,
+  syncStatus: () => "/v1/sync/status",
+  openapi: () => "/openapi.json",
 };
