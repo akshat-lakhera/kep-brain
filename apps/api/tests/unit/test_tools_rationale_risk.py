@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.tools.noise import automation_label_predicate, is_automation_label
+from app.tools.noise import automation_label_predicate
 from app.tools.registry import llm_tools, mcp_tools
 from app.tools.t03.rationale import EXCERPT_CHARS, excerpt, part_of, pick_parts, section_blocks
 from app.tools.t03.risk import idle_window
@@ -70,12 +70,14 @@ def test_idle_window_uses_release_before_last_two() -> None:
 
 
 def test_automation_labels() -> None:
-    for name in ("tracked/yes", "tracked/no", "lgtm", "approved", "cncf-cla: yes", "size/XL"):
-        assert is_automation_label(name), name
-    for name in ("stage/alpha", "lead-opted-in", "lifecycle/stale", "approved-api"):
-        assert not is_automation_label(name), name
     pred = automation_label_predicate()
-    assert "c.field STARTS WITH 'tracked/'" in pred and "c.field = 'lgtm'" in pred and "$" not in pred
+    for prefix in ("tracked/", "size/", "cncf-cla"):
+        assert f"c.field STARTS WITH '{prefix}'" in pred, prefix
+    for name in ("lgtm", "approved"):
+        assert f"c.field = '{name}'" in pred, name
+    assert "$" not in pred and pred.startswith("(") and pred.endswith(")")
+    assert "'stage/" not in pred and "'approved-api'" not in pred
+    assert automation_label_predicate("e.name").count("e.name") == 5
 
 
 def test_new_tools_registered_on_every_surface() -> None:
