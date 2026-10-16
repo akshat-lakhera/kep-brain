@@ -2,11 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { clientApi } from "@/lib/api/client";
+import { useKepSearch } from "@/lib/useKepSearch";
 import { routes } from "@/lib/routes";
-import type { KepCard } from "@/lib/api/types";
 import { numberFromPath } from "@/lib/format";
 import { cx } from "@/components/ui";
 
@@ -14,8 +13,6 @@ type Option =
   | { group: "kep"; id: string; href: Route; primary: string; secondary: string; note: string }
   | { group: "sig"; id: string; href: Route; primary: string; secondary: string; note: string }
   | { group: "person"; id: string; href: Route; primary: string; secondary: string; note: string };
-
-type KepState = { kind: "idle" } | { kind: "loading" } | { kind: "error"; code: string } | { kind: "done"; items: KepCard[] };
 
 const GROUP_LABEL: Record<Option["group"], string> = { kep: "KEPs", sig: "SIGs", person: "People" };
 const LOGIN = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})$/;
@@ -29,27 +26,17 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
   const id = useId();
   const listId = `${id}-list`;
   const [q, setQ] = useState("");
-  const [keps, setKeps] = useState<KepState>({ kind: "idle" });
   const [active, setActive] = useState(-1);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const query = q.trim();
-
-  useEffect(() => {
-    if (query.length < 2) return;
-    const ctrl = new AbortController();
-    const t = setTimeout(async () => {
-      setKeps({ kind: "loading" });
-      const res = await clientApi.searchKeps(query, ctrl.signal);
-      if (ctrl.signal.aborted) return;
-      setKeps(res.ok ? { kind: "done", items: res.data.items } : { kind: "error", code: res.error.code });
-      setActive(-1);
-    }, 200);
-    return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [query]);
+  const keps = useKepSearch(query);
+  // New results start with no highlighted option.
+  const [seen, setSeen] = useState(keps);
+  if (seen !== keps) {
+    setSeen(keps);
+    setActive(-1);
+  }
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -92,7 +79,7 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
             href: `/explore/person/${encodeURIComponent(loginCandidate)}` as Route,
             primary: `@${loginCandidate}`,
             secondary: "Open the Person page for this GitHub login",
-            note: "404 if the login is not in the graph",
+            note: "Not every login is in the graph",
           },
         ]
       : []),
@@ -126,7 +113,6 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
           onChange={(e) => {
             setQ(e.target.value);
             setOpen(true);
-            if (e.target.value.trim().length < 2) setKeps({ kind: "idle" });
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
@@ -181,13 +167,13 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
               const header = o.group !== lastGroup;
               lastGroup = o.group;
               return (
-                <li key={o.id} className="contents">
+                <Fragment key={o.id}>
                   {header ? (
-                    <div role="presentation" className="border-t border-border bg-surface-subtle px-3 py-1 text-xs text-fg-muted first:border-t-0">
+                    <li role="presentation" className="border-t border-border bg-surface-subtle px-3 py-1 text-xs text-fg-muted first:border-t-0">
                       {GROUP_LABEL[o.group]}
-                    </div>
+                    </li>
                   ) : null}
-                  <div
+                  <li
                     id={`${id}-opt-${i}`}
                     role="option"
                     aria-selected={i === active}
@@ -200,8 +186,8 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
                   >
                     <span className="font-mono text-sm text-accent">{o.primary}</span> <span className="text-sm">{o.secondary}</span>
                     {o.note ? <span className="block font-mono text-xs text-fg-muted">{o.note}</span> : null}
-                  </div>
-                </li>
+                  </li>
+                </Fragment>
               );
             })}
           </ul>

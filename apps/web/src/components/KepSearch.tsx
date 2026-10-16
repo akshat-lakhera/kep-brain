@@ -3,16 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { clientApi } from "@/lib/api/client";
+import { useKepSearch } from "@/lib/useKepSearch";
 import { routes } from "@/lib/routes";
 import type { KepCard } from "@/lib/api/types";
 import { numberFromPath, pluralS } from "@/lib/format";
-
-type State =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "done"; items: KepCard[] };
 
 function kepNumber(k: KepCard): number | null {
   return k.number ?? numberFromPath(k.key);
@@ -24,31 +18,17 @@ export function KepSearch() {
   const id = useId();
   const listId = `${id}-list`;
   const [q, setQ] = useState("");
-  const [state, setState] = useState<State>({ kind: "idle" });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const query = q.trim();
-    if (query.length < 2) return;
-    const ctrl = new AbortController();
-    const t = setTimeout(async () => {
-      setState({ kind: "loading" });
-      const res = await clientApi.searchKeps(query, ctrl.signal);
-      if (ctrl.signal.aborted) return;
-      if (res.ok) {
-        setState({ kind: "done", items: res.data.items });
-        setActive(-1);
-      } else {
-        setState({ kind: "error", message: res.error.code === "api_unreachable" ? "API unreachable" : "Search failed" });
-      }
-    }, 200);
-    return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [q]);
+  const state = useKepSearch(q.trim());
+  // New results start with no highlighted option.
+  const [seen, setSeen] = useState(state);
+  if (seen !== state) {
+    setSeen(state);
+    setActive(-1);
+  }
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -77,7 +57,6 @@ export function KepSearch() {
     if (n === null) return;
     setOpen(false);
     setQ("");
-    setState({ kind: "idle" });
     router.push(routes.kep(n));
   }
 
@@ -106,7 +85,6 @@ export function KepSearch() {
         onChange={(e) => {
           setQ(e.target.value);
           setOpen(true);
-          if (e.target.value.trim().length < 2) setState({ kind: "idle" });
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => {
@@ -141,7 +119,7 @@ export function KepSearch() {
             </p>
           ) : state.kind === "error" ? (
             <p className="px-3 py-2 text-sm text-danger" role="alert">
-              {state.message}
+              {state.code === "api_unreachable" ? "API unreachable" : "Search failed"}
             </p>
           ) : state.kind === "done" && items.length === 0 ? (
             <p className="px-3 py-2 text-sm text-fg-secondary" role="status">
