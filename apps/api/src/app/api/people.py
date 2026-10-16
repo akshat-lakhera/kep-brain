@@ -9,18 +9,11 @@ from fastapi import APIRouter, Request
 from app.api.deps import graph_of, pool_of, rows_of
 from app.api.keps import CARD, OPEN_STATES, _card
 from app.errors import AppError
-from app.schema.labels import VALID_TO_OPEN
+from app.schema.labels import CUR, LEAD_ROLE_NAMES, VALID_TO_OPEN
 
 router = APIRouter(tags=["people"])
 
-CUR = "coalesce(r.valid_to, $open) = $open"
-ROLE_NAMES = {
-    "CHAIRS": "chair",
-    "TECH_LEAD": "tech_lead",
-    "EMERITUS_LEAD": "emeritus_lead",
-    "LIAISON": "liaison",
-    "SUBPROJECT_LEAD": "subproject_lead",
-}
+ROLE_NAMES = LEAD_ROLE_NAMES
 ORG_KINDS = ("SIG", "WorkingGroup", "Committee", "Subproject")
 KEP_RELS = {"AUTHORED": "authored", "REVIEWS": "reviews", "APPROVES": "approves"}
 OWNERS_ROLES = {"APPROVER": "approver", "REVIEWER": "reviewer", "EMERITUS_APPROVER": "emeritus_approver"}

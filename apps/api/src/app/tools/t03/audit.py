@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from app.schema.labels import FINDING_KINDS
+from app.schema.labels import ACTIVE_FINDING_STATES, FINDING_KINDS
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 
@@ -26,7 +26,7 @@ FindingKind = Literal[
 ]
 assert set(FindingKind.__args__) == set(FINDING_KINDS)  # type: ignore[attr-defined]
 
-ACTIVE_STATES = ["open", "triaged", "drafted", "confirmed"]
+ACTIVE_STATES = list(ACTIVE_FINDING_STATES)
 ALL_STATES = [*ACTIVE_STATES, "dismissed", "resolved_upstream"]
 
 _PROJECTION = """

@@ -8,12 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.schema.labels import ACTIVE_FINDING_STATES, CUR
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 
-OPEN_FINDING_STATES = ["open", "triaged", "drafted", "confirmed"]
-
-CUR = "coalesce(r.valid_to, $open) = $open"
+OPEN_FINDING_STATES = list(ACTIVE_FINDING_STATES)
 
 TEMPLATE = f"""
 MATCH (k:KEP {{key: $key}})

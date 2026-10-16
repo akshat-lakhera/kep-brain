@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.ingest.sections import Slugger, classify, headings
+from app.schema.labels import CUR
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 
@@ -35,8 +36,6 @@ RETURN s AS section, d.key AS doc_key, s.text AS text, s.level AS level, s.order
 ORDER BY s.order
 LIMIT 200
 """
-
-CUR = "coalesce(r.valid_to, $open) = $open"
 
 RELATIONS = f"""
 MATCH (k:KEP {{key: $key}})

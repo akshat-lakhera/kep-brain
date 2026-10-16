@@ -18,14 +18,12 @@ from app.api.deps import graph_of, pool_of, rows_of
 from app.api.keps import CARD, FINDING_FIELDS, OPEN_STATES, _card
 from app.db.falkordb import FalkorPool
 from app.errors import AppError
-from app.schema.labels import VALID_TO_OPEN
+from app.schema.labels import CUR, LEAD_ROLE_NAMES, VALID_TO_OPEN
 from app.tools.cypher import unique_comprehension_vars
 
 router = APIRouter(tags=["sigs"])
 
-CUR = "coalesce(r.valid_to, $open) = $open"
-SIG_ROLES = {"CHAIRS": "chair", "TECH_LEAD": "tech_lead", "EMERITUS_LEAD": "emeritus_lead", "LIAISON": "liaison",
-             "SUBPROJECT_LEAD": "subproject_lead"}  # fmt: skip
+SIG_ROLES = LEAD_ROLE_NAMES
 KEP_ROLES = {"AUTHORED": "author", "REVIEWS": "reviewer", "APPROVES": "approver", "PRR_APPROVED": "prr_approver"}
 ROLE_ORDER = [*SIG_ROLES.values(), *KEP_ROLES.values()]
 

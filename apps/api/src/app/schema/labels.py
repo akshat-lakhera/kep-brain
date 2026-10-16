@@ -49,6 +49,18 @@ FINDING_KINDS = (
     "stage_mismatch",
     "milestone_mismatch",
 )
+# Cypher fragment: the state edge bound as `r` is currently open (no valid_to, or the open sentinel in $open).
+CUR = "coalesce(r.valid_to, $open) = $open"
+# Finding states that still need attention (everything but dismissed and resolved_upstream).
+ACTIVE_FINDING_STATES: tuple[str, ...] = ("open", "triaged", "drafted", "confirmed")
+# sigs.yaml leadership relationship -> role word used in API responses.
+LEAD_ROLE_NAMES: dict[str, str] = {
+    "CHAIRS": "chair",
+    "TECH_LEAD": "tech_lead",
+    "EMERITUS_LEAD": "emeritus_lead",
+    "LIAISON": "liaison",
+    "SUBPROJECT_LEAD": "subproject_lead",
+}
 BOT_LOGINS = frozenset(
     {
         "k8s-ci-robot",

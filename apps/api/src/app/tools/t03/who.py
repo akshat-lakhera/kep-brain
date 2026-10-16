@@ -13,10 +13,9 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from app.schema.labels import CUR
 from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
-
-CUR = "coalesce(r.valid_to, $open) = $open"
 
 APPROVES_TEMPLATE = f"""
 MATCH (k:KEP {{key: $key}})

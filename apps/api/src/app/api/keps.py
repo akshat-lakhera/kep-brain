@@ -9,15 +9,14 @@ from fastapi import APIRouter, Query, Request
 from app.api.audit_check import load_verdicts, with_verdicts
 from app.api.deps import graph_of, pool_of, rows_of, variant_for
 from app.errors import AppError
-from app.schema.labels import VALID_TO_OPEN
+from app.schema.labels import ACTIVE_FINDING_STATES, CUR, VALID_TO_OPEN
 from app.tools.base import Projector
 from app.tools.cypher import unique_comprehension_vars
 from app.tools.t03.find_entities import fulltext_term
 
 router = APIRouter(tags=["keps"])
 
-OPEN_STATES = ["open", "triaged", "drafted", "confirmed"]
-CUR = "coalesce(r.valid_to, $open) = $open"
+OPEN_STATES = list(ACTIVE_FINDING_STATES)
 
 CARD = """k.key AS key, k.number AS number, k.title AS title, k.owning_sig AS owning_sig, k.status AS status,
  k.stage AS stage, k.latest_milestone AS latest_milestone, k.url AS url,

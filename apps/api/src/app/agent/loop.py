@@ -35,6 +35,7 @@ from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.db.results import Evidence
 from app.errors import AppError
 from app.memory import store as memory_store
+from app.schema.labels import ACTIVE_FINDING_STATES
 from app.settings import Settings
 from app.tools.base import ToolContext, ToolResult
 from app.tools.registry import llm_tools
@@ -92,7 +93,7 @@ SPEND = SpendCounter()
 KNOWN_ISSUES = """
 MATCH (k:KEP) WHERE k.number IN $numbers
 MATCH (f:Finding)-[:ABOUT]->(k)
-WHERE f.state IN ['open', 'triaged', 'drafted', 'confirmed']
+WHERE f.state IN $states
 RETURN f.key AS key, f.kind AS kind, k.number AS number, f.a_label AS a_label, f.a_value AS a_value,
  f.b_label AS b_label, f.b_value AS b_value
 ORDER BY f.key
@@ -268,7 +269,9 @@ class Agent:
         if not numbers:
             return [], []
         try:
-            out = await self.pool.ro_query(GRAPH_KEP, KNOWN_ISSUES, {"numbers": numbers})
+            out = await self.pool.ro_query(
+                GRAPH_KEP, KNOWN_ISSUES, {"numbers": numbers, "states": list(ACTIVE_FINDING_STATES)}
+            )
         except AppError:
             return [], []
         rows = out.as_dicts()
