@@ -31,7 +31,7 @@ from app.agent.provider import (
     make_provider,
 )
 from app.agent.validator import FinalAnswer, Validated, collect_row_urls, link_mentions, parse_answer, validate
-from app.db.falkordb import FalkorPool
+from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.db.results import Evidence
 from app.errors import AppError
 from app.memory import store as memory_store
@@ -113,7 +113,6 @@ class AskState:
     input_tokens: int = 0
     output_tokens: int = 0
     prompt_tokens: int = 0  # estimated, for the ask budget
-    rows_seen: int = 0
 
 
 class Agent:
@@ -200,44 +199,48 @@ class Agent:
 
         # Scoped to this ask's task: each request runs in its own context.
         listener = WAIT_LISTENER.set(on_wait)
-        for step in range(MAX_STEPS + 1):
-            last = step == MAX_STEPS or len(st.tool_calls) >= MAX_TOOL_CALLS
-            if time.perf_counter() - started > self.wall_budget_s:
-                last = True
-            if not last and st.prompt_tokens + estimate_tokens(messages, specs) > self.ask_token_budget:
-                last = True
-            if last:
-                messages.append({"role": "user", "content": WRITE_NOW})
-            tools = [] if last else specs
-            fit_turn(messages, tools, self.turn_token_budget)
-            st.prompt_tokens += estimate_tokens(messages, tools)
-            turn = await provider.complete(messages, tools)
-            st.input_tokens += turn.input_tokens
-            st.output_tokens += turn.output_tokens
-            log.info(
-                "llm_turn",
-                request_id=request_id,
-                step=step,
-                tools=len(tools),
-                input_tokens=turn.input_tokens,
-                output_tokens=turn.output_tokens,
-                model=getattr(provider, "last_model", provider.model),
-            )
-            SPEND.add(cost_usd(getattr(provider, "last_model", provider.model), turn.input_tokens, turn.output_tokens))
-            messages.append(turn.raw_message)
-            if not turn.tool_calls:
-                if turn.text.strip():
-                    final = parse_answer(link_mentions(turn.text, st.evidence))
-                    break
-                if last or nudged:
-                    break
-                nudged = True
-                messages.append({"role": "user", "content": WRITE_NOW.removeprefix("Tool budget reached. ")})
-                continue
-            for call in turn.tool_calls:
-                content = await self._run_tool(st, call, emit)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": content})
-        WAIT_LISTENER.reset(listener)
+        try:
+            for step in range(MAX_STEPS + 1):
+                last = step == MAX_STEPS or len(st.tool_calls) >= MAX_TOOL_CALLS
+                if time.perf_counter() - started > self.wall_budget_s:
+                    last = True
+                if not last and st.prompt_tokens + estimate_tokens(messages, specs) > self.ask_token_budget:
+                    last = True
+                if last:
+                    messages.append({"role": "user", "content": WRITE_NOW})
+                tools = [] if last else specs
+                fit_turn(messages, tools, self.turn_token_budget)
+                st.prompt_tokens += estimate_tokens(messages, tools)
+                turn = await provider.complete(messages, tools)
+                st.input_tokens += turn.input_tokens
+                st.output_tokens += turn.output_tokens
+                log.info(
+                    "llm_turn",
+                    request_id=request_id,
+                    step=step,
+                    tools=len(tools),
+                    input_tokens=turn.input_tokens,
+                    output_tokens=turn.output_tokens,
+                    model=getattr(provider, "last_model", provider.model),
+                )
+                SPEND.add(
+                    cost_usd(getattr(provider, "last_model", provider.model), turn.input_tokens, turn.output_tokens)
+                )
+                messages.append(turn.raw_message)
+                if not turn.tool_calls:
+                    if turn.text.strip():
+                        final = parse_answer(link_mentions(turn.text, st.evidence))
+                        break
+                    if last or nudged:
+                        break
+                    nudged = True
+                    messages.append({"role": "user", "content": WRITE_NOW.removeprefix("Tool budget reached. ")})
+                    continue
+                for call in turn.tool_calls:
+                    content = await self._run_tool(st, call, emit)
+                    messages.append({"role": "tool", "tool_call_id": call.id, "content": content})
+        finally:
+            WAIT_LISTENER.reset(listener)
 
         return await self._finish(
             st, started, emit, final, memory_id=memory_id, findings=findings_recalled, recalled=recalled
@@ -265,7 +268,7 @@ class Agent:
         if not numbers:
             return [], []
         try:
-            out = await self.pool.ro_query("kep", KNOWN_ISSUES, {"numbers": numbers})
+            out = await self.pool.ro_query(GRAPH_KEP, KNOWN_ISSUES, {"numbers": numbers})
         except AppError:
             return [], []
         rows = [dict(zip(out.header, r, strict=False)) for r in out.rows]
@@ -304,7 +307,6 @@ class Agent:
                 content = json.dumps({"error": "the tool failed on this input; try different parameters"})
         if result is not None:
             record.update(ms=result.ms, rows=len(result.rows), truncated=result.truncated, template=result.template)
-            st.rows_seen += len(result.rows)
             new = [ev for ev in result.evidence if ev.evidence_id not in st.evidence]
             for ev in result.evidence:
                 st.evidence.setdefault(ev.evidence_id, ev)
