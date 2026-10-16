@@ -1,8 +1,8 @@
 import Link from "next/link";
-import type { Route } from "next";
 import type { ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, CircleDot, ExternalLink, XCircle } from "lucide-react";
 import type { ApiFailure } from "@/lib/api/core";
+import { routes } from "@/lib/routes";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -71,7 +71,7 @@ export function ExtLink({
     >
       {children}
       <ExternalLink aria-hidden="true" size={12} strokeWidth={1.5} className="shrink-0" />
-      <span className="sr-only">(opens GitHub in a new tab)</span>
+      <span className="sr-only">{/^https:\/\/(www\.)?github\.com\//.test(href) ? "(opens GitHub in a new tab)" : "(opens in a new tab)"}</span>
     </a>
   );
 }
@@ -79,7 +79,7 @@ export function ExtLink({
 export function KepLink({ number, label }: { number: number | null | undefined; label?: string }) {
   if (number === null || number === undefined) return <span className="ident">{label ?? "KEP"}</span>;
   return (
-    <Link href={`/explore/kep/${number}` as Route} className="quiet-link ident">
+    <Link href={routes.kep(number)} className="quiet-link ident">
       {label ?? `KEP-${number}`}
     </Link>
   );
@@ -88,7 +88,7 @@ export function KepLink({ number, label }: { number: number | null | undefined; 
 /** A GitHub login as an identifier, linked to its Person page. */
 export function PersonLink({ login, className }: { login: string; className?: string }) {
   return (
-    <Link href={`/explore/person/${encodeURIComponent(login)}` as Route} className={cx("quiet-link ident", className)}>
+    <Link href={routes.person(login)} className={cx("quiet-link ident", className)}>
       @{login}
     </Link>
   );
@@ -97,17 +97,9 @@ export function PersonLink({ login, className }: { login: string; className?: st
 /** A SIG as its directory name, linked to its SIG page. */
 export function SigLink({ sig, className }: { sig: string; className?: string }) {
   return (
-    <Link href={`/explore/sig/${encodeURIComponent(sig)}` as Route} className={cx("quiet-link ident", className)}>
+    <Link href={routes.sig(sig)} className={cx("quiet-link ident", className)}>
       {sig}
     </Link>
-  );
-}
-
-export function Login({ login, url }: { login: string; url?: string | null }) {
-  return (
-    <ExtLink href={url ?? `https://github.com/${login}`} label={`@${login} on GitHub`}>
-      <span className="ident">@{login}</span>
-    </ExtLink>
   );
 }
 

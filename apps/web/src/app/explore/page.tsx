@@ -9,9 +9,8 @@ import type { ApiResult } from "@/lib/api/core";
 import type { Finding, FindingsResponse } from "@/lib/api/types";
 import type { ChangesOut, SigCard } from "@/lib/api/types-explore";
 import { isoUtc } from "@/lib/format";
-import { Card, Dash, EmptyState, ErrorState, ExtLink, KepLink, PageHeader, SkeletonBlock, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { Card, Dash, EmptyState, ErrorState, ExtLink, KepLink, PageHeader, PersonLink, SigLink, SkeletonBlock, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { ExploreSearch } from "@/components/explore/ExploreSearch";
-import { PersonLink, SigLink } from "@/components/explore/links";
 import { RowsPerPage } from "@/components/explore/RowsPerPage";
 import { ROWS_DEFAULT, parseRows } from "@/lib/rows";
 

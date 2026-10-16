@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Citation, GraphEdge, GraphNode, GraphOut } from "@/lib/api/types";
+import { pageHref } from "@/lib/routes";
 import { clientApi } from "@/lib/api/client";
 import { badgeFor, mergeGraph } from "@/lib/graph";
-import { numberFromPath } from "@/lib/format";
 import { CONTAINER_LABELS, CONTAINER_RELS, RANKS, phraseFor, rankFor, type Dir } from "@/lib/relations";
 import { ExtLink, cx } from "./ui";
 
@@ -96,17 +95,6 @@ function groupsOf(g: Indexed, id: string, hide: Set<string>): Group[] {
   }
   groups.sort((a, b) => a.rank - b.rank || a.phrase.localeCompare(b.phrase));
   return groups;
-}
-
-export function pageHref(node: GraphNode): Route | null {
-  if (node.label === "KEP") {
-    const n = numberFromPath(node.key);
-    return n !== null ? (`/explore/kep/${n}` as Route) : null;
-  }
-  if (node.label === "Person") return `/explore/person/${encodeURIComponent(node.key)}` as Route;
-  if (node.label === "SIG") return `/explore/sig/${encodeURIComponent(node.key)}` as Route;
-  if (node.label === "Finding") return `/audit?finding=${encodeURIComponent(node.key)}#findings` as Route;
-  return null;
 }
 
 /** Pick one starting node per connected component: a KEP if there is one, else a highlighted node, else the first. */

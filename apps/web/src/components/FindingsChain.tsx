@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { useId, useMemo } from "react";
 import type { Finding, FindingsSummary, GraphOut } from "@/lib/api/types";
+import { routes } from "@/lib/routes";
 import { FINDING_KIND_TEXT, numberFromPath } from "@/lib/format";
 import { kindLabel } from "@/lib/kinds";
 import { EvidenceChain } from "./EvidenceChain";
@@ -88,7 +88,7 @@ export function FindingsChain({
       <ul aria-label="Finding kinds" className="flex flex-wrap gap-x-5 gap-y-1 border-b border-border px-4 py-2 text-sm">
         {legend.map(([kind, count]) => (
           <li key={kind}>
-            <Link href={`/audit?kind=${encodeURIComponent(kind)}#findings` as Route} className="group inline-flex items-center gap-2" title={FINDING_KIND_TEXT[kind] ?? kind}>
+            <Link href={routes.auditKind(kind)} className="group inline-flex items-center gap-2" title={FINDING_KIND_TEXT[kind] ?? kind}>
               <span className="text-fg group-hover:underline">{kindLabel(kind)}</span>
               <span className="tabular text-fg-secondary">{count.toLocaleString("en-US")}</span>
             </Link>

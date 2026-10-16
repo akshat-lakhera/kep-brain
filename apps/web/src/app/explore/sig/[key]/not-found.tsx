@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { serverApi } from "@/lib/api/server";
-import { SigLink } from "@/components/explore/links";
+import { SigLink } from "@/components/ui";
 
 export default async function SigNotFound() {
   const meta = await serverApi.meta();

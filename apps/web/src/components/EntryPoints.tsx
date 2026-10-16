@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import type { ReactNode } from "react";
 import type { ApiResult } from "@/lib/api/core";
+import { routes } from "@/lib/routes";
 import type { ChangesResponse, Finding, FindingsSummary, SigSummary } from "@/lib/api/types";
 import { isoDate, numberFromPath } from "@/lib/format";
 import { kindLabel } from "@/lib/kinds";
@@ -89,13 +90,9 @@ export function EntryPoints({
                       {count === 0 ? (
                         <span className="tabular text-fg-muted">0</span>
                       ) : (
-                        <a
-                          href={`/audit?sig=${encodeURIComponent(s.key)}#findings`}
-                          className="quiet-link tabular"
-                          aria-label={`${count} findings in ${s.key}`}
-                        >
+                        <Link href={routes.auditSig(s.key)} className="quiet-link tabular" aria-label={`${count} findings in ${s.key}`}>
                           {count.toLocaleString("en-US")}
-                        </a>
+                        </Link>
                       )}
                     </td>
                   </tr>
@@ -125,7 +122,7 @@ export function EntryPoints({
                   {fs[0].kep_title}
                 </span>
                 <Link
-                  href={`/audit?finding=${encodeURIComponent(fs[0].key)}#findings` as Route}
+                  href={routes.finding(fs[0].key)}
                   className="quiet-link shrink-0 text-xs"
                   title={fs.map((f) => kindLabel(f.kind)).join(", ")}
                 >

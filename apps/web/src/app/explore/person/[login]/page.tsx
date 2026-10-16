@@ -8,9 +8,8 @@ import { exploreApi, explorePaths, exploreTemplates, isNotFound, routeServed } f
 import type { PersonOut } from "@/lib/api/types-explore";
 import type { KepCard } from "@/lib/api/types";
 import { isoDate, isoUtc } from "@/lib/format";
-import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, SigLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { KepTable } from "@/components/explore/KepTable";
-import { SigLink } from "@/components/explore/links";
 import { Tabs } from "@/components/Tabs";
 import { PagedTable } from "@/components/PagedTable";
 

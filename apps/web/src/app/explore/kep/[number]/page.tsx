@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { serverApi } from "@/lib/api/server";
+import { routes } from "@/lib/routes";
 import type { ApiResult } from "@/lib/api/core";
 import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, KepDetail, KepRef, StatusChangeOut, ToolSpec } from "@/lib/api/types";
 import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, shortSha } from "@/lib/format";
@@ -11,7 +12,7 @@ import { fieldsOf } from "@/lib/schema";
 import { EvidenceChain } from "@/components/EvidenceChain";
 import { Tabs } from "@/components/Tabs";
 import { ToolResultView } from "@/components/ToolResultView";
-import { PersonLink, SigLink } from "@/components/explore/links";
+import { PersonLink, SigLink } from "@/components/ui";
 import { PagedTable } from "@/components/PagedTable";
 import {
   Card,
@@ -166,7 +167,7 @@ function Ambiguous({ number, candidates }: { number: string; candidates: KepCard
       <ul className="space-y-2">
         {candidates.map((c) => (
           <li key={c.key} className="rounded-md border border-border bg-surface p-3">
-            <Link href={`/explore/kep/${number}?path=${encodeURIComponent(c.key)}` as Route} className="quiet-link font-mono">
+            <Link href={routes.kepPath(number, c.key)} className="quiet-link font-mono">
               {c.key}
             </Link>
             <p className="text-sm">{c.title}</p>
@@ -600,9 +601,9 @@ function Findings({ k }: { k: KepDetail }) {
           ) : null}
           <p className="mt-1 text-xs text-fg-muted">
             Detected <span className="font-mono">{isoDate(f.detected_at_iso)}</span> ·{" "}
-            <a href={`/audit?finding=${encodeURIComponent(f.key)}#f-${encodeURIComponent(f.key)}`} className="quiet-link">
+            <Link href={routes.finding(f.key, "row")} className="quiet-link">
               Open in Audit
-            </a>
+            </Link>
           </p>
         </li>
       ))}

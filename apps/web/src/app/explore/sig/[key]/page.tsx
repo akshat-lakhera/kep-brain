@@ -7,10 +7,10 @@ import { apiInternalUrl } from "@/lib/api/server";
 import { exploreApi, explorePaths, exploreTemplates, isNotFound, routeServed } from "@/lib/api/explore";
 import type { SigDetail } from "@/lib/api/types-explore";
 import { FINDING_KIND_TEXT, isoDate } from "@/lib/format";
-import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, PersonLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { KepTable } from "@/components/explore/KepTable";
 import { StatusBars } from "@/components/explore/StatusBars";
-import { PersonLink, PersonList } from "@/components/explore/links";
+import { PersonList } from "@/components/explore/links";
 import { PagedTable } from "@/components/PagedTable";
 
 const KEY = /^[a-z0-9][a-z0-9-]{0,80}$/;

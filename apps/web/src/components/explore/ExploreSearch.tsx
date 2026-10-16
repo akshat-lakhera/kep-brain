@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useEffect, useId, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
+import { routes } from "@/lib/routes";
 import type { KepCard } from "@/lib/api/types";
 import { numberFromPath } from "@/lib/format";
 import { cx } from "@/components/ui";
@@ -67,7 +68,7 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
       return {
         group: "kep",
         id: k.key,
-        href: (n !== null ? `/explore/kep/${n}` : "/explore") as Route,
+        href: n !== null ? routes.kep(n) : ("/explore" as Route),
         primary: n !== null ? `KEP-${n}` : k.key,
         secondary: k.title,
         note: [k.owning_sig ?? "", k.status ?? ""].filter(Boolean).join(" · "),
@@ -149,7 +150,7 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
                 go(pick);
               } else if (/^\d+$/.test(query)) {
                 e.preventDefault();
-                router.push(`/explore/kep/${query}` as Route);
+                router.push(routes.kep(query));
               }
             } else if (e.key === "Escape") {
               setOpen(false);

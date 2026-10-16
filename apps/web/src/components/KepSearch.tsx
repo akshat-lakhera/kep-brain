@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { Route } from "next";
 import { useEffect, useId, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
+import { routes } from "@/lib/routes";
 import type { KepCard } from "@/lib/api/types";
 import { numberFromPath } from "@/lib/format";
 
@@ -78,7 +78,7 @@ export function KepSearch() {
     setOpen(false);
     setQ("");
     setState({ kind: "idle" });
-    router.push(`/explore/kep/${n}` as Route);
+    router.push(routes.kep(n));
   }
 
   return (
@@ -125,7 +125,7 @@ export function KepSearch() {
             } else if (/^\d+$/.test(q.trim())) {
               e.preventDefault();
               setOpen(false);
-              router.push(`/explore/kep/${q.trim()}` as Route);
+              router.push(routes.kep(q.trim()));
             }
           } else if (e.key === "Escape") {
             setOpen(false);

@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { KepCard } from "@/lib/api/types";
+import { routes } from "@/lib/routes";
 import { numberFromPath } from "@/lib/format";
-import { Dash, StatusChip, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { Dash, SigLink, StatusChip, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { PagerBar, usePaging } from "@/components/PagedTable";
-import { SigLink } from "./links";
 
 type Col = "number" | "title" | "status" | "stage" | "latest_milestone" | "owning_sig" | "open_findings";
 
@@ -108,7 +107,7 @@ export function KepTable({
               <tr key={k.key}>
                 <td className={cx(tdClass, "whitespace-nowrap")}>
                   {num !== null ? (
-                    <Link href={`/explore/kep/${num}` as Route} className="quiet-link ident">
+                    <Link href={routes.kep(num)} className="quiet-link ident">
                       KEP-{num}
                     </Link>
                   ) : (

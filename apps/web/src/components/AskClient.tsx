@@ -6,13 +6,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Ban, Copy, Link2, SquareArrowOutUpRight } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
+import { pageHref, routes } from "@/lib/routes";
 import type { ApiFailure } from "@/lib/api/core";
 import type {
   AskEvent,
   AskResponse,
   Citation,
   Finding,
-  GraphNode,
   GraphOut,
   Meta,
   SseCitation,
@@ -138,17 +138,6 @@ function statusText(status: SseStatus | null): string {
     return `Waiting for the model (rate limit)${wait}`;
   }
   return status.label || status.phase;
-}
-
-/** Explore route of a graph node, when one exists for its label. */
-function exploreHref(node: GraphNode): string | null {
-  if (node.label === "KEP") {
-    const n = numberFromPath(node.key);
-    return n !== null ? `/explore/kep/${n}` : null;
-  }
-  if (node.label === "Person") return `/explore/person/${encodeURIComponent(node.key)}`;
-  if (node.label === "SIG") return `/explore/sig/${encodeURIComponent(node.key)}`;
-  return null;
 }
 
 function plural(n: number, word: string): string {
@@ -443,7 +432,7 @@ function AnswerView({
   const touched = findings.filter((f) => graphKeps.has(f.kep_path));
   const recalled = findingsRecalled.map((key) => findings.find((f) => f.key === key) ?? key);
   const exploreNode =
-    live.graph.nodes.find((n) => citedKeys.has(n.key) && exploreHref(n)) ?? live.graph.nodes.find((n) => exploreHref(n));
+    live.graph.nodes.find((n) => citedKeys.has(n.key) && pageHref(n)) ?? live.graph.nodes.find((n) => pageHref(n));
   const sha = meta?.sources.enhancements_sha ?? null;
   const asOf = meta?.sources.tickets_as_of ?? null;
 
@@ -525,7 +514,7 @@ function AnswerView({
             {touched.length > 0 || recalled.length > 0 || (live.memory && (live.memory.recalled.length > 0 || live.memory.remembered.length > 0)) ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {touched.slice(0, 4).map((f) => (
-                  <Link key={f.key} href={`/audit?finding=${encodeURIComponent(f.key)}#findings` as Route} className="no-underline">
+                  <Link key={f.key} href={routes.finding(f.key)} className="no-underline">
                     <Chip tone="warning">
                       {f.state} finding on KEP-{f.kep_number ?? numberFromPath(f.kep_path)}: {kindLabel(f.kind).toLowerCase()}
                     </Chip>
@@ -542,7 +531,7 @@ function AnswerView({
                       Used shared finding <span className="ident">{f}</span>
                     </Chip>
                   ) : (
-                    <Link key={f.key} href={`/audit?finding=${encodeURIComponent(f.key)}#findings` as Route} className="no-underline">
+                    <Link key={f.key} href={routes.finding(f.key)} className="no-underline">
                       <Chip>
                         Used shared finding on KEP-{f.kep_number ?? numberFromPath(f.kep_path)}: {kindLabel(f.kind).toLowerCase()}
                       </Chip>
@@ -572,7 +561,7 @@ function AnswerView({
               </button>
               {exploreNode ? (
                 <Link
-                  href={exploreHref(exploreNode) as Route}
+                  href={pageHref(exploreNode) as Route}
                   className="inline-flex h-7 items-center gap-1 rounded-sm border border-border-input px-2 text-sm text-fg no-underline"
                 >
                   <SquareArrowOutUpRight size={14} strokeWidth={1.5} aria-hidden="true" />

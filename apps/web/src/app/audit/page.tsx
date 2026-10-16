@@ -3,6 +3,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { serverApi } from "@/lib/api/server";
+import { routes } from "@/lib/routes";
 import { auditApi } from "@/lib/api/audit";
 import type { ChangesResponse, FindingsResponse, SyncStatus } from "@/lib/api/types";
 import type { ApiResult } from "@/lib/api/core";
@@ -167,9 +168,9 @@ function Filters({ data, filter }: { data: FindingsResponse; filter: Search }) {
         Apply
       </button>
       {filter.kind || filter.sig || filter.state ? (
-        <a href="/audit" className="quiet-link h-8 leading-8">
+        <Link href="/audit" className="quiet-link h-8 leading-8">
           Clear filters
-        </a>
+        </Link>
       ) : null}
       <nav aria-label="Sections" className="ml-auto flex gap-4 self-center text-sm">
         <a href="#findings" className="quiet-link">
@@ -227,9 +228,9 @@ function Summary({ data, tones, filtering }: { data: FindingsResponse; tones: Ma
               {kinds.map(([k, v]) => (
                 <li key={k} className="grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_3rem] items-center gap-3 text-sm">
                   <span className="min-w-0">
-                    <a href={`/audit?kind=${encodeURIComponent(k)}#findings`} className="quiet-link block truncate" title={FINDING_KIND_TEXT[k] ?? k}>
+                    <Link href={routes.auditKind(k)} className="quiet-link block truncate" title={FINDING_KIND_TEXT[k] ?? k}>
                       {kindLabel(k)}
-                    </a>
+                    </Link>
                     <span className="ident block truncate text-xs text-fg-muted">{k}</span>
                   </span>
                   <MiniBar value={v} max={maxKind} color={toneColor(tones.get(k))} />
@@ -251,13 +252,9 @@ function Summary({ data, tones, filtering }: { data: FindingsResponse; tones: Ma
                     <SigLink sig={k} />
                   </span>
                   <MiniBar value={v} max={maxSig} />
-                  <a
-                    href={`/audit?sig=${encodeURIComponent(k)}#findings`}
-                    className="quiet-link tabular text-right"
-                    aria-label={`Show the ${v} findings in ${k}`}
-                  >
+                  <Link href={routes.auditSig(k)} className="quiet-link tabular text-right" aria-label={`Show the ${v} findings in ${k}`}>
                     {v.toLocaleString("en-US")}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
