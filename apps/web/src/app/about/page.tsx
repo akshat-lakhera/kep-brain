@@ -11,9 +11,6 @@ const SHORTCUTS: [string, string][] = [
   ["Shift+Enter", "New line in the question"],
   ["Escape", "Cancel a running question"],
   ["Ctrl+K", "Focus KEP search"],
-  ["+ / -", "Zoom the graph canvas"],
-  ["0", "Fit the graph to view"],
-  ["Left / Right", "Step along the path on the graph canvas"],
 ];
 
 export default function AboutPage() {
@@ -59,7 +56,8 @@ export default function AboutPage() {
             </li>
             <li>Only public GitHub logins are stored for people; e-mail addresses are never ingested.</li>
             <li>
-              The browser stores two things: the theme choice and an anonymous memory id. Your questions are never shown
+              The browser stores three things: the theme choice, an anonymous memory id and whether the evidence chain keeps
+              several branches open. Your questions are never shown
               to other visitors.
             </li>
           </ul>
