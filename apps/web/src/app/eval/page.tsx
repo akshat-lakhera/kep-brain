@@ -52,7 +52,7 @@ async function EvalBody() {
     typeof run.questions === "number" ? { label: "Questions", value: <span className="tabular">{run.questions}</span> } : null,
     typeof run.reps === "number" ? { label: "Repetitions", value: <span className="tabular">{run.reps}</span> } : null,
     run.model ? { label: "Answering model", value: <span className="font-mono">{run.model}</span> } : null,
-    run.judge_model ? { label: "Judge model", value: <span className="font-mono">{run.judge_model}</span> } : null,
+    run.judge_model ? { label: "Scoring model", value: <span className="font-mono">{run.judge_model}</span> } : null,
   ].filter((x): x is { label: string; value: React.JSX.Element } => x !== null);
 
   const arms = readArms(run);

@@ -10,7 +10,7 @@ import { EvidenceChain } from "./EvidenceChain";
 import { Tabs } from "./Tabs";
 import { Chip, EmptyState, ExtLink, cx } from "./ui";
 
-/** A ToolResult as judges should read it: rows, evidence links, traversed paths on the graph, and the Cypher template. */
+/** A ToolResult as a reader checks it: rows, evidence links, the traversed paths as an evidence chain, and the Cypher template. */
 export function ToolResultView({ name, params, result }: { name: string; params: Record<string, unknown>; result: ToolResult }) {
   const graph = useMemo(() => pathsToGraph(result), [result]);
   const n = result.rows.length;
