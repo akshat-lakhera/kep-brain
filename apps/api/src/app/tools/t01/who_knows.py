@@ -98,9 +98,9 @@ LIMIT {limit}
 RANK = {n: _rank_template(n) for n in (5, 10, 20, CANDIDATES)}
 
 PAGERANK = """
-CALL algo.pageRank(null, 'DECIDED_BY') YIELD node, score
-WHERE node:Person AND node.key IN $people
-RETURN node.key AS person, score
+MATCH (node:Person)
+WHERE node.key IN $people
+RETURN node.key AS person, coalesce(node.pagerank, 0.0) AS score
 LIMIT 60
 """
 

@@ -19,7 +19,7 @@ from ulid import ULID
 from app.db.batch import BatchWriter
 from app.db.falkordb import GRAPH_KEP, WRITE_TIMEOUT_MS, FalkorPool, Role
 from app.ingest.common import COMMUNITY_REPO
-from app.ingest.derive import derive_decisions
+from app.ingest.derive import derive_decisions, write_pagerank
 from app.ingest.docs import Corpus, build_corpus, sync_docs
 from app.ingest.findings import detect_findings
 from app.ingest.history import sync_history
@@ -125,7 +125,11 @@ class Worker:
         return result
 
     def derive(self) -> dict[str, Any]:
-        return {"derive_decisions": derive_decisions(self.writer()), "detect_findings": detect_findings(self.writer())}
+        return {
+            "derive_decisions": derive_decisions(self.writer()),
+            "detect_findings": detect_findings(self.writer()),
+            "pagerank_people": write_pagerank(self.writer()),
+        }
 
     def stats(self) -> dict[str, Any]:
         def q(query: str) -> list[list[Any]]:

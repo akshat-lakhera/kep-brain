@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent.prompts import tool_spec
+from app.ingest import derive
 from app.tools.cypher import unique_comprehension_vars
 from app.tools.registry import TOOLS, llm_tools, mcp_tools
 from app.tools.t01 import changed_since, decision_path, impact, who_knows
@@ -39,7 +40,9 @@ def test_templates_fixed_limit_and_read_only(template: str) -> None:
 
 
 def test_who_knows_uses_pagerank_and_weights() -> None:
-    assert "algo.pageRank(null, 'DECIDED_BY')" in who_knows.PAGERANK
+    # PageRank is computed once by the worker's derive step and read back as a Person property.
+    assert "algo.pageRank(null, 'DECIDED_BY')" in derive.PAGERANK_Q and "node.pagerank" in derive.PAGERANK_Q
+    assert "node.pagerank" in who_knows.PAGERANK and "algo." not in who_knows.PAGERANK
     rank = who_knows.RANK[10]
     for rel, weight in who_knows.WEIGHTS.items():
         assert f"WHEN '{rel}' THEN {weight}" in rank

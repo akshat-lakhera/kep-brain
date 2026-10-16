@@ -70,9 +70,9 @@ RETURN d.directory AS directory, type(r) AS rel, a.name AS via_alias, coalesce(d
 """
 
 CONNECTIVITY = """
-CALL algo.pageRank(null, 'DECIDED_BY') YIELD node, score
-WHERE node:Person AND coalesce(node.is_bot, false) = false
-WITH collect({k: node.key, s: score}) AS people
+MATCH (node:Person)
+WHERE node.pagerank IS NOT NULL AND coalesce(node.is_bot, false) = false
+WITH collect({k: node.key, s: node.pagerank}) AS people
 WITH people, [x IN people WHERE x.k = $key] AS me
 WHERE size(me) > 0
 RETURN me[0].s AS score, size([x IN people WHERE x.s > me[0].s]) + 1 AS rank, size(people) AS of

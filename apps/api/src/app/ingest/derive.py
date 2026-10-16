@@ -513,6 +513,18 @@ def write_decisions(writer: BatchWriter, plans: Sequence[DecisionPlan]) -> None:
     writer.upsert_edges("REVERSES", "Decision", "Decision", reverses)
 
 
+PAGERANK_Q = (
+    "CALL algo.pageRank(null, 'DECIDED_BY') YIELD node, score "
+    "WITH node, score WHERE node:Person SET node.pagerank = score RETURN count(node)"
+)
+
+
+def write_pagerank(writer: BatchWriter) -> int:
+    """Store PageRank over Decision -> Person edges on each Person, so request paths read it instead of recomputing."""
+    rows = writer.query(PAGERANK_Q)
+    return int(rows[0][0]) if rows else 0
+
+
 def derive_decisions(writer: BatchWriter) -> dict[str, int]:
     """Derive every deterministic Decision from the current graph; idempotent (keys are deterministic)."""
     bots = load_bots(writer)
