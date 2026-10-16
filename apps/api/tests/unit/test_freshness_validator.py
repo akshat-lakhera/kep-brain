@@ -7,7 +7,8 @@ from typing import Any
 
 import pytest
 
-from app.worker.freshness import EvidenceRow, TriageRejected, estimate_usd, validate_triage
+from app.agent.provider import cost_usd
+from app.worker.freshness import EvidenceRow, TriageRejected, validate_triage
 
 ISSUE = EvidenceRow(
     "aaaaaaaaaaaa", "Issue", "kubernetes/enhancements#583", "https://github.com/kubernetes/enhancements/issues/583", {}
@@ -63,5 +64,5 @@ def test_a_given_url_may_be_quoted() -> None:
 
 
 def test_cost_estimate_uses_model_price_and_falls_back() -> None:
-    assert estimate_usd("openai/gpt-oss-20b", 1_000_000, 1_000_000) == pytest.approx(0.60)
-    assert estimate_usd("some-new-model", 1_000_000, 0) == pytest.approx(0.59)
+    assert cost_usd("openai/gpt-oss-20b", 1_000_000, 1_000_000) == pytest.approx(0.60)
+    assert cost_usd("some-new-model", 1_000_000, 0) == pytest.approx(0.59)

@@ -158,10 +158,6 @@ class OpenAICompatibleLlm:
         )
 
 
-def estimate_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    return cost_usd(model, input_tokens, output_tokens)
-
-
 def validate_triage(raw: str, rows: Sequence[EvidenceRow]) -> Triage:
     """Parse and check a model answer against the evidence it was given. Raises `TriageRejected`."""
     try:
@@ -282,7 +278,7 @@ def triage_finding(
     if ctx is None or ctx.state != "open":
         return {"finding": finding_key, "status": "skipped", "reason": "not an open finding"}
     completion = llm.complete(build_messages(ctx))
-    cost = estimate_usd(llm.model, completion.input_tokens, completion.output_tokens)
+    cost = cost_usd(llm.model, completion.input_tokens, completion.output_tokens)
     _record_spend(pool, ops_graph, cost)
     try:
         triage = validate_triage(completion.text, ctx.rows)
