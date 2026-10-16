@@ -63,7 +63,6 @@ class Validated:
     abstained: bool
     abstain_reason: str | None
     violations: list[str] = field(default_factory=list)
-    nearest: list[Citation] = field(default_factory=list)
 
 
 def _url_variants(url: str) -> set[str]:
@@ -205,15 +204,13 @@ def validate(answer: FinalAnswer, evidence: dict[str, Evidence], row_urls: set[s
                 violations.append(f"claim {i} cites unknown or uncitable id {e}")
 
     if answer.abstained:
-        # An abstention may still name the nearest existing records (ABS-10), but only
-        # through ids seen in this request; anything else is dropped, never shown.
-        nearest_ids = [e for e in dict.fromkeys(inline + [x for c in answer.claims for x in c.evidence_ids])]
-        nearest = [e for e in nearest_ids if e in citable]
+        # An abstention may still name the nearest existing records, but only through ids seen in this
+        # request; anything else is dropped, never shown.
         if violations or not text.strip():
             return Validated("", [], True, answer.abstain_reason or "no_evidence", violations)
         md, cites = _number(text, citable)
         md, _ = _strip_unknown_urls(md, _allowed_urls(citable, row_urls))
-        return Validated(md, cites, True, answer.abstain_reason or "no_evidence", [], _cites(nearest, citable))
+        return Validated(md, cites, True, answer.abstain_reason or "no_evidence", [])
 
     if not answer.claims:
         violations.append("answer has no claims")
