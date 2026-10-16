@@ -1,4 +1,4 @@
-import type { GraphNode } from "./api/types";
+import type { GraphEdge, GraphNode, GraphOut } from "./api/types";
 import { numberFromPath } from "./format";
 
 function after(sep: string, s: string): string {
@@ -52,8 +52,12 @@ export function badgeFor(node: GraphNode): string {
   }
 }
 
-/** Full, human-readable name of a node. */
-export function nameFor(node: GraphNode): string {
-  const badge = badgeFor(node);
-  return node.title && node.title !== badge ? `${badge} ${node.title}` : badge;
+/** Union of two graphs: nodes by id (first wins), edges by source, type and target. */
+export function mergeGraph(a: GraphOut, b: GraphOut): GraphOut {
+  const nodes = new Map(a.nodes.map((n) => [n.id, n]));
+  for (const n of b.nodes) if (!nodes.has(n.id)) nodes.set(n.id, n);
+  const key = (e: GraphEdge) => `${e.source}\u0000${e.type}\u0000${e.target}`;
+  const edges = new Map(a.edges.map((e) => [key(e), e]));
+  for (const e of b.edges) if (!edges.has(key(e))) edges.set(key(e), e);
+  return { nodes: [...nodes.values()], edges: [...edges.values()] };
 }

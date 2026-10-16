@@ -22,6 +22,7 @@ import type {
   SseToolCall,
 } from "@/lib/api/types";
 import { isoUtc, ms, numberFromPath, shortSha } from "@/lib/format";
+import { mergeGraph } from "@/lib/graph";
 import { kindLabel } from "@/lib/kinds";
 import { AnswerMarkdown } from "./AnswerMarkdown";
 import { EvidenceChain } from "./EvidenceChain";
@@ -73,15 +74,6 @@ function emptyLive(question: string, mode: Live["mode"]): Live {
     done: null,
     model: null,
   };
-}
-
-function mergeGraph(a: GraphOut, b: GraphOut): GraphOut {
-  const nodes = new Map(a.nodes.map((n) => [n.id, n]));
-  for (const n of b.nodes) if (!nodes.has(n.id)) nodes.set(n.id, n);
-  const edgeKey = (e: GraphOut["edges"][number]) => `${e.source}\u0000${e.target}\u0000${e.type}`;
-  const edges = new Map(a.edges.map((e) => [edgeKey(e), e]));
-  for (const e of b.edges) if (!edges.has(edgeKey(e))) edges.set(edgeKey(e), e);
-  return { nodes: Array.from(nodes.values()), edges: Array.from(edges.values()) };
 }
 
 function apply(live: Live, ev: AskEvent): Live {

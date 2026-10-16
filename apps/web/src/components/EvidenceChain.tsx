@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Citation, GraphEdge, GraphNode, GraphOut } from "@/lib/api/types";
 import { clientApi } from "@/lib/api/client";
-import { badgeFor } from "@/lib/graph";
+import { badgeFor, mergeGraph } from "@/lib/graph";
 import { numberFromPath } from "@/lib/format";
 import { CONTAINER_LABELS, CONTAINER_RELS, RANKS, phraseFor, rankFor, type Dir } from "@/lib/relations";
 import { ExtLink, cx } from "./ui";
@@ -30,21 +30,6 @@ function indexGraph(g: GraphOut): Indexed {
     inn.set(e.target, [...(inn.get(e.target) ?? []), e]);
   }
   return { nodes, out, in: inn };
-}
-
-function mergeGraph(a: GraphOut, b: GraphOut): GraphOut {
-  const nodes = new Map(a.nodes.map((n) => [n.id, n]));
-  for (const n of b.nodes) nodes.set(n.id, nodes.get(n.id) ?? n);
-  const seen = new Set(a.edges.map((e) => `${e.source}\0${e.type}\0${e.target}`));
-  const edges = [...a.edges];
-  for (const e of b.edges) {
-    const k = `${e.source}\0${e.type}\0${e.target}`;
-    if (!seen.has(k)) {
-      seen.add(k);
-      edges.push(e);
-    }
-  }
-  return { nodes: [...nodes.values()], edges };
 }
 
 interface Row {
@@ -247,7 +232,9 @@ export function EvidenceChain({
   const [extra, setExtra] = useState<GraphOut>({ nodes: [], edges: [] });
   const merged = useMemo(() => mergeGraph(graph, extra), [graph, extra]);
   const g = useMemo(() => indexGraph(merged), [merged]);
-  const highlight = useMemo(() => new Set(highlightIds ?? []), [highlightIds]);
+  // Callers often pass a fresh array each render; key on the ids themselves so open state is not reset.
+  const highlightKey = (highlightIds ?? []).join("\u0000");
+  const highlight = useMemo(() => new Set(highlightKey ? highlightKey.split("\u0000") : []), [highlightKey]);
   const roots = useMemo(() => rootIds?.filter((id) => g.nodes.has(id)) ?? rootsOf(g, graph.nodes, highlight), [rootIds, g, graph.nodes, highlight]);
   const seed = useMemo(() => initialOpen(indexGraph(graph), roots, highlight), [graph, roots, highlight]);
   const [openNodes, setOpenNodes] = useState<Set<string>>(() => seed.nodes);
