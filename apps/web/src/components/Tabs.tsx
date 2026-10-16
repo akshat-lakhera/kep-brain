@@ -67,7 +67,7 @@ export function Tabs({ tabs, initial, label }: { tabs: TabDef[]; initial?: strin
           tabIndex={0}
           className="pt-4"
         >
-          {t.id === active ? t.content : null}
+          {t.content}
         </div>
       ))}
     </div>
