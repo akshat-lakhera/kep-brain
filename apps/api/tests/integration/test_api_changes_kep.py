@@ -13,6 +13,8 @@ from app.db.falkordb import FalkorPool
 from app.main import create_app
 from app.settings import Settings
 
+ISO_Z = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
+
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[TestClient]:
@@ -36,7 +38,7 @@ def test_default_since_latest_shipped_release(client: TestClient) -> None:
     assert body["since"] in body["releases"] and body["releases"] == meta["releases"]
     minors = [int(r.split(".")[1]) for r in body["releases"]]
     assert minors == sorted(minors) and body["releases"][0] == "v1.1" and body["since"] != body["releases"][-1]
-    assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z", body["window"]["start_iso"])
+    assert re.fullmatch(ISO_Z, body["window"]["start_iso"])
     assert body["window"]["basis"] == "tracking_issue_milestone"
     counts = body["counts"]
     assert counts["keps_changed"] >= 96 and counts["status_transitions"] >= 47 and counts["new_keps"] >= 27
@@ -49,7 +51,7 @@ def test_default_since_latest_shipped_release(client: TestClient) -> None:
 
 def test_since_v136_scheduling(client: TestClient) -> None:
     body = client.get("/v1/changes", params={"since": "v1.36", "sig": "sig-scheduling", "limit": 500}).json()
-    assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z", body["window"]["start_iso"])
+    assert re.fullmatch(ISO_Z, body["window"]["start_iso"])
     assert all(i["owning_sig"] == "sig-scheduling" for i in body["items"])
     status = [i for i in body["items"] if i["kind"] == "metadata" and i["field"] == "status"]
     assert len(status) == body["counts"]["status_transitions"] >= 1
