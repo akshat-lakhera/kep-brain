@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { SortHeader } from "@/components/SortHeader";
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure, ApiResult } from "@/lib/api/core";
 import type { DecisionOut, Evidence, Finding, FindingDetail, IssueDraft, ItemList } from "@/lib/api/types";
@@ -299,24 +300,14 @@ function SortHead({
   onSort: (f: (s: Sort) => Sort) => void;
   children: React.ReactNode;
 }) {
-  const active = sort.key === k;
   return (
-    <th className={thClass} aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
-      <button
-        type="button"
-        onClick={() => onSort((s) => ({ key: k, dir: s.key === k ? (s.dir === 1 ? -1 : 1) : 1 }))}
-        className={cx("inline-flex items-center gap-1", active ? "text-fg" : "hover:text-fg")}
-      >
-        {children}
-        {active ? (
-          sort.dir === 1 ? (
-            <ArrowUp size={12} strokeWidth={1.5} aria-hidden="true" />
-          ) : (
-            <ArrowDown size={12} strokeWidth={1.5} aria-hidden="true" />
-          )
-        ) : null}
-      </button>
-    </th>
+    <SortHeader
+      active={sort.key === k}
+      dir={sort.dir}
+      onClick={() => onSort((s) => ({ key: k, dir: s.key === k ? (s.dir === 1 ? -1 : 1) : 1 }))}
+    >
+      {children}
+    </SortHeader>
   );
 }
 

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp } from "lucide-react";
 import type { KepCard } from "@/lib/api/types";
 import { routes } from "@/lib/routes";
 import { numberFromPath } from "@/lib/format";
 import { Dash, SigLink, StatusChip, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { PagerBar, usePaging } from "@/components/PagedTable";
+import { SortHeader } from "@/components/SortHeader";
 
 type Col = "number" | "title" | "status" | "stage" | "latest_milestone" | "owning_sig" | "open_findings";
 
@@ -75,26 +75,16 @@ export function KepTable({
             {cols.map((c) => {
               const active = sort.col === c.id;
               return (
-                <th
+                <SortHeader
                   key={c.id}
-                  className={cx(thClass, "p-0")}
-                  aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
+                  active={active}
+                  dir={sort.dir}
+                  onClick={() => toggle(c.id)}
+                  className="p-0"
+                  buttonClassName="flex h-9 w-full px-3 text-left font-medium"
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggle(c.id)}
-                    className={cx("flex h-9 w-full items-center gap-1 px-3 text-left font-medium hover:text-fg", active && "text-fg")}
-                  >
-                    {c.label}
-                    {active ? (
-                      sort.dir === 1 ? (
-                        <ArrowUp aria-hidden="true" size={12} strokeWidth={1.5} />
-                      ) : (
-                        <ArrowDown aria-hidden="true" size={12} strokeWidth={1.5} />
-                      )
-                    ) : null}
-                  </button>
-                </th>
+                  {c.label}
+                </SortHeader>
               );
             })}
             {extra ? <th className={thClass}>{extra.label}</th> : null}
