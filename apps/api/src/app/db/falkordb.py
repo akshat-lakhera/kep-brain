@@ -30,7 +30,6 @@ from app.settings import Settings
 log = structlog.get_logger(__name__)
 
 GRAPH_KEP = "kep"
-GRAPH_KEP_EVAL = "kep_eval"
 GRAPH_OPS = "ops"
 READ_TIMEOUT_MS = 2000
 WRITE_TIMEOUT_MS = 30000
@@ -114,7 +113,12 @@ class FalkorPool:
         read_only: bool,
         timeout_ms: int,
     ) -> QueryOutput:
-        g = self.graph(role, graph)
+        try:
+            # The client connects in its constructor, so a dead or slow database fails here, not in the query.
+            g = self.graph(role, graph)
+        except (RedisConnectionError, ConnectionRefusedError, OSError, RedisTimeoutError) as exc:
+            log.warning("falkordb_unavailable", error=str(exc))
+            raise AppError("graph_unavailable") from exc
         try:
             if read_only:
                 res = g.ro_query(query, params, timeout=timeout_ms)
@@ -141,7 +145,7 @@ class FalkorPool:
     def list_graphs(self) -> list[str]:
         try:
             return list(self.client(Role.READER).list_graphs())
-        except (RedisConnectionError, ConnectionRefusedError, OSError) as exc:
+        except (RedisConnectionError, ConnectionRefusedError, OSError, RedisTimeoutError) as exc:
             raise AppError("graph_unavailable") from exc
 
     # -- async wrappers (api) -------------------------------------------------
