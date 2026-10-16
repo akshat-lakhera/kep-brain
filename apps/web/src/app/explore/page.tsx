@@ -12,6 +12,8 @@ import { isoUtc } from "@/lib/format";
 import { Card, Dash, EmptyState, ErrorState, ExtLink, KepLink, PageHeader, SkeletonBlock, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { ExploreSearch } from "@/components/explore/ExploreSearch";
 import { PersonLink, SigLink } from "@/components/explore/links";
+import { RowsPerPage } from "@/components/explore/RowsPerPage";
+import { ROWS_DEFAULT, parseRows } from "@/lib/rows";
 
 export const metadata: Metadata = { title: "Explore" };
 
@@ -34,6 +36,10 @@ async function ExploreBody({ searchParams }: { searchParams: PageProps<"/explore
   await connection();
   const sp = await searchParams;
   const since = typeof sp.since === "string" ? sp.since : undefined;
+  const rows = parseRows(sp.rows);
+  const page = pageOf(sp.page);
+  const changeRows = parseRows(sp.crows);
+  const changePage = pageOf(sp.cpage);
   const api = exploreApi(apiInternalUrl());
   const [meta, sigs, findings, changes] = await Promise.all([
     serverApi.meta(),
@@ -66,15 +72,66 @@ async function ExploreBody({ searchParams }: { searchParams: PageProps<"/explore
       {!meta.ok ? <ErrorState error={meta.error} what="Graph summary" /> : null}
       <SigStrip result={sigs} loadedSigs={loadedSigs} />
       <div className="space-y-6">
-        <Card title="KEPs with open findings" id="open-findings">
-          <OpenFindings result={findings} />
+        <Card title="KEPs with open findings" id="open-findings" actions={<RowsPerPage value={rows} />}>
+          <OpenFindings result={findings} rows={rows} page={page} since={since} />
         </Card>
-        <Card title="Recently changed" id="changes">
-          <Changes result={changes} since={since} />
+        <Card title="Recently changed" id="changes" actions={<RowsPerPage value={changeRows} param="crows" pageParam="cpage" />}>
+          <Changes result={changes} since={since} rows={changeRows} page={changePage} />
         </Card>
       </div>
     </div>
   );
+}
+
+function pageOf(raw: string | string[] | undefined): number {
+  return Math.max(1, Number.parseInt(typeof raw === "string" ? raw : "", 10) || 1);
+}
+
+/** Slice a list for the current page; `rows` is the per-page choice from the URL. */
+function paginate<T>(items: T[], rows: number | "all", page: number) {
+  const size = rows === "all" ? Math.max(1, items.length) : rows;
+  const pages = Math.max(1, Math.ceil(items.length / size));
+  const current = Math.min(page, pages);
+  const start = (current - 1) * size;
+  return { shown: items.slice(start, start + size), start, pages, current, total: items.length };
+}
+
+/** "Showing a–b of N · Previous · Next" for a server-rendered table; `href` builds the link for a page number. */
+function Pager({ slice, href }: { slice: ReturnType<typeof paginate<unknown>>; href: (page: number) => Route }) {
+  const { shown, start, pages, current, total } = slice;
+  return (
+    <span className="tabular">
+      Showing {(start + 1).toLocaleString("en-US")}–{(start + shown.length).toLocaleString("en-US")} of {total.toLocaleString("en-US")}
+      {pages > 1 ? (
+        <>
+          {" · "}
+          {current > 1 ? (
+            <Link href={href(current - 1)} className="quiet-link">
+              Previous
+            </Link>
+          ) : (
+            <span className="text-fg-muted">Previous</span>
+          )}
+          {" · "}
+          {current < pages ? (
+            <Link href={href(current + 1)} className="quiet-link">
+              Next
+            </Link>
+          ) : (
+            <span className="text-fg-muted">Next</span>
+          )}
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+/** Build an /explore link that keeps the given query values and lands on a card. */
+function exploreHref(values: Record<string, string | number | undefined>, anchor: string): Route {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(values)) if (v !== undefined && v !== "") sp.set(k, String(v));
+  const qs = sp.toString();
+  return `/explore${qs ? `?${qs}` : ""}#${anchor}` as Route;
 }
 
 function SigStrip({ result, loadedSigs }: { result: ApiResult<{ items: SigCard[] }>; loadedSigs: string[] }) {
@@ -132,7 +189,17 @@ function SigStrip({ result, loadedSigs }: { result: ApiResult<{ items: SigCard[]
   );
 }
 
-function OpenFindings({ result }: { result: ApiResult<FindingsResponse> }) {
+function OpenFindings({
+  result,
+  rows: perPage,
+  page,
+  since,
+}: {
+  result: ApiResult<FindingsResponse>;
+  rows: number | "all";
+  page: number;
+  since?: string;
+}) {
   if (!result.ok) return <ErrorState error={result.error} what="Findings" />;
   const byKep = new Map<string, { number: number | null; title: string | null; sig: string | null; kinds: string[]; first: Finding }>();
   for (const f of result.data.items) {
@@ -143,14 +210,23 @@ function OpenFindings({ result }: { result: ApiResult<FindingsResponse> }) {
   const rows = Array.from(byKep.entries()).sort((a, b) => b[1].kinds.length - a[1].kinds.length || (a[1].number ?? 0) - (b[1].number ?? 0));
   if (rows.length === 0)
     return <EmptyState title="No open findings">Every finding in the graph is closed or triaged; the detector found no open disagreement.</EmptyState>;
+  const slice = paginate(rows, perPage, page);
+  const pageHref = (p: number) =>
+    exploreHref({ since, rows: perPage === ROWS_DEFAULT ? undefined : perPage, page: p > 1 ? p : undefined }, "open-findings");
   return (
     <TableWrap label="KEPs with open findings">
       <table className={tableClass}>
         <caption className="mb-1 text-left text-xs text-fg-muted">
-          {rows.length.toLocaleString("en-US")} KEPs with {result.data.items.length.toLocaleString("en-US")} open findings, most findings first.{" "}
-          <Link href={"/audit" as Route} className="quiet-link">
-            Open the audit
-          </Link>
+          <span className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span>
+              {rows.length.toLocaleString("en-US")} KEPs with {result.data.items.length.toLocaleString("en-US")} open findings, most findings
+              first.{" "}
+              <Link href={"/audit" as Route} className="quiet-link">
+                Open the audit
+              </Link>
+            </span>
+            <Pager slice={slice} href={pageHref} />
+          </span>
         </caption>
         <thead>
           <tr>
@@ -161,7 +237,7 @@ function OpenFindings({ result }: { result: ApiResult<FindingsResponse> }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(([path, r]) => (
+          {slice.shown.map(([path, r]) => (
             <tr key={path}>
               <td className={cx(tdClass, "whitespace-nowrap")}>
                 <KepLink number={r.number} label={r.number !== null ? undefined : path} />
@@ -188,7 +264,17 @@ function OpenFindings({ result }: { result: ApiResult<FindingsResponse> }) {
   );
 }
 
-function Changes({ result, since }: { result: ApiResult<ChangesOut>; since?: string }) {
+function Changes({
+  result,
+  since,
+  rows,
+  page,
+}: {
+  result: ApiResult<ChangesOut>;
+  since?: string;
+  rows: number | "all";
+  page: number;
+}) {
   if (!result.ok) {
     if (isNotFound(result.error))
       return (
@@ -201,6 +287,9 @@ function Changes({ result, since }: { result: ApiResult<ChangesOut>; since?: str
   }
   const d = result.data;
   const counts = Object.entries(d.counts);
+  const slice = paginate(d.items, rows, page);
+  const pageHref = (p: number) =>
+    exploreHref({ since: d.since ?? since, crows: rows === ROWS_DEFAULT ? undefined : rows, cpage: p > 1 ? p : undefined }, "changes");
   return (
     <div className="space-y-3">
       <p className="text-sm text-fg-secondary">
@@ -230,7 +319,7 @@ function Changes({ result, since }: { result: ApiResult<ChangesOut>; since?: str
           {d.releases.map((r) => (
             <Link
               key={r}
-              href={`/explore?since=${encodeURIComponent(r)}#changes` as Route}
+              href={exploreHref({ since: r, crows: rows === ROWS_DEFAULT ? undefined : rows }, "changes")}
               className={cx("quiet-link rounded-sm border px-1.5 font-mono text-xs", r === d.since ? "border-accent" : "border-border")}
               aria-current={r === d.since ? "true" : undefined}
             >
@@ -246,6 +335,9 @@ function Changes({ result, since }: { result: ApiResult<ChangesOut>; since?: str
       ) : (
         <TableWrap label="Recently changed KEPs">
           <table className={tableClass}>
+            <caption className="mb-1 text-left text-xs text-fg-muted">
+              <Pager slice={slice} href={pageHref} />
+            </caption>
             <thead>
               <tr>
                 <th className={thClass}>At</th>
@@ -256,7 +348,7 @@ function Changes({ result, since }: { result: ApiResult<ChangesOut>; since?: str
               </tr>
             </thead>
             <tbody>
-              {d.items.map((c, i) => (
+              {slice.shown.map((c, i) => (
                 <tr key={`${c.kep_number}-${c.field}-${c.at_iso}-${i}`}>
                   <td className={cx(tdClass, "whitespace-nowrap font-mono text-xs")}>{isoUtc(c.at_iso) || <Dash />}</td>
                   <td className={cx(tdClass, "min-w-48")}>

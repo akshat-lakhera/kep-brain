@@ -12,6 +12,7 @@ import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, TableWrap, 
 import { KepTable } from "@/components/explore/KepTable";
 import { SigLink } from "@/components/explore/links";
 import { Tabs } from "@/components/Tabs";
+import { PagedTable } from "@/components/PagedTable";
 
 const LOGIN = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})$/;
 
@@ -220,37 +221,32 @@ function Decisions({ p }: { p: PersonOut }) {
     );
   const sorted = [...p.decisions].sort((a, b) => (b.decided_at_iso ?? "").localeCompare(a.decided_at_iso ?? ""));
   return (
-    <TableWrap label="Decisions">
-      <table className={tableClass}>
-        <caption className="mb-1 text-left text-xs text-fg-muted">
-          {sorted.length.toLocaleString("en-US")} decision{sorted.length === 1 ? "" : "s"} this person is on, newest first.
-        </caption>
-        <thead>
-          <tr>
-            <th className={thClass}>Decided</th>
-            <th className={thClass}>Role</th>
-            <th className={thClass}>KEP</th>
-            <th className={thClass}>Kind</th>
-            <th className={thClass}>Decision</th>
-            <th className={thClass}>Evidence</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((d) => (
-            <tr key={`${d.key}-${d.role}`}>
-              <td className={cx(tdClass, "whitespace-nowrap font-mono text-xs")}>{isoUtc(d.decided_at_iso) || <Dash />}</td>
-              <td className={cx(tdClass, "font-mono text-xs")}>{d.role}</td>
-              <td className={cx(tdClass, "min-w-48")}>
-                <KepLink number={d.kep_number} /> <span className="text-sm">{d.kep_title}</span>
-              </td>
-              <td className={cx(tdClass, "font-mono text-xs")}>{d.kind}</td>
-              <td className={cx(tdClass, "min-w-56")}>{d.summary ?? <Dash />}</td>
-              <td className={cx(tdClass, "whitespace-nowrap")}>{d.url ? <ExtLink href={d.url}>evidence</ExtLink> : <Dash />}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableWrap>
+    <PagedTable
+      label="Decisions"
+      caption={`${sorted.length.toLocaleString("en-US")} decision${sorted.length === 1 ? "" : "s"} this person is on, newest first.`}
+      head={
+        <tr>
+          <th className={thClass}>Decided</th>
+          <th className={thClass}>Role</th>
+          <th className={thClass}>KEP</th>
+          <th className={thClass}>Kind</th>
+          <th className={thClass}>Decision</th>
+          <th className={thClass}>Evidence</th>
+        </tr>
+      }
+      rows={sorted.map((d) => (
+        <tr key={`${d.key}-${d.role}`}>
+          <td className={cx(tdClass, "whitespace-nowrap font-mono text-xs")}>{isoUtc(d.decided_at_iso) || <Dash />}</td>
+          <td className={cx(tdClass, "font-mono text-xs")}>{d.role}</td>
+          <td className={cx(tdClass, "min-w-48")}>
+            <KepLink number={d.kep_number} /> <span className="text-sm">{d.kep_title}</span>
+          </td>
+          <td className={cx(tdClass, "font-mono text-xs")}>{d.kind}</td>
+          <td className={cx(tdClass, "min-w-56")}>{d.summary ?? <Dash />}</td>
+          <td className={cx(tdClass, "whitespace-nowrap")}>{d.url ? <ExtLink href={d.url}>evidence</ExtLink> : <Dash />}</td>
+        </tr>
+      ))}
+    />
   );
 }
 
@@ -263,30 +259,25 @@ function Owners({ p }: { p: PersonOut }) {
     );
   const sorted = [...p.owners].sort((a, b) => a.directory.localeCompare(b.directory) || a.role.localeCompare(b.role));
   return (
-    <TableWrap label="OWNERS directories">
-      <table className={tableClass}>
-        <caption className="mb-1 text-left text-xs text-fg-muted">
-          Directories this person can approve or review, from OWNERS and OWNERS_ALIASES at the ingested kubernetes/kubernetes commit.
-        </caption>
-        <thead>
-          <tr>
-            <th className={thClass}>Directory</th>
-            <th className={thClass}>Role</th>
-            <th className={thClass}>Via alias</th>
-            <th className={thClass}>Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((o, i) => (
-            <tr key={`${o.directory}-${o.role}-${i}`}>
-              <td className={cx(tdClass, "font-mono")}>{o.directory}</td>
-              <td className={cx(tdClass, "font-mono text-xs")}>{o.role}</td>
-              <td className={cx(tdClass, "font-mono text-xs")}>{o.via_alias ?? <Dash />}</td>
-              <td className={tdClass}>{o.source_url ? <ExtLink href={o.source_url}>OWNERS</ExtLink> : <Dash />}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableWrap>
+    <PagedTable
+      label="OWNERS directories"
+      caption="Directories this person can approve or review, from OWNERS and OWNERS_ALIASES at the ingested kubernetes/kubernetes commit."
+      head={
+        <tr>
+          <th className={thClass}>Directory</th>
+          <th className={thClass}>Role</th>
+          <th className={thClass}>Via alias</th>
+          <th className={thClass}>Source</th>
+        </tr>
+      }
+      rows={sorted.map((o, i) => (
+        <tr key={`${o.directory}-${o.role}-${i}`}>
+          <td className={cx(tdClass, "font-mono")}>{o.directory}</td>
+          <td className={cx(tdClass, "font-mono text-xs")}>{o.role}</td>
+          <td className={cx(tdClass, "font-mono text-xs")}>{o.via_alias ?? <Dash />}</td>
+          <td className={tdClass}>{o.source_url ? <ExtLink href={o.source_url}>OWNERS</ExtLink> : <Dash />}</td>
+        </tr>
+      ))}
+    />
   );
 }

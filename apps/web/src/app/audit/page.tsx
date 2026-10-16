@@ -10,6 +10,7 @@ import { FINDING_KIND_TEXT, isoUtc, ms, shortSha } from "@/lib/format";
 import { kindLabel, kindTones, toneColor } from "@/lib/kinds";
 import { releaseNames } from "@/lib/releases";
 import { FindingsTable } from "@/components/FindingsTable";
+import { PagedTable } from "@/components/PagedTable";
 import {
   Card,
   Chip,
@@ -24,7 +25,6 @@ import {
   SigLink,
   SkeletonBlock,
   StatTile,
-  TableWrap,
   cx,
   tableClass,
   tdClass,
@@ -362,10 +362,11 @@ function Changes({ result, filter }: { result: ApiResult<ChangesResponse>; filte
             .
           </p>
         ) : (
-          <TableWrap label="Changes table">
-            <table className={tableClass}>
-              <caption className="sr-only">Changes {scope}, newest first</caption>
-              <thead>
+          <div className="p-3">
+            <PagedTable
+              label="Changes table"
+              caption={`Changes ${scope || "in this range"}, newest first`}
+              head={
                 <tr>
                   <th className={thClass}>KEP</th>
                   <th className={thClass}>Field</th>
@@ -374,40 +375,38 @@ function Changes({ result, filter }: { result: ApiResult<ChangesResponse>; filte
                   <th className={thClass}>Actor</th>
                   <th className={thClass}>Evidence</th>
                 </tr>
-              </thead>
-              <tbody>
-                {items.map((c, i) => (
-                  <tr key={`${c.kep_number}-${c.field}-${c.at_iso}-${i}`}>
-                    <td className={cx(tdClass, "min-w-48")}>
-                      <KepLink number={c.kep_number} />
-                      {c.kep_title ? <p className="text-xs">{c.kep_title}</p> : null}
-                      {c.owning_sig ? <SigLink sig={c.owning_sig} className="text-xs" /> : null}
-                    </td>
-                    <td className={tdClass}>
-                      <span className="ident">{c.field}</span>
-                      <p className="text-xs text-fg-muted">{c.kind}</p>
-                    </td>
-                    <td className={cx(tdClass, "ident whitespace-nowrap")}>
-                      {c.from_value ?? <Dash />} → {c.to_value ?? <Dash />}
-                    </td>
-                    <td className={cx(tdClass, "ident tabular whitespace-nowrap text-fg-secondary")}>{isoUtc(c.at_iso) || <Dash />}</td>
-                    <td className={tdClass}>{c.actor_login ? <PersonLink login={c.actor_login} /> : <Dash />}</td>
-                    <td className={cx(tdClass, "whitespace-nowrap")}>
-                      {c.pr ? (
-                        <ExtLink href={c.pr.url}>
-                          <span className="ident">#{c.pr.number}</span>
-                        </ExtLink>
-                      ) : c.source_url ? (
-                        <ExtLink href={c.source_url}>source</ExtLink>
-                      ) : (
-                        <Dash />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
+              }
+              rows={items.map((c, i) => (
+                <tr key={`${c.kep_number}-${c.field}-${c.at_iso}-${i}`}>
+                  <td className={cx(tdClass, "min-w-48")}>
+                    <KepLink number={c.kep_number} />
+                    {c.kep_title ? <p className="text-xs">{c.kep_title}</p> : null}
+                    {c.owning_sig ? <SigLink sig={c.owning_sig} className="text-xs" /> : null}
+                  </td>
+                  <td className={tdClass}>
+                    <span className="ident">{c.field}</span>
+                    <p className="text-xs text-fg-muted">{c.kind}</p>
+                  </td>
+                  <td className={cx(tdClass, "ident whitespace-nowrap")}>
+                    {c.from_value ?? <Dash />} → {c.to_value ?? <Dash />}
+                  </td>
+                  <td className={cx(tdClass, "ident tabular whitespace-nowrap text-fg-secondary")}>{isoUtc(c.at_iso) || <Dash />}</td>
+                  <td className={tdClass}>{c.actor_login ? <PersonLink login={c.actor_login} /> : <Dash />}</td>
+                  <td className={cx(tdClass, "whitespace-nowrap")}>
+                    {c.pr ? (
+                      <ExtLink href={c.pr.url}>
+                        <span className="ident">#{c.pr.number}</span>
+                      </ExtLink>
+                    ) : c.source_url ? (
+                      <ExtLink href={c.source_url}>source</ExtLink>
+                    ) : (
+                      <Dash />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            />
+          </div>
         )}
       </div>
     </section>

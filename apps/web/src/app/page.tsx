@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AskClient } from "@/components/AskClient";
-import { ContradictionMap } from "@/components/ContradictionMap";
+import { FindingsChain } from "@/components/FindingsChain";
 import { EntryPoints } from "@/components/EntryPoints";
 import { InstrumentStrip } from "@/components/InstrumentStrip";
 import { EmptyState, ErrorState, SkeletonBlock } from "@/components/ui";
@@ -42,7 +42,7 @@ async function Home() {
       and replacement declarations.
     </EmptyState>
   ) : (
-    <ContradictionMap
+    <FindingsChain
       items={findings.data.items}
       summary={findings.data.summary}
       sigOrder={meta.ok ? meta.data.sigs : []}

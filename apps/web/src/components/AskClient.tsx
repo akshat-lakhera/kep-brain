@@ -24,7 +24,7 @@ import type {
 import { isoUtc, ms, numberFromPath, shortSha } from "@/lib/format";
 import { kindLabel } from "@/lib/kinds";
 import { AnswerMarkdown } from "./AnswerMarkdown";
-import { GraphPanel } from "./GraphPanel";
+import { EvidenceChain } from "./EvidenceChain";
 import { Tabs } from "./Tabs";
 import { Chip, ErrorState, ExtLink, Notice, cx, tableClass, tdClass, thClass } from "./ui";
 
@@ -603,15 +603,14 @@ function AnswerView({
           tabs={[
             {
               id: "graph",
-              label: `Graph path (${live.graph.edges.length})`,
+              label: `Evidence chain (${live.graph.edges.length})`,
               content: (
-                <GraphPanel
+                <EvidenceChain
                   graph={live.graph}
-                  layout={live.graph.nodes.length > 50 ? "fcose" : "dagre"}
-                  pathNodeIds={pathNodeIds}
+                  highlightIds={pathNodeIds}
                   citations={live.citations}
-                  label={`Graph path with ${live.graph.nodes.length} nodes and ${live.graph.edges.length} edges`}
-                  emptyText={final ? "The answer read no graph nodes." : "The traversed path appears here as the tools run."}
+                  label={`Evidence chain with ${live.graph.nodes.length} nodes and ${live.graph.edges.length} relations`}
+                  emptyText={final ? "The answer read no graph nodes." : "The path the answer walks appears here as the tools run."}
                 />
               ),
             },

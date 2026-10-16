@@ -1,31 +1,6 @@
 import type { GraphNode } from "./api/types";
 import { numberFromPath } from "./format";
 
-/** Node label -> Cytoscape shape (05 §7.4). Any other label uses "rectangle". */
-const SHAPES: Record<string, string> = {
-  KEP: "round-rectangle",
-  Person: "ellipse",
-  SIG: "hexagon",
-  WorkingGroup: "hexagon",
-  Committee: "hexagon",
-  PullRequest: "diamond",
-  Issue: "triangle",
-  Commit: "round-diamond",
-  Review: "round-triangle",
-  Comment: "round-tag",
-  Release: "tag",
-  StatusChange: "pentagon",
-  Decision: "octagon",
-  Document: "cut-rectangle",
-  Section: "bottom-round-rectangle",
-  FeatureGate: "rhomboid",
-  Finding: "concave-hexagon",
-};
-
-export function shapeFor(label: string): string {
-  return SHAPES[label] ?? "rectangle";
-}
-
 function after(sep: string, s: string): string {
   const i = s.lastIndexOf(sep);
   return i >= 0 ? s.slice(i + 1) : s;

@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { KepCard } from "@/lib/api/types";
 import { numberFromPath } from "@/lib/format";
 import { Dash, StatusChip, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { PagerBar, usePaging } from "@/components/PagedTable";
 import { SigLink } from "./links";
 
 type Col = "number" | "title" | "status" | "stage" | "latest_milestone" | "owning_sig" | "open_findings";
@@ -58,15 +59,18 @@ export function KepTable({
     return out;
   }, [items, sort]);
   const cols = COLS.filter((c) => !(hideSig && c.id === "owning_sig"));
+  const paging = usePaging(sorted.length);
 
   function toggle(col: Col) {
     setSort((s) => (s.col === col ? { col, dir: s.dir === 1 ? -1 : 1 } : { col, dir: 1 }));
   }
 
   return (
+    <div>
+    <PagerBar paging={paging} note={caption} />
     <TableWrap label={label}>
       <table className={tableClass}>
-        {caption ? <caption className="mb-1 text-left text-xs text-fg-muted">{caption}</caption> : null}
+        <caption className="sr-only">{label}</caption>
         <thead>
           <tr>
             {cols.map((c) => {
@@ -98,7 +102,7 @@ export function KepTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((k) => {
+          {sorted.slice(paging.start, paging.end).map((k) => {
             const num = k.number ?? numberFromPath(k.key);
             return (
               <tr key={k.key}>
@@ -126,5 +130,6 @@ export function KepTable({
         </tbody>
       </table>
     </TableWrap>
+    </div>
   );
 }

@@ -10,6 +10,7 @@ import type {
   AskResponse,
   EvalQuestion,
   FindingDetail,
+  GraphOut,
   ItemList,
   KepList,
   MemoryMe,
@@ -77,6 +78,9 @@ async function failureOf(res: Response): Promise<ApiFailure> {
 
 export const clientApi = {
   searchKeps: (q: string, signal?: AbortSignal) => get<KepList>(paths.keps({ q, limit: 8 }), { signal }),
+  /** GET /v1/graph/neighborhood: one hop around a node, for opening it in the evidence chain. */
+  neighborhood: (key: string, signal?: AbortSignal) =>
+    get<GraphOut>(`/v1/graph/neighborhood?key=${encodeURIComponent(key)}&depth=1&limit=60`, { signal }),
   ask: (question: string, signal?: AbortSignal): Promise<ApiResult<AskResponse>> =>
     request<AskResponse>(`${PROXY}${paths.ask()}`, {
       method: "POST",

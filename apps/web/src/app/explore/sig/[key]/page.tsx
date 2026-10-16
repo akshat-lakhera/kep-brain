@@ -11,6 +11,7 @@ import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, TableWrap, 
 import { KepTable } from "@/components/explore/KepTable";
 import { StatusBars } from "@/components/explore/StatusBars";
 import { PersonLink, PersonList } from "@/components/explore/links";
+import { PagedTable } from "@/components/PagedTable";
 
 const KEY = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
@@ -195,36 +196,31 @@ function People({ s }: { s: SigDetail }) {
     return <EmptyState title="No people recorded">No kep.yaml, PRR file or sigs.yaml entry in this SIG names a person.</EmptyState>;
   const sorted = [...s.people].sort((a, b) => b.roles.length - a.roles.length || a.login.localeCompare(b.login));
   return (
-    <TableWrap label="People">
-      <table className={tableClass}>
-        <caption className="mb-1 text-left text-xs text-fg-muted">
-          {sorted.length.toLocaleString("en-US")} people with a role on this SIG or its KEPs, most roles first.
-        </caption>
-        <thead>
-          <tr>
-            <th className={thClass}>Person</th>
-            <th className={thClass}>Roles</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((p) => (
-            <tr key={p.login}>
-              <td className={cx(tdClass, "whitespace-nowrap")}>
-                <PersonLink login={p.login} />
-              </td>
-              <td className={tdClass}>
-                <span className="flex flex-wrap gap-1">
-                  {p.roles.map((r) => (
-                    <span key={r} className="rounded-sm border border-border bg-surface-subtle px-1 font-mono text-xs">
-                      {r}
-                    </span>
-                  ))}
+    <PagedTable
+      label="People"
+      caption={`${sorted.length.toLocaleString("en-US")} people with a role on this SIG or its KEPs, most roles first.`}
+      head={
+        <tr>
+          <th className={thClass}>Person</th>
+          <th className={thClass}>Roles</th>
+        </tr>
+      }
+      rows={sorted.map((p) => (
+        <tr key={p.login}>
+          <td className={cx(tdClass, "whitespace-nowrap")}>
+            <PersonLink login={p.login} />
+          </td>
+          <td className={tdClass}>
+            <span className="flex flex-wrap gap-1">
+              {p.roles.map((r) => (
+                <span key={r} className="rounded-sm border border-border bg-surface-subtle px-1 font-mono text-xs">
+                  {r}
                 </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableWrap>
+              ))}
+            </span>
+          </td>
+        </tr>
+      ))}
+    />
   );
 }

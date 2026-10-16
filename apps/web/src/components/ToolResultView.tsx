@@ -6,7 +6,7 @@ import type { ToolResult } from "@/lib/api/types";
 import { ms } from "@/lib/format";
 import { pathsToGraph } from "@/lib/toolgraph";
 import { RowsTable } from "./DataView";
-import { GraphPanel } from "./GraphPanel";
+import { EvidenceChain } from "./EvidenceChain";
 import { Tabs } from "./Tabs";
 import { Chip, EmptyState, ExtLink, cx } from "./ui";
 
@@ -82,13 +82,11 @@ function Paths({ result, graph }: { result: ToolResult; graph: ReturnType<typeof
   }
   return (
     <div className="space-y-4">
-      <GraphPanel
+      <EvidenceChain
         graph={graph}
-        layout={graph.nodes.length > 40 ? "fcose" : "dagre"}
-        pathNodeIds={graph.nodes.map((n) => n.id)}
-        label={`Subgraph traversed by the tool: ${graph.nodes.length} nodes and ${graph.edges.length} edges over ${result.paths.length} paths`}
+        highlightIds={graph.nodes.map((n) => n.id)}
+        label={`Subgraph traversed by the tool: ${graph.nodes.length} nodes and ${graph.edges.length} relations over ${result.paths.length} paths`}
         emptyText="The paths name no nodes."
-        height={300}
       />
       <ol className="space-y-1 font-mono text-xs" aria-label="Paths as returned">
         {result.paths.map((p, i) => (

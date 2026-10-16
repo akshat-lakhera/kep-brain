@@ -8,10 +8,11 @@ import type { ApiResult } from "@/lib/api/core";
 import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, KepDetail, KepRef, StatusChangeOut, ToolSpec } from "@/lib/api/types";
 import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, shortSha } from "@/lib/format";
 import { fieldsOf } from "@/lib/schema";
-import { GraphPanel } from "@/components/GraphPanel";
+import { EvidenceChain } from "@/components/EvidenceChain";
 import { Tabs } from "@/components/Tabs";
 import { ToolResultView } from "@/components/ToolResultView";
 import { PersonLink, SigLink } from "@/components/explore/links";
+import { PagedTable } from "@/components/PagedTable";
 import {
   Card,
   Chip,
@@ -407,59 +408,56 @@ function History({ result }: { result: ApiResult<ItemList<StatusChangeOut>> }) {
   if (items.length === 0)
     return <EmptyState title="No status history recorded">No metadata, label or milestone change has been ingested for this KEP.</EmptyState>;
   return (
-    <TableWrap label="Status history">
-      <table className={tableClass}>
-        <caption className="mb-1 text-left text-xs text-fg-muted">Metadata, label and milestone changes, oldest first.</caption>
-        <thead>
-          <tr>
-            <th className={thClass}>At</th>
-            <th className={thClass}>Kind</th>
-            <th className={thClass}>Field</th>
-            <th className={thClass}>Change</th>
-            <th className={thClass}>Actor</th>
-            <th className={thClass}>Evidence</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((c) => (
-            <tr key={c.key}>
-              <td className={cx(tdClass, "font-mono whitespace-nowrap text-xs")}>{isoUtc(c.at_iso)}</td>
-              <td className={cx(tdClass, "font-mono text-xs")}>{c.kind}</td>
-              <td className={cx(tdClass, "font-mono")}>
-                {c.field}
-                {c.op ? <span className="text-fg-muted"> {c.op}</span> : null}
-              </td>
-              <td className={cx(tdClass, "font-mono")}>
-                {c.from_value ?? <Dash />} → {c.to_value ?? <Dash />}
-                {c.is_reversal ? (
-                  <span className="ml-2">
-                    <Chip tone="warning">reversal</Chip>
-                  </span>
-                ) : null}
-              </td>
-              <td className={tdClass}>{c.actor_login ? <PersonLink login={c.actor_login} /> : <Dash />}</td>
-              <td className={tdClass}>
-                <span className="flex flex-wrap gap-x-3">
-                  {c.commit_sha ? (
-                    <ExtLink href={c.source_url}>
-                      <span className="font-mono">{shortSha(c.commit_sha)}</span>
-                    </ExtLink>
-                  ) : c.source_url ? (
-                    <ExtLink href={c.source_url}>source</ExtLink>
-                  ) : null}
-                  {c.pr ? (
-                    <ExtLink href={c.pr.url}>
-                      <span className="font-mono">PR #{c.pr.number}</span>
-                    </ExtLink>
-                  ) : null}
-                  {!c.source_url && !c.pr ? <Dash /> : null}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableWrap>
+    <PagedTable
+      label="Status history"
+      caption="Metadata, label and milestone changes, oldest first."
+      head={
+        <tr>
+          <th className={thClass}>At</th>
+          <th className={thClass}>Kind</th>
+          <th className={thClass}>Field</th>
+          <th className={thClass}>Change</th>
+          <th className={thClass}>Actor</th>
+          <th className={thClass}>Evidence</th>
+        </tr>
+      }
+      rows={items.map((c) => (
+        <tr key={c.key}>
+          <td className={cx(tdClass, "font-mono whitespace-nowrap text-xs")}>{isoUtc(c.at_iso)}</td>
+          <td className={cx(tdClass, "font-mono text-xs")}>{c.kind}</td>
+          <td className={cx(tdClass, "font-mono")}>
+            {c.field}
+            {c.op ? <span className="text-fg-muted"> {c.op}</span> : null}
+          </td>
+          <td className={cx(tdClass, "font-mono")}>
+            {c.from_value ?? <Dash />} → {c.to_value ?? <Dash />}
+            {c.is_reversal ? (
+              <span className="ml-2">
+                <Chip tone="warning">reversal</Chip>
+              </span>
+            ) : null}
+          </td>
+          <td className={tdClass}>{c.actor_login ? <PersonLink login={c.actor_login} /> : <Dash />}</td>
+          <td className={tdClass}>
+            <span className="flex flex-wrap gap-x-3">
+              {c.commit_sha ? (
+                <ExtLink href={c.source_url}>
+                  <span className="font-mono">{shortSha(c.commit_sha)}</span>
+                </ExtLink>
+              ) : c.source_url ? (
+                <ExtLink href={c.source_url}>source</ExtLink>
+              ) : null}
+              {c.pr ? (
+                <ExtLink href={c.pr.url}>
+                  <span className="font-mono">PR #{c.pr.number}</span>
+                </ExtLink>
+              ) : null}
+              {!c.source_url && !c.pr ? <Dash /> : null}
+            </span>
+          </td>
+        </tr>
+      ))}
+    />
   );
 }
 
@@ -529,13 +527,11 @@ function Lineage({ k }: { k: KepDetail }) {
     return <EmptyState title="No lineage recorded">This KEP declares no replaces, superseded-by or see-also relation, and no KEP declares one towards it.</EmptyState>;
   return (
     <div className="space-y-4">
-      <GraphPanel
+      <EvidenceChain
         graph={g}
-        layout="dagre"
-        pathNodeIds={[k.key]}
+        rootIds={[k.key]}
         label={`Lineage of ${k.key}: ${g.nodes.length} KEPs and ${g.edges.length} relations`}
         emptyText="No lineage."
-        height={300}
       />
       <TableWrap label="Lineage">
         <table className={tableClass}>
