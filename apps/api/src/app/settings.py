@@ -28,7 +28,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "console"
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
     cors_origins: str = "http://localhost:3000"
     service_name: str = "kep-brain-api"
     public_base_url: str = "http://localhost:3000"
@@ -83,8 +82,6 @@ class Settings(BaseSettings):
     admin_token: SecretStr | None = None
     mcp_token: SecretStr | None = None
     mcp_port: int = 8765
-    stale_after_hours: int = 24
-    stale_tracker_gap_days: int = 90
 
     @field_validator("sigs")
     @classmethod
