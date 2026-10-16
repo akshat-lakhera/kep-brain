@@ -50,6 +50,10 @@ class QueryOutput:
     run_time_ms: float
     stats: dict[str, int]
 
+    def as_dicts(self) -> list[dict[str, Any]]:
+        """Rows as header-keyed dicts."""
+        return [dict(zip(self.header, row, strict=False)) for row in self.rows]
+
 
 def _is_timeout(exc: Exception) -> bool:
     text = str(exc).lower()

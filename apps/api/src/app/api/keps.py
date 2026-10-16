@@ -7,8 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from app.api.audit_check import load_verdicts, with_verdicts
-from app.api.deps import pool_of, rows_of
-from app.db.falkordb import GRAPH_KEP
+from app.api.deps import graph_of, pool_of, rows_of, variant_for
 from app.errors import AppError
 from app.schema.labels import VALID_TO_OPEN
 from app.tools.base import Projector
@@ -132,12 +131,12 @@ def _card(row: dict[str, Any]) -> dict[str, Any]:
 async def resolve_card(request: Request, number: int, path: str | None) -> dict[str, Any]:
     pool = pool_of(request)
     if path:
-        out = await pool.ro_query(GRAPH_KEP, BY_PATH_CARD, {"key": path.strip("/"), "open_states": OPEN_STATES})
+        out = await pool.ro_query(graph_of(request), BY_PATH_CARD, {"key": path.strip("/"), "open_states": OPEN_STATES})
         rows = rows_of(out)
         if not rows or rows[0]["number"] not in (number, None):
             raise AppError("kep_not_found", {"number": number, "path": path})
         return _card(rows[0])
-    rows = rows_of(await pool.ro_query(GRAPH_KEP, BY_NUMBER, {"number": number, "open_states": OPEN_STATES}))
+    rows = rows_of(await pool.ro_query(graph_of(request), BY_NUMBER, {"number": number, "open_states": OPEN_STATES}))
     if not rows:
         raise AppError("kep_not_found", {"number": number})
     if len(rows) > 1:
@@ -154,17 +153,17 @@ async def list_keps(
     limit: int = Query(default=20, ge=1, le=300),
 ) -> dict[str, Any]:
     pool = pool_of(request)
-    variant = next(n for n in LIMITS if n >= limit)
+    variant = variant_for(limit, LIMITS)
     args: dict[str, Any] = {"sig": sig, "status": status, "open_states": OPEN_STATES}
     q = q.strip()
     num = q.upper().removeprefix("KEP-").removeprefix("KEP").strip()
     if num.isdigit():
-        rows = rows_of(await pool.ro_query(GRAPH_KEP, BY_NUMBER, {**args, "number": int(num)}))
+        rows = rows_of(await pool.ro_query(graph_of(request), BY_NUMBER, {**args, "number": int(num)}))
     elif q:
         term = fulltext_term(q)
-        rows = rows_of(await pool.ro_query(GRAPH_KEP, SEARCH[variant], {**args, "term": term})) if term else []
+        rows = rows_of(await pool.ro_query(graph_of(request), SEARCH[variant], {**args, "term": term})) if term else []
     else:
-        rows = rows_of(await pool.ro_query(GRAPH_KEP, LIST[variant], args))
+        rows = rows_of(await pool.ro_query(graph_of(request), LIST[variant], args))
     return {"items": [_card(r) for r in rows[:limit]]}
 
 
@@ -172,8 +171,8 @@ async def list_keps(
 async def get_kep_detail(request: Request, number: int, path: str | None = Query(default=None)) -> dict[str, Any]:
     card = await resolve_card(request, number, path)
     pool = pool_of(request)
-    detail = rows_of(await pool.ro_query(GRAPH_KEP, DETAIL, {"key": card["key"], "open": VALID_TO_OPEN}))[0]
-    findings = rows_of(await pool.ro_query(GRAPH_KEP, KEP_FINDINGS, {"key": card["key"]}))
+    detail = rows_of(await pool.ro_query(graph_of(request), DETAIL, {"key": card["key"], "open": VALID_TO_OPEN}))[0]
+    findings = rows_of(await pool.ro_query(graph_of(request), KEP_FINDINGS, {"key": card["key"]}))
     with_verdicts(findings, load_verdicts())
     issues = detail.pop("tracking_issue") or []
     sections = sorted(detail.pop("sections") or [], key=lambda s: (s.get("order") or 0, s.get("anchor") or ""))
@@ -198,17 +197,16 @@ def _detail_out(
 @router.get("/keps/{number}/history")
 async def kep_history(request: Request, number: int, path: str | None = Query(default=None)) -> dict[str, Any]:
     card = await resolve_card(request, number, path)
-    rows = rows_of(await pool_of(request).ro_query(GRAPH_KEP, HISTORY, {"key": card["key"]}))
+    rows = rows_of(await pool_of(request).ro_query(graph_of(request), HISTORY, {"key": card["key"]}))
     return {"items": rows}
 
 
 @router.get("/keps/{number}/decisions")
 async def kep_decisions(request: Request, number: int, path: str | None = Query(default=None)) -> dict[str, Any]:
     card = await resolve_card(request, number, path)
-    out = await pool_of(request).ro_query(GRAPH_KEP, DECISIONS, {"key": card["key"]})
+    out = await pool_of(request).ro_query(graph_of(request), DECISIONS, {"key": card["key"]})
     items = []
-    for raw in out.rows:
-        row = dict(zip(out.header, raw, strict=False))
+    for row in out.as_dicts():
         proj = Projector()
         proj.value(row.pop("evidence") or [])
         row["evidence"] = [e.model_dump() for e in proj.evidence.values()]

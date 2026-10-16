@@ -8,9 +8,8 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from app.api.audit_check import hand_check_summary, load_verdicts, with_verdicts
-from app.api.deps import pool_of, rows_of
+from app.api.deps import graph_of, pool_of, rows_of
 from app.api.keps import FINDING_FIELDS
-from app.db.falkordb import GRAPH_KEP
 from app.errors import AppError
 from app.tools.base import Projector
 from app.tools.cypher import unique_comprehension_vars
@@ -44,7 +43,7 @@ async def list_findings(
     sig: str = Query(default="", max_length=60),
     state: str = Query(default="", max_length=30),
 ) -> dict[str, Any]:
-    out = await pool_of(request).ro_query(GRAPH_KEP, LIST, {"kind": kind, "sig": sig, "state": state})
+    out = await pool_of(request).ro_query(graph_of(request), LIST, {"kind": kind, "sig": sig, "state": state})
     items = with_verdicts(rows_of(out), load_verdicts())
     return {
         "summary": {
@@ -62,10 +61,10 @@ async def list_findings(
 async def get_finding(request: Request, key: str) -> dict[str, Any]:
     from app.schema.labels import VALID_TO_OPEN
 
-    out = await pool_of(request).ro_query(GRAPH_KEP, ONE, {"key": key, "open": VALID_TO_OPEN})
+    out = await pool_of(request).ro_query(graph_of(request), ONE, {"key": key, "open": VALID_TO_OPEN})
     if not out.rows:
         raise AppError("not_found", {"key": key[:200]})
-    row = dict(zip(out.header, out.rows[0], strict=False))
+    row = out.as_dicts()[0]
     proj = Projector()
     proj.value([row.pop("kep"), row.pop("issues") or [], row.pop("evidence_nodes") or []])
     row["evidence"] = [e.model_dump() for e in proj.evidence.values()]

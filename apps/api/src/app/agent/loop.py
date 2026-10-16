@@ -271,7 +271,7 @@ class Agent:
             out = await self.pool.ro_query(GRAPH_KEP, KNOWN_ISSUES, {"numbers": numbers})
         except AppError:
             return [], []
-        rows = [dict(zip(out.header, r, strict=False)) for r in out.rows]
+        rows = out.as_dicts()
         return rows, [r["key"] for r in rows]
 
     async def _run_tool(self, st: AskState, call: ToolCall, emit: Emit) -> str:

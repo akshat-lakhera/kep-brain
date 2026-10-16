@@ -528,7 +528,7 @@ async def board(pool: FalkorPool, ops_graph: str = GRAPH_OPS, kep_graph: str = G
 
     async def rows(graph: str, query: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         out = await pool.ro_query(graph, query, params)
-        return [dict(zip(out.header, r, strict=False)) for r in out.rows]
+        return out.as_dicts()
 
     result: dict[str, Any] = {"agents": [], "tasks": [], "handoffs_last_hour": [], "drafts": [], "findings_recent": []}
     if ops_graph in graphs:

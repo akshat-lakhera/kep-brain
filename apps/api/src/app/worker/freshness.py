@@ -206,7 +206,7 @@ def gather_context(pool: FalkorPool, finding_key: str, graph: str = GRAPH_KEP) -
     out = pool.run_sync(Role.WRITER, graph, GATHER, {"key": finding_key}, read_only=True, timeout_ms=10000)
     if not out.rows:
         return None
-    r = dict(zip(out.header, out.rows[0], strict=False))
+    r = out.as_dicts()[0]
     rows: dict[str, EvidenceRow] = {}
     for node in [r["kep"], *r["issues"], *r["evidence"]]:
         row = _row(node)

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.agent.provider import llm_configured
 from app.api.changes import release_keys
-from app.api.deps import pool_of, settings_of
+from app.api.deps import pool_of, settings_of, variant_for
 from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.errors import AppError
 from app.eval.questions import judge_questions, latest_summary, load_questions, public_question
@@ -134,7 +134,7 @@ async def neighborhood(
     limit: int = Query(default=60, ge=1, le=200),
 ) -> dict[str, Any]:
     pool = pool_of(request)
-    variant = next(n for n in (20, 60, 120, 200) if n >= limit)
+    variant = variant_for(limit, (20, 60, 120, 200))
     for label in _labels_for(key):
         out = await pool.ro_query(GRAPH_KEP, _hood(label, depth, variant), {"key": key, "open": VALID_TO_OPEN})
         if out.rows:

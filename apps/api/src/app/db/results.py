@@ -6,7 +6,7 @@ import base64
 import hashlib
 from typing import Any
 
-from falkordb import Edge, Node, Path
+from falkordb import Node
 from pydantic import BaseModel
 
 # Properties that never leave the API (large or internal).
@@ -55,22 +55,6 @@ def node_title(label: str, props: dict[str, Any]) -> str:
     return key
 
 
-def to_plain(value: Any) -> Any:
-    if isinstance(value, Node):
-        props = {k: v for k, v in (value.properties or {}).items() if k not in _HIDDEN}
-        return {"_label": primary_label(value), **props}
-    if isinstance(value, Edge):
-        props = {k: v for k, v in (value.properties or {}).items() if k not in _HIDDEN}
-        return {"_type": value.relation, **props}
-    if isinstance(value, Path):
-        return {"_path": [to_plain(n) for n in value.nodes()], "_rels": [to_plain(e) for e in value.edges()]}
-    if isinstance(value, list):
-        return [to_plain(v) for v in value]
-    if isinstance(value, dict):
-        return {k: to_plain(v) for k, v in value.items()}
-    return value
-
-
 def node_evidence(node: Node) -> Evidence | None:
     props = node.properties or {}
     key = props.get("key")
@@ -85,20 +69,3 @@ def node_evidence(node: Node) -> Evidence | None:
         title=node_title(label, props),
         url=str(url),
     )
-
-
-def collect_evidence(values: Any, sink: dict[str, Evidence]) -> None:
-    """Walk a result value and collect evidence for every keyed node it contains."""
-    if isinstance(values, Node):
-        ev = node_evidence(values)
-        if ev is not None:
-            sink.setdefault(ev.evidence_id, ev)
-    elif isinstance(values, Path):
-        for n in values.nodes():
-            collect_evidence(n, sink)
-    elif isinstance(values, list):
-        for v in values:
-            collect_evidence(v, sink)
-    elif isinstance(values, dict):
-        for v in values.values():
-            collect_evidence(v, sink)

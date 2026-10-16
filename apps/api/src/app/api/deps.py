@@ -35,7 +35,12 @@ def settings_of(request: Request) -> Settings:
 
 
 def rows_of(out: QueryOutput) -> list[dict[str, Any]]:
-    return [dict(zip(out.header, row, strict=False)) for row in out.rows]
+    return out.as_dicts()
+
+
+def variant_for(limit: int, variants: tuple[int, ...]) -> int:
+    """The smallest fixed LIMIT variant that covers `limit` (queries are cached per literal LIMIT)."""
+    return next(n for n in variants if n >= limit)
 
 
 def request_id_of(request: Request) -> str:

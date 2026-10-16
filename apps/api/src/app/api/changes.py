@@ -34,7 +34,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
-from app.api.deps import graph_of, pool_of, rows_of
+from app.api.deps import graph_of, pool_of, rows_of, variant_for
 from app.db.falkordb import FalkorPool
 from app.errors import AppError
 from app.tools.noise import automation_label_predicate
@@ -179,7 +179,7 @@ async def list_changes(
         "tracking_labels": TRACKING_LABELS,
         "include_labels": include_labels,
     }
-    variant = next(n for n in LIMITS if n >= limit)
+    variant = variant_for(limit, LIMITS)
     items = rows_of(await pool.ro_query(graph, ITEMS[variant], args, timeout_ms=5000))[:limit]
     counts_rows = rows_of(await pool.ro_query(graph, COUNTS, args, timeout_ms=5000))
     new_rows = rows_of(await pool.ro_query(graph, NEW_KEPS, args, timeout_ms=5000))
