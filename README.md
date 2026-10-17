@@ -12,6 +12,7 @@ A company brain for the Kubernetes enhancement process. It loads KEPs, SIG roste
 
 ## Table of contents
 
+- [The problem](#the-problem)
 - [What it does](#what-it-does)
 - [Screenshots](#screenshots)
 - [How it works](#how-it-works)
@@ -29,9 +30,19 @@ A company brain for the Kubernetes enhancement process. It loads KEPs, SIG roste
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
 
+## The problem
+
+Every significant change to Kubernetes goes through a KEP, a Kubernetes Enhancement Proposal. A KEP is a folder in [kubernetes/enhancements](https://github.com/kubernetes/enhancements) with the proposal text and a `kep.yaml` metadata file, plus a tracking issue in the same repository; the issue number is the KEP number. The [KEP process](https://github.com/kubernetes/enhancements/blob/master/keps/sig-architecture/0000-kep-process/README.md) makes `kep.yaml` the record of a KEP's state: `status` is required, must be one of seven values, and the metadata is "critical to clearly communicate the status of a KEP" and "used to support tooling around filtering and display". The same document pairs `replaces` with `superseded-by` on the other KEP and with the `replaced` status.
+
+Nothing enforces that. The state of a KEP is written in several places by different people at different times: `kep.yaml` in a pull request, the tracking issue's state, labels and milestone by the release team, and the replacement declarations in two KEPs. They drift apart, and the drift is invisible to anyone reading one record. On the three SIGs loaded here, 59 of 238 KEPs' records disagree. Forty of them are KEPs whose `kep.yaml` still says `implementable` or `provisional` while their tracking issue was closed as completed, some as far back as 2021. Anyone who filters KEPs by status, as the process says the metadata is for, gets a wrong answer for those.
+
+The questions behind that drift are the questions anyone joining a SIG, running a release or reviewing a proposal asks and cannot answer from one file: who decided this KEP's current state and on what evidence, who approved it, who actually knows this area, what replaced what, what changed since the last release, and which records are stale.
+
+**How KEP Brain tackles it.** It reads every source live from public GitHub into one FalkorDB graph and keeps the history: each state edge carries the interval it was valid for, so "current" and "as of release X" are the same graph with a different filter. From the kep.yaml history it derives who decided each state and links each decision to the commit, the pull request and the approvers. Five predicates written from the process rules above compare the records pairwise and write each disagreement as a `Finding` with both sides, their source URLs and a suggested fix, and the audit page drafts the issue text from that evidence. Questions are answered by an agent that may only use read-only graph tools; a validator checks that every claim cites a record returned in that request and replaces the answer with an abstention if it cannot. Every citation is a graph node with a public GitHub URL, so the answer can be checked in one click.
+
 ## What it does
 
-A KEP (Kubernetes Enhancement Proposal) is a decision record. Its state lives in several places at once: the `kep.yaml` file, the tracking issue with its labels and milestones, the pull requests that changed the file, and the KEPs it replaces or is replaced by. These records drift apart. KEP Brain puts them in one graph and reads them together.
+A KEP's state lives in several places at once: the `kep.yaml` file, the tracking issue with its labels and milestones, the pull requests that changed the file, and the KEPs it replaces or is replaced by. KEP Brain puts them in one graph and reads them together.
 
 - **Live ingest from public GitHub.** The worker clones `kubernetes/enhancements` and `kubernetes/community`, reads OWNERS files from `kubernetes/kubernetes` through the GitHub API, and fetches tracking issues, timelines, pull requests and review threads. Every run upserts into the same FalkorDB graph, so re-running is safe.
 - **Who decided what, from which evidence.** Every `kep.yaml` revision is diffed field by field. Each status, stage or milestone change becomes a `StatusChange` linked to its commit and pull request. From these, the worker derives `Decision` nodes and attaches the people who approved them and the records that prove it.

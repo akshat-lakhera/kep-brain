@@ -7,15 +7,31 @@ import type { ChangesResponse, Finding, FindingsSummary, ItemList } from "@/lib/
 import type { SigCard } from "@/lib/api/types-explore";
 import { isoDate, numberFromPath } from "@/lib/format";
 import { kindLabel } from "@/lib/kinds";
-import { Dash, ErrorState, KepLink, SigLink } from "./ui";
+import { Dash, ErrorState, KepLink, SigLink, cx } from "./ui";
 
 const ROWS = 7;
 
-function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+/** One bento tile: eyebrow title, optional count and action, then the list. */
+function Panel({
+  title,
+  count,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  count?: number;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="min-w-0 bg-surface p-4" aria-label={title}>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
+    <section className={cx("min-w-0 rounded-md border border-border bg-surface p-4", className)} aria-label={title}>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h2 className="eyebrow">
+          {title}
+          {count !== undefined ? <span className="tabular ml-2 normal-case tracking-normal text-fg-secondary">{count.toLocaleString("en-US")}</span> : null}
+        </h2>
         {action}
       </div>
       {children}
@@ -50,22 +66,22 @@ export function EntryPoints({
     .slice(0, ROWS);
 
   return (
-    <div className="grid gap-px overflow-hidden rounded-md border border-border bg-border md:grid-cols-3">
-      <Panel title="Changed most recently">
+    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1.25fr_0.85fr_1fr]">
+      <Panel title="Changed most recently" className="md:col-span-2 lg:col-span-1">
         <RecentChanges changes={changes} />
       </Panel>
 
-      <Panel title="SIGs">
+      <Panel title="SIGs" count={teams.length}>
         {teams.length === 0 ? (
           <p className="text-sm text-fg-secondary">The API reports no loaded SIG.</p>
         ) : (
           <table className="w-full text-sm">
             <caption className="sr-only">Loaded SIGs with their KEPs and findings</caption>
             <thead>
-              <tr className="text-xs text-fg-secondary">
-                <th className="py-1 text-left font-normal">SIG</th>
-                <th className="py-1 text-right font-normal">KEPs</th>
-                <th className="py-1 text-right font-normal">Findings</th>
+              <tr className="text-xs uppercase tracking-wide text-fg-muted">
+                <th className="border-b border-border-strong py-1 text-left font-medium">SIG</th>
+                <th className="border-b border-border-strong py-1 text-right font-medium">KEPs</th>
+                <th className="border-b border-border-strong py-1 text-right font-medium">Findings</th>
               </tr>
             </thead>
             <tbody>
@@ -96,7 +112,8 @@ export function EntryPoints({
       </Panel>
 
       <Panel
-        title={`Open findings · ${open.length.toLocaleString("en-US")}`}
+        title="Open findings"
+        count={open.length}
         action={
           <Link href={"/audit?state=open#findings" as Route} className="quiet-link text-xs">
             All in Audit

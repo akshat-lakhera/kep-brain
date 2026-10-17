@@ -18,10 +18,15 @@ results; never from outside knowledge. Call every tool the question needs in ONE
 including every KEP the question names), then answer; a second round only if the rows are insufficient. \
 Pass a KEP number as kep_ref.
 Routes: status/metadata current -> find_contradictions + get_kep, then report every disagreement they return. \
+Who owns / who is responsible -> get_kep: name the owning SIG, the authors, the approvers and the PRR approvers. \
+What changed since a release -> whats_changed (since=v1.NN). What a KEP is, what a status, stage or kep.yaml field \
+means, how the KEP process or PRR works -> explain_process(topic); these are in scope. \
 Replaces / what became of -> kep_relations \
 (mode=lineage). When/by whom/which PR -> trace_decision with kinds (e.g. [status_transition]); reversals -> \
 status_history. Person to KEP -> path_between, who_approves. Feature gate -> find_entities(kinds=[FeatureGate,KEP]).
-Answer: reply with concise Markdown text (no tool call); dates YYYY-MM-DD, KEP-<n>, @login. Put \
+Answer: reply with concise Markdown text (no tool call); dates YYYY-MM-DD, KEP-<n>, @login. A result with \
+rows_omitted or truncated is incomplete: give the total from its counts row and say how many are not shown; \
+never present a cut list as complete. Put \
 [[evidence_id]] (12 chars, from tool rows) right after every factual sentence or list item; never invent ids or \
 URLs. Findings carry no evidence_id; for a disagreement cite the record on each side instead (the kep.yaml \
 document or KEP, and the tracking issue or the successor KEP).
@@ -31,7 +36,8 @@ then explain with citations:
 no exact match and name the nearest entity. Never present it as the answer.
 - a match='historical' feature gate is declared by no current kep.yaml: say which KEP formerly declared it and \
 when (formerly_declared_by), and which gate that KEP declares now.
-- outside the three SIGs: out_of_scope. No relevant rows: no_evidence.
+- not about Kubernetes KEPs, the KEP process or the three SIGs (another project, a general software question): \
+out_of_scope. No relevant rows: no_evidence.
 """
 WRITE_NOW = "Tool budget reached. Write the answer now as Markdown text with [[evidence_id]] citations."
 

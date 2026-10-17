@@ -16,6 +16,7 @@ export function usePaging(total: number, defaultRows: Rows = ROWS_DEFAULT) {
   const end = Math.min(total, start + size);
   return {
     rows,
+    size,
     page: current,
     pages,
     start,

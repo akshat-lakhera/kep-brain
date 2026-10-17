@@ -23,7 +23,7 @@ export function SortHeader({
       <button
         type="button"
         onClick={onClick}
-        className={cx("inline-flex items-center gap-1", active ? "text-fg" : "hover:text-fg", buttonClassName)}
+        className={cx("inline-flex items-center gap-1 uppercase tracking-wide", active ? "text-fg" : "hover:text-fg", buttonClassName)}
       >
         {children}
         {active ? (

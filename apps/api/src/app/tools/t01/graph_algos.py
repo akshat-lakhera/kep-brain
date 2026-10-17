@@ -9,7 +9,7 @@ from pydantic import Field, field_validator
 
 from app.errors import AppError
 from app.ingest.common import normalise_login
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import _coerce, resolve_kep, unresolved_rows
 
 EndpointLabel = Literal["KEP", "Person", "SIG", "FeatureGate", "Issue", "PullRequest", "Decision", "Release"]
@@ -126,7 +126,7 @@ HAS_METRIC = "MATCH (p:Person) WHERE p.{metric} IS NOT NULL RETURN count(p) AS n
 
 
 class RankPeopleParams(ToolParams):
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$")
+    sig: SigKey | None = Field(default=None)
     kep_refs: list[str] = Field(default_factory=list, max_length=20)
     metric: Literal["pagerank", "betweenness", "degree"] = "pagerank"
     limit: Literal[5, 10, 20] = 10

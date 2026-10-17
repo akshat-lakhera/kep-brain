@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Citation, GraphEdge, GraphNode, GraphOut } from "@/lib/api/types";
 import { pageHref } from "@/lib/routes";
@@ -289,7 +289,16 @@ export function EvidenceChain({
 
   if (graph.nodes.length === 0) return <p className="text-fg-secondary">{emptyText}</p>;
 
-  function renderNode(id: string, parentPath: string, ancestors: Set<string>, depth: number, phrase?: string, cited?: number[]) {
+  /** One row (`<li>`) for a node; `inside` is a nested list rendered within the same item, never as a sibling `<li>`. */
+  function renderNode(
+    id: string,
+    parentPath: string,
+    ancestors: Set<string>,
+    depth: number,
+    phrase?: string,
+    cited?: number[],
+    inside?: ReactNode,
+  ) {
     const node = g.nodes.get(id);
     if (!node) return null;
     const path = parentPath ? `${parentPath}>${id}` : id;
@@ -331,6 +340,7 @@ export function EvidenceChain({
           {loading.has(id) ? <span className="text-xs text-fg-muted">loading…</span> : null}
         </div>
         {isOpen ? renderGroups(node, path, new Set([...ancestors, id]), depth + 1) : null}
+        {inside}
       </li>
     );
   }
@@ -359,18 +369,21 @@ export function EvidenceChain({
               </button>
               {open ? (
                 <ul className="ml-1">
-                  {rows.map((r) => (
-                    <li key={r.node.id}>
-                      {renderNode(r.node.id, path, ancestors, depth)}
-                      {r.inside.length ? (
+                  {rows.map((r) =>
+                    renderNode(
+                      r.node.id,
+                      path,
+                      ancestors,
+                      depth,
+                      undefined,
+                      undefined,
+                      r.inside.length ? (
                         <ul className="ml-6 border-l border-border pl-3">
-                          {r.inside.map((x) => (
-                            <li key={x.node.id}>{renderNode(x.node.id, `${path}>${r.node.id}`, new Set([...ancestors, r.node.id]), depth + 1, x.phrase)}</li>
-                          ))}
+                          {r.inside.map((x) => renderNode(x.node.id, `${path}>${r.node.id}`, new Set([...ancestors, r.node.id]), depth + 1, x.phrase))}
                         </ul>
-                      ) : null}
-                    </li>
-                  ))}
+                      ) : null,
+                    ),
+                  )}
                   {grp.rows.length > CAP && !all ? (
                     <li>
                       <button type="button" className="quiet-link py-1 text-xs" onClick={() => setShowAll((s) => new Set(s).add(gkey))}>

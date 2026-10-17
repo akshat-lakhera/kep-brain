@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 from app.tools.t03.audit import ACTIVE_STATES, ALL_STATES, FindingKind
 
@@ -43,7 +43,7 @@ TEMPLATES = {(s, n): _template(s, n) for s in ("kep", "sig", "state") for n in (
 
 class RecallFindingsParams(ToolParams):
     kep_ref: KepRef | None = None
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$")
+    sig: SigKey | None = Field(default=None)
     state: FindingState = "active"
     kinds: list[FindingKind] = Field(default_factory=list)
     limit: Literal[10, 50] = 10

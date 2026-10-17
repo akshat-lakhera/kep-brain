@@ -43,7 +43,7 @@ from app.ingest.common import (
 )
 from app.ingest.kep_yaml import MILESTONE_STAGES, KepMeta, load_yaml, parse_kep_yaml, release_minor
 from app.ingest.repos import clone_path, ensure_repo
-from app.ingest.sections import ParsedSection, split_sections, summary_text
+from app.ingest.sections import ParsedSection, headings, scrub, split_sections, summary_text
 from app.ingest.sigs import OrgChart, sync_sigs
 from app.schema.labels import VALID_TO_OPEN
 from app.settings import Settings
@@ -620,6 +620,97 @@ def _write_intervals(writer: BatchWriter, intervals: list[Interval], bots: set[s
     return dict(counts)
 
 
+# The process documents themselves, so "what is a KEP" and "what does status X mean" are answered from the
+# record and cited, not recalled from a model's memory.
+PROCESS_DOCS: tuple[tuple[str, str], ...] = (
+    ("keps/README.md", "Kubernetes Enhancement Proposals (KEPs)"),
+    ("keps/sig-architecture/0000-kep-process/README.md", "Kubernetes Enhancement Proposal Process"),
+)
+
+
+def _process_docs(
+    corpus: Corpus,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Document(kind='process') nodes with their sections for `PROCESS_DOCS` at the corpus commit."""
+    git, sha = corpus.git, corpus.sha
+    tree = git.ls_tree(sha, *[path for path, _ in PROCESS_DOCS])
+    docs: list[dict[str, Any]] = []
+    sections: list[dict[str, Any]] = []
+    has: list[dict[str, Any]] = []
+    nxt: list[dict[str, Any]] = []
+    for path, fallback_title in PROCESS_DOCS:
+        if path not in tree:
+            continue
+        text = git.read(sha, path)
+        if not text:
+            continue
+        heads = headings(text)
+        h1 = next((h for h in heads if h.level == 1), None)
+        title = h1.text if h1 else fallback_title
+        # The definition lives under the title, before the first "##"; the splitter keeps only "##" sections, and a
+        # table of contents says nothing. The opening section is what "what is a KEP" is answered from.
+        parsed = [s for s in split_sections(text) if s.heading.strip().lower() != "table of contents"]
+        if h1:
+            lines = text.splitlines()
+            first = next((h.line for h in heads if h.level <= 2 and h.line > h1.line), len(lines))
+            intro = scrub("\n".join(lines[h1.line + 1 : first]).strip())
+            if intro:
+                parsed.insert(
+                    0, ParsedSection(anchor=h1.anchor, heading=h1.text, level=1, order=0, text=intro, kind="summary")
+                )
+        parsed = [
+            ParsedSection(anchor=s.anchor, heading=s.heading, level=s.level, order=i, text=s.text, kind=s.kind)
+            for i, s in enumerate(parsed)
+        ]
+        url = blob_url(ENHANCEMENTS_REPO, sha, path)
+        key = f"{ENHANCEMENTS_REPO}:{path}"
+        blob = tree[path][1]
+        docs.append(
+            {
+                "key": key,
+                "kind": "process",
+                "repo": ENHANCEMENTS_REPO,
+                "path": path,
+                "title": title,
+                "blob_sha": blob,
+                "byte_size": len(text.encode("utf-8")),
+                "section_count": len(parsed),
+                "url": url,
+                "source_url": url,
+                "source_repo": ENHANCEMENTS_REPO,
+                "source_path": path,
+                "source_sha": blob,
+            }  # fmt: skip
+        )
+        prev: str | None = None
+        for s in parsed:
+            s_key = f"process:{path}#{s.anchor}"
+            s_url = f"{url}#{s.anchor}"
+            sections.append(
+                {
+                    "key": s_key,
+                    "doc_path": path,
+                    "anchor": s.anchor,
+                    "heading": s.heading,
+                    "level": s.level,
+                    "order": s.order,
+                    "text": s.text,
+                    "char_count": s.char_count,
+                    "kind": s.kind,
+                    "url": s_url,
+                    "source_url": s_url,
+                    "source_repo": ENHANCEMENTS_REPO,
+                    "source_path": path,
+                    "source_sha": blob,
+                }  # fmt: skip
+            )
+            has.append({"from": key, "to": s_key, "props": {"order": s.order, "w": 1}})
+            if prev:
+                nxt.append({"from": prev, "to": s_key, "props": {"w": 1}})
+            prev = s_key
+    return docs, sections, has, nxt
+
+
 def sync_docs(writer: BatchWriter, corpus: Corpus, settings: Settings) -> dict[str, int]:
     started = time.monotonic()
     sha = corpus.sha
@@ -821,6 +912,11 @@ def sync_docs(writer: BatchWriter, corpus: Corpus, settings: Settings) -> dict[s
                     if prev:
                         next_rows.append({"from": prev, "to": s_key, "props": {"w": 1}})
                     prev = s_key
+    p_docs, p_sections, p_has, p_next = _process_docs(corpus)
+    doc_rows.extend(p_docs)
+    section_rows.extend(p_sections)
+    has_section.extend(p_has)
+    next_rows.extend(p_next)
     writer.upsert_nodes("Document", doc_rows)
     writer.upsert_nodes("Section", section_rows)
     writer.upsert_edges(

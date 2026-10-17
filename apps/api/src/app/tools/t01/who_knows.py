@@ -24,7 +24,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import _coerce, resolve_kep, unresolved_rows
 from app.tools.t03.find_entities import fulltext_term
 
@@ -112,7 +112,7 @@ class WhoKnowsParams(ToolParams):
         max_length=120,
         description="A KEP number or path, or a topic term; optional when sig is given",
     )
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="Scope to one SIG key")
+    sig: SigKey | None = Field(default=None, description="Scope to one SIG key")
     metric: Literal["weighted_degree", "pagerank"] = "weighted_degree"
     limit: Literal[5, 10, 20] = 10
 

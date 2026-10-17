@@ -9,9 +9,10 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from app.ingest.common import iso
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 from app.tools.noise import automation_label_predicate
+from app.tools.releases import window_start
 
 DecisionKind = Literal[
     "status_transition", "stage_graduation", "milestone_retarget", "prr_approval", "replacement", "withdrawal"
@@ -168,7 +169,7 @@ LIMIT 100
 
 class WhatsChangedParams(ToolParams):
     since: str = Field(description="A release such as v1.35, or an ISO date such as 2026-01-01")
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$")
+    sig: SigKey | None = Field(default=None)
     kinds: list[Literal["metadata", "label", "milestone"]] = Field(default_factory=list)
     fields: list[str] = Field(default_factory=list, max_length=10)
     limit: Literal[50, 100, 200] = 100
@@ -192,7 +193,8 @@ class WhatsChangedParams(ToolParams):
 class WhatsChanged(Tool):
     name = "whats_changed"
     description = (
-        "What changed across the corpus since a release (uses its release date) or an ISO date: status changes "
+        "What changed across the corpus since a release (from the start of its cycle, i.e. the first time it was "
+        "used as a milestone, so the current release works) or an ISO date: status changes "
         "(kep.yaml metadata, issue labels and milestones) grouped by KEP, newest first, plus derived decisions "
         "in the window. Optional sig filter and kinds filter (metadata|label|milestone)."
     )
@@ -201,14 +203,19 @@ class WhatsChanged(Tool):
     async def run(self, ctx: ToolContext, params: Any) -> ToolResult:
         p: WhatsChangedParams = params
         run = Run(ctx)
+        basis = "date"
         if p.since.startswith("v"):
             rel = await run.query(RELEASE_TEMPLATE, {"release": p.since}, limit=2)
-            released = rel[0]["r"] if rel else None
             if not rel:
                 return run.result([{"since": p.since, "release_not_found": True}])
-            t = await self._release_time(run, p.since)
-            if t is None:
-                return run.result([{"since": p.since, "release": released, "release_date_unknown": True}])
+
+            async def query(statement: str, args: dict[str, Any]) -> list[dict[str, Any]]:
+                return await run.query(statement, args, limit=2)
+
+            start = await window_start(query, p.since)
+            if start is None:
+                return run.result([{"since": p.since, "release": rel[0]["r"], "release_window_unknown": True}])
+            t, basis = start
         else:
             dt = datetime.fromisoformat(p.since)
             t = int((dt if dt.tzinfo else dt.replace(tzinfo=UTC)).timestamp())
@@ -233,20 +240,9 @@ class WhatsChanged(Tool):
         summary = {
             "since": p.since,
             "since_at_iso": since_iso,
+            "since_basis": basis,
             "keps_changed": len(by_kep),
             "changes_shown": len(changes),
             "status_transitions": sum(1 for r in changes if r["change"].get("field") == "status"),
         }
         return run.result([summary, *by_kep.values()])
-
-    async def _release_time(self, run: Run, release: str) -> int | None:
-        rows = await run.query(
-            "MATCH (r:Release {key: $release}) RETURN r.released_at AS t LIMIT 1", {"release": release}, limit=2
-        )
-        value = rows[0].get("t") if rows else None
-        if isinstance(value, int | float):
-            return int(value)
-        if isinstance(value, str) and value:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return int((dt if dt.tzinfo else dt.replace(tzinfo=UTC)).timestamp())
-        return None

@@ -43,9 +43,39 @@ LIMIT {limit}
 """
 
 
+def _number_prefix_template(limit: int) -> str:
+    """KEPs whose number starts with the digits typed so far ("12" → 127, 1258, 1287 …), lowest number first."""
+    return f"""
+MATCH (k:KEP)
+WHERE toString(k.number) STARTS WITH $prefix
+ AND ($sig = '' OR k.owning_sig = $sig) AND ($status = '' OR k.status = $status)
+RETURN {CARD}
+ORDER BY k.number, k.key
+LIMIT {limit}
+"""
+
+
+def _title_prefix_template(limit: int) -> str:
+    """KEPs whose title, or a word in it, starts with what was typed: titles that start with it first, then by
+    number. This is what a person typing letter by letter expects; full-text search ranks whole words."""
+    return f"""
+MATCH (k:KEP)
+WHERE ($sig = '' OR k.owning_sig = $sig) AND ($status = '' OR k.status = $status)
+WITH k, toLower(k.title) AS t
+WHERE t STARTS WITH $p OR t CONTAINS (' ' + $p) OR t CONTAINS ('-' + $p)
+   OR t CONTAINS ('(' + $p) OR t CONTAINS ('/' + $p)
+RETURN {CARD}, CASE WHEN t STARTS WITH $p THEN 0 ELSE 1 END AS rank
+ORDER BY rank, k.number, k.key
+LIMIT {limit}
+"""
+
+
 LIMITS = (10, 20, 50, 100, 300)
 LIST = {n: _list_template(n) for n in LIMITS}
 SEARCH = {n: _search_template(n) for n in LIMITS}
+NUMBER_PREFIX = {n: _number_prefix_template(n) for n in LIMITS}
+TITLE_PREFIX = {n: _title_prefix_template(n) for n in LIMITS}
+FULLTEXT_MIN_CHARS = 3
 
 BY_NUMBER = f"""
 MATCH (k:KEP {{number: $number}})
@@ -157,10 +187,21 @@ async def list_keps(
     q = q.strip()
     num = q.upper().removeprefix("KEP-").removeprefix("KEP").strip()
     if num.isdigit():
-        rows = rows_of(await pool.ro_query(graph_of(request), BY_NUMBER, {**args, "number": int(num)}))
+        # The exact number first (a KEP number is an identity), then every KEP whose number starts with the
+        # digits typed so far, so "KEP-1" offers KEP-127 and KEP-1258 instead of "no match".
+        exact = rows_of(await pool.ro_query(graph_of(request), BY_NUMBER, {**args, "number": int(num)}))
+        seen = {r["key"] for r in exact}
+        more = rows_of(await pool.ro_query(graph_of(request), NUMBER_PREFIX[variant], {**args, "prefix": num}))
+        rows = exact + [r for r in more if r["key"] not in seen]
     elif q:
-        term = fulltext_term(q)
-        rows = rows_of(await pool.ro_query(graph_of(request), SEARCH[variant], {**args, "term": term})) if term else []
+        # Title and word prefixes first ("k" → Kubelet…, "sched" → Scheduling Framework), then, once the query is
+        # long enough to mean a word, full-text matches on title and summary that the prefix pass did not return.
+        rows = rows_of(await pool.ro_query(graph_of(request), TITLE_PREFIX[variant], {**args, "p": q.lower()}))
+        term = fulltext_term(q) if len(q) >= FULLTEXT_MIN_CHARS else None
+        if term:
+            seen = {r["key"] for r in rows}
+            more = rows_of(await pool.ro_query(graph_of(request), SEARCH[variant], {**args, "term": term}))
+            rows = rows + [r for r in more if r["key"] not in seen]
     else:
         rows = rows_of(await pool.ro_query(graph_of(request), LIST[variant], args))
     return {"items": [_card(r) for r in rows[:limit]]}

@@ -8,7 +8,10 @@ import { KeyValues, RowsTable, asRows, isRecord } from "@/components/DataView";
 import { ArmsTable, ByKindTable } from "@/components/EvalArms";
 import { Card, EmptyState, ErrorState, Facts, PageHeader, SkeletonBlock } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Eval" };
+export const metadata: Metadata = {
+  title: "Eval",
+  description: "The question set KEP Brain is scored against and the latest recorded run.",
+};
 
 export default function EvalPage() {
   return (

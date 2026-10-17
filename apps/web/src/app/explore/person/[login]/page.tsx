@@ -17,7 +17,7 @@ const LOGIN = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})$/;
 
 export async function generateMetadata(props: PageProps<"/explore/person/[login]">): Promise<Metadata> {
   const { login } = await props.params;
-  return { title: `@${login}` };
+  return { title: `@${login}`, description: `@${login}: SIG roles, KEPs authored, reviewed and approved, and the decisions they took part in.` };
 }
 
 // Blocking route (no Suspense above the fetch): a missing login must answer with a real HTTP 404.
@@ -35,7 +35,7 @@ export default async function PersonPage(props: PageProps<"/explore/person/[logi
     if (missing && served) notFound();
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold">
+        <h1 className="display mt-1 text-2xl font-semibold">
           <span className="font-mono">@{login}</span>
         </h1>
         {missing ? (
@@ -60,8 +60,8 @@ export default async function PersonPage(props: PageProps<"/explore/person/[logi
   const total = counts.authored + counts.reviews + counts.approves + counts.prr;
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold">
+      <header className="border-b border-border pb-6">
+        <h1 className="display mt-1 text-2xl font-semibold">
           <span className="font-mono">@{p.login}</span>
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -83,7 +83,7 @@ export default async function PersonPage(props: PageProps<"/explore/person/[logi
         </div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm">
           <ExtLink href={p.url}>GitHub profile</ExtLink>
-          <Link href={`/?q=${encodeURIComponent(`What does @${p.login} own and decide on, and in which SIGs?`)}` as Route} className="quiet-link">
+          <Link href={`/ask?q=${encodeURIComponent(`What does @${p.login} own and decide on, and in which SIGs?`)}` as Route} className="quiet-link">
             Ask about this person
           </Link>
         </div>

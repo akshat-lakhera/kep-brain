@@ -75,6 +75,19 @@ CREATE (sn:SIG {{key: 'sig-node', display_name: 'Node', url: 'https://github.com
  (d)-[:EVIDENCED_BY {{evidence_kind: 'pull_request', source_url: '{GH}/pull/5761'}}]->(pr),
  (f1)-[:ABOUT]->(k583), (f1)-[:EVIDENCED_BY {{evidence_kind: 'issue', source_url: '{GH}/issues/583'}}]->(i583)
 """,
+    f"""
+CREATE (pd:Document {{key: 'kubernetes/enhancements:keps/README.md', kind: 'process', repo: 'kubernetes/enhancements',
+   path: 'keps/README.md', title: 'Kubernetes Enhancement Proposals (KEPs)', url: '{GH}/blob/master/keps/README.md'}}),
+ (s1:Section {{key: 'process:keps/README.md#kubernetes-enhancement-proposals-keps', anchor: 'kubernetes-enhancement-proposals-keps',
+   heading: 'Kubernetes Enhancement Proposals (KEPs)', level: 1, order: 0, kind: 'other',
+   text: 'A Kubernetes Enhancement Proposal (KEP) is a way to propose, communicate and coordinate on new efforts for the Kubernetes project.',
+   url: '{GH}/blob/master/keps/README.md#kubernetes-enhancement-proposals-keps'}}),
+ (s2:Section {{key: 'process:keps/README.md#kep-metadata', anchor: 'kep-metadata', heading: 'KEP Metadata', level: 2, order: 1, kind: 'other',
+   text: 'status Required. The current state of the KEP. Must be one of provisional, implementable, implemented, deferred, rejected, withdrawn, or replaced.',
+   url: '{GH}/blob/master/keps/README.md#kep-metadata'}}),
+ (pd)-[:HAS_SECTION {{order: 0, w: 1}}]->(s1), (pd)-[:HAS_SECTION {{order: 1, w: 1}}]->(s2), (s1)-[:NEXT {{w: 1}}]->(s2)
+""",
+    "CREATE FULLTEXT INDEX FOR (n:Section) ON (n.heading, n.text)",
     "CREATE FULLTEXT INDEX FOR (n:KEP) ON (n.title, n.summary)",
     "CREATE FULLTEXT INDEX FOR (n:FeatureGate) ON (n.name)",
     "CREATE FULLTEXT INDEX FOR (n:Person) ON (n.login)",

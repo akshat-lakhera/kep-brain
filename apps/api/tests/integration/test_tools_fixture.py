@@ -74,7 +74,7 @@ async def test_find_contradictions_scope_kep(ctx: ToolContext) -> None:
     assert hit["finding"]["kind"] == "active_status_closed_issue"
     assert "kubernetes/enhancements#583" in keys(r)
     corpus = await call(ctx, "find_contradictions")
-    assert corpus.rows[0]["total"] == 1
+    assert corpus.rows[0]["total_findings"] == 1 == corpus.rows[0]["findings_returned"]
 
 
 async def test_kep_relations_lineage(ctx: ToolContext) -> None:
@@ -141,3 +141,17 @@ async def test_deterministic(ctx: ToolContext) -> None:
 async def test_schema_tool(ctx: ToolContext) -> None:
     r = await call(ctx, "get_graph_schema")
     assert "KEP" in r.rows[0]["labels"]
+
+
+async def test_explain_process_reads_the_process_documents(ctx: ToolContext) -> None:
+    """'What is a KEP' is answered from the stored process document: the opening section first, then the matches."""
+    r = await call(ctx, "explain_process", topic="what is a KEP")
+    assert r.rows[0]["term"] == "kep*" and r.rows[0]["opening_sections"] == 1
+    assert "Kubernetes Enhancement Proposal" in r.rows[1]["excerpt"] and r.rows[1]["section"]["evidence_id"]
+    status = await call(ctx, "explain_process", topic="status implementable")
+    assert status.rows[0]["term"] == "status*|implementable*"
+    assert "KEP Metadata" in [row["section"]["heading"] for row in status.rows[1:]]
+    none = await call(ctx, "explain_process", topic="zebra giraffe")
+    assert none.rows[0]["matching_sections"] == 0 and len(none.rows) == 2  # the opening section still answers
+    filler = await call(ctx, "explain_process", topic="what is it")
+    assert filler.rows[0]["term"] is None and len(filler.rows) == 2

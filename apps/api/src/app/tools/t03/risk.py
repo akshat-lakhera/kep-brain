@@ -21,7 +21,7 @@ from typing import Any
 from pydantic import Field
 
 from app.ingest.common import iso
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 
 TERMINAL_STATUSES = ["implemented", "withdrawn", "replaced", "rejected"]
 LOAD_LIMIT = 10
@@ -174,7 +174,7 @@ async def knowledge_risk(query: QueryFn, sig: str | None) -> dict[str, Any]:
 
 
 class KnowledgeRiskParams(ToolParams):
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="e.g. sig-node; empty = all")
+    sig: SigKey | None = Field(default=None, description="e.g. sig-node; empty = all")
 
 
 class KnowledgeRisk(Tool):

@@ -475,6 +475,7 @@ def fit_rows(payload: dict[str, Any], limit: int) -> str:
     cap the lists nested inside rows, and only then drop the last rows."""
     rows = list(payload.get("rows", []))
     omitted = int(payload.get("rows_omitted", 0))
+    payload = {**payload, **_omitted(omitted)}
     text = _dump(payload)
     if len(text) <= limit:
         return text
@@ -486,11 +487,19 @@ def fit_rows(payload: dict[str, Any], limit: int) -> str:
         rows = [_cap_lists(r, n) for r in rows]
         text = _dump({**payload, "rows": rows, "fields_cut": True, "nested_lists_cut": True})
     while len(text) > limit and rows:
-        drop = max(1, len(rows) // 4)
-        rows, omitted = rows[:-drop], omitted + drop
-        text = _dump({**payload, "rows": rows, "fields_cut": True, "nested_lists_cut": True,
-                      "rows_omitted": omitted})  # fmt: skip
+        rows, omitted = rows[:-1], omitted + 1
+        text = _dump({**payload, "rows": rows, "fields_cut": True, "nested_lists_cut": True, **_omitted(omitted)})
     return text
+
+
+def _omitted(n: int) -> dict[str, Any]:
+    """The planner reads this note with the rows; a system rule alone was ignored (measured 2026-10-17)."""
+    if n <= 0:
+        return {}
+    return {
+        "rows_omitted": n,
+        "note": f"{n} more rows exist but are not shown: say the list is partial and use the counts row for totals",
+    }
 
 
 def _tool_content(result: ToolResult) -> str:

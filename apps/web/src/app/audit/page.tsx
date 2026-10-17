@@ -31,7 +31,10 @@ import {
   thClass,
 } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Audit" };
+export const metadata: Metadata = {
+  title: "Audit",
+  description: "Kubernetes KEPs whose kep.yaml, tracking issue or replacement declarations disagree, with both records, who set each value and a drafted fix.",
+};
 
 type Search = { kind?: string; sig?: string; state?: string; finding?: string; since?: string };
 
@@ -314,7 +317,7 @@ function Changes({ result, filter }: { result: ApiResult<ChangesResponse>; filte
             {filter.state ? <input type="hidden" name="state" value={filter.state} /> : null}
             <label className="flex flex-col gap-1 text-xs text-fg-secondary">
               Since release
-              <select name="since" defaultValue={since ?? ""} className={selectClass}>
+              <select name="since" defaultValue={since ?? result.data.since ?? undefined} className={selectClass}>
                 {releases.map((r) => (
                   <option key={r} value={r}>
                     {r}

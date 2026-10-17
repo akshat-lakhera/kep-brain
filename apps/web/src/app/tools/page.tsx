@@ -4,7 +4,10 @@ import { serverApi } from "@/lib/api/server";
 import { ToolsClient } from "@/components/ToolsClient";
 import { EmptyState, ErrorState, PageHeader, SkeletonBlock } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Tools" };
+export const metadata: Metadata = {
+  title: "Tools",
+  description: "The read-only graph tools behind every answer, callable directly with their parameters.",
+};
 
 export default function ToolsPage() {
   return (

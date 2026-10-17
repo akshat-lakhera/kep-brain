@@ -66,7 +66,7 @@ def test_changed_since_template_comprehension_vars_unique() -> None:
     [
         ("who_knows", {}),
         ("who_knows", {"topic_or_kep": "!!"}),
-        ("who_knows", {"sig": "Sig Node"}),
+        ("who_knows", {"sig": "sig node!"}),
         ("who_knows", {"sig": "sig-node", "limit": 7}),
         ("who_knows", {"sig": "sig-node", "metric": "betweenness"}),
         ("impact_of_change", {"kep_ref": 4671, "depth": 4}),

@@ -17,6 +17,7 @@ from app.tools.t03.discussion import ContestedPoints
 from app.tools.t03.find_entities import FindEntities
 from app.tools.t03.get_kep import GetKep
 from app.tools.t03.history import StatusHistory, TraceDecision, WhatsChanged
+from app.tools.t03.process import ExplainProcess
 from app.tools.t03.rationale import WhyDesigned
 from app.tools.t03.risk import KnowledgeRisk
 from app.tools.t03.who import WhoApproves, WhoOwns
@@ -32,6 +33,7 @@ _ALL: tuple[Tool, ...] = (
     FindContradictions(),
     KepRelations(),
     WhyDesigned(),
+    ExplainProcess(),
     ContestedPoints(),
     KnowledgeRisk(),
     PathBetween(),

@@ -13,7 +13,7 @@ export type KepSearchState =
 const IDLE: KepSearchState = { kind: "idle" };
 
 /** Debounced GET /v1/keps?q= for a query of at least `minLength` characters; a newer query aborts the older request. */
-export function useKepSearch(query: string, minLength = 2): KepSearchState {
+export function useKepSearch(query: string, minLength = 1): KepSearchState {
   const [state, setState] = useState<KepSearchState>(IDLE);
   useEffect(() => {
     if (query.length < minLength) return;

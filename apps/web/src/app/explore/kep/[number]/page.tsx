@@ -34,7 +34,13 @@ import {
 
 export async function generateMetadata(props: PageProps<"/explore/kep/[number]">): Promise<Metadata> {
   const { number } = await props.params;
-  return { title: /^\d+$/.test(number) ? `KEP-${number}` : "KEP" };
+  const ok = /^\d+$/.test(number);
+  return {
+    title: ok ? `KEP-${number}` : "KEP",
+    description: ok
+      ? `KEP-${number}: facts, status history, who decided each state and on what evidence, lineage and open findings.`
+      : undefined,
+  };
 }
 
 export default function KepPage(props: PageProps<"/explore/kep/[number]">) {
@@ -185,12 +191,13 @@ function Header({ k }: { k: KepDetail }) {
   const n = k.number ?? numberFromPath(k.key);
   const ask = `Trace the decisions on KEP-${n}: who decided each stage change, and is the metadata current?`;
   return (
-    <header>
-      <p className="font-mono text-sm text-fg-muted">{k.key}</p>
-      <h1 className="text-xl font-semibold">
-        <span className="font-mono">{n !== null ? `KEP-${n}` : ""}</span> {k.title}
-      </h1>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+    <header className="border-b border-border pb-6">
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        {n !== null ? <span className="eyebrow !text-fg-secondary">KEP-{n}</span> : null}
+        <span className="font-mono text-xs text-fg-muted">{k.key}</span>
+      </p>
+      <h1 className="display mt-2 max-w-[28ch] text-2xl font-semibold">{k.title}</h1>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <StatusChip status={k.status} />
         {k.stage ? <Chip mono>{k.stage}</Chip> : null}
         {k.owning_sig ? (
@@ -208,18 +215,18 @@ function Header({ k }: { k: KepDetail }) {
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
         <ExtLink href={k.url}>KEP on GitHub</ExtLink>
         <ExtLink href={k.source_url}>kep.yaml</ExtLink>
-        <Link href={`/?q=${encodeURIComponent(ask)}` as Route} className="quiet-link">
+        <Link href={`/ask?q=${encodeURIComponent(ask)}` as Route} className="quiet-link">
           Ask about this KEP
         </Link>
       </div>
       {k.summary ? (
         k.summary.length > 360 ? (
-          <details className="mt-3 max-w-[80ch] text-fg-secondary">
+          <details className="mt-4 max-w-[70ch] text-md text-fg-secondary">
             <summary className="cursor-pointer">{k.summary.slice(0, 360).trimEnd()}… <span className="text-accent">Full summary</span></summary>
             <p className="mt-2">{k.summary}</p>
           </details>
         ) : (
-          <p className="mt-3 max-w-[80ch] text-fg-secondary">{k.summary}</p>
+          <p className="mt-4 max-w-[70ch] text-md text-fg-secondary">{k.summary}</p>
         )
       ) : null}
     </header>

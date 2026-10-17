@@ -152,7 +152,31 @@ def test_changes_since_release(client: TestClient) -> None:
 
 def test_changes_window_fallbacks_and_404(client: TestClient) -> None:
     v135 = client.get("/v1/changes", params={"since": "1.35"}).json()
-    assert v135["since"] == "v1.35" and v135["window"]["basis"] == "release_first_seen" and v135["items"] == []
+    assert (
+        v135["since"] == "v1.35"
+        and v135["window"]["basis"] == "release_date"
+        and [i["kep_number"] for i in v135["items"]] == [1287]
+    )  # the change after the ship date
     assert client.get("/v1/changes", params={"since": "v1.37"}).status_code == 404
     res = client.get("/v1/changes", params={"since": "v1.99"})
     assert res.status_code == 404 and res.json()["error"]["details"]["releases"] == ["v1.35", "v1.36", "v1.37"]
+
+
+def test_kep_search_by_number_prefix(client: TestClient) -> None:
+    """A number-like query returns the exact KEP first, then every KEP whose number starts with those digits."""
+    numbers = lambda res: [i["number"] for i in res.json()["items"]]  # noqa: E731
+    assert numbers(client.get("/v1/keps", params={"q": "KEP-5"})) == [583, 5832]
+    assert numbers(client.get("/v1/keps", params={"q": "KEP-2"})) == [2133, 2133]  # two KEP folders share a number
+    assert numbers(client.get("/v1/keps", params={"q": "58"})) == [583, 5832]
+    assert numbers(client.get("/v1/keps", params={"q": "4671"})) == [4671]
+    assert numbers(client.get("/v1/keps", params={"q": "KEP-9"})) == []
+    assert numbers(client.get("/v1/keps", params={"q": "5", "sig": "sig-scheduling"})) == [583, 5832]
+
+
+def test_kep_search_by_title_prefix(client: TestClient) -> None:
+    """One letter is enough: titles starting with it come first, then titles with a word starting with it."""
+    numbers = lambda res: [i["number"] for i in res.json()["items"]]  # noqa: E731
+    assert numbers(client.get("/v1/keps", params={"q": "g"})) == [4671]  # Gang Scheduling
+    assert numbers(client.get("/v1/keps", params={"q": "D"})) == [2133, 2133, 5832]  # Duplicate A/B, Decouple…
+    assert numbers(client.get("/v1/keps", params={"q": "pod"})) == [1287, 5832]  # …of Pod Resources, PodGroup
+    assert numbers(client.get("/v1/keps", params={"q": "zzz"})) == []

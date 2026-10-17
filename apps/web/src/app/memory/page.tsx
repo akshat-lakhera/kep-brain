@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { MemoryClient } from "@/components/MemoryClient";
 import { PageHeader } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Memory" };
+export const metadata: Metadata = {
+  title: "Memory",
+  description: "What KEP Brain remembers for this browser, and how to inspect or delete it.",
+};
 
 export default function MemoryPage() {
   return (

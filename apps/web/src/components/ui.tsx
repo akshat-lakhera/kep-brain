@@ -9,11 +9,23 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
-export function PageHeader({ title, lead, children }: { title: ReactNode; lead?: ReactNode; children?: ReactNode }) {
+/** Editorial page opening: an optional eyebrow, a display title and one lead paragraph with a reading measure. */
+export function PageHeader({
+  title,
+  lead,
+  eyebrow,
+  children,
+}: {
+  title: ReactNode;
+  lead?: ReactNode;
+  eyebrow?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
-    <header className="mb-6">
-      <h1 className="text-lg font-semibold">{title}</h1>
-      {lead ? <p className="mt-1 max-w-[80ch] text-fg-secondary">{lead}</p> : null}
+    <header className="mb-8 border-b border-border pb-6">
+      {eyebrow ? <p className="eyebrow mb-2">{eyebrow}</p> : null}
+      <h1 className="display text-2xl font-semibold">{title}</h1>
+      {lead ? <p className="mt-3 max-w-[70ch] text-md text-fg-secondary">{lead}</p> : null}
       {children}
     </header>
   );
@@ -261,8 +273,8 @@ export function SkeletonBlock({ lines = 3, label = "Loading" }: { lines?: number
 export function StatTile({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
   return (
     <div className="rounded-md border border-border bg-surface p-4">
-      <p className="text-sm text-fg-secondary">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      <p className="eyebrow">{label}</p>
+      <p className="display mt-2 text-2xl font-semibold tabular">{value}</p>
       {note ? <p className="mt-1 text-xs text-fg-muted">{note}</p> : null}
     </div>
   );
@@ -292,8 +304,11 @@ export function Facts({ items }: { items: { label: string; value: ReactNode }[] 
   );
 }
 
+// Tables are set Swiss-style: hairline rules, no filled header, small tracked capitals for column names,
+// tabular figures where numbers are compared.
 export const tableClass = "w-full border-collapse text-sm";
-export const thClass = "border-b border-border bg-surface-subtle px-3 py-2 text-left font-medium text-fg-secondary whitespace-nowrap";
+export const thClass =
+  "border-b border-border-strong px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-fg-muted whitespace-nowrap";
 export const tdClass = "border-b border-border px-3 py-2 align-top";
 
 /** Horizontally scrollable, keyboard-reachable region around a wide table. */

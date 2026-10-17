@@ -5,17 +5,18 @@ import { isoUtc, shortSha } from "@/lib/format";
 import { releaseNames } from "@/lib/releases";
 import { ExtLink, SigLink, cx } from "./ui";
 
+/** One bento tile of the strip: eyebrow label over the value. */
 function Cell({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={cx("min-w-0 bg-surface px-3 py-2", className)}>
-      <dt className="text-xs text-fg-secondary">{label}</dt>
-      <dd className="mt-0.5 min-w-0 break-words">{children}</dd>
+    <div className={cx("min-w-0 rounded-md border border-border bg-surface px-3 py-2.5", className)}>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-1 min-w-0 break-words">{children}</dd>
     </div>
   );
 }
 
 function Num({ value }: { value: number }) {
-  return <span className="tabular text-lg font-semibold">{value.toLocaleString("en-US")}</span>;
+  return <span className="display tabular text-xl font-semibold">{value.toLocaleString("en-US")}</span>;
 }
 
 /** What the brain holds and how current it is, every value from GET /v1/meta. */
@@ -25,7 +26,7 @@ export function InstrumentStrip({ meta }: { meta: Meta }) {
   return (
     <dl
       aria-label="What the graph holds"
-      className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,0.7fr))_repeat(3,minmax(0,1.2fr))]"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,0.7fr))_repeat(3,minmax(0,1.2fr))]"
     >
       <Cell label="Graph nodes">
         <Num value={graph.nodes} />

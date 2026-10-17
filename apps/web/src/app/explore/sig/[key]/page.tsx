@@ -17,7 +17,7 @@ const KEY = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
 export async function generateMetadata(props: PageProps<"/explore/sig/[key]">): Promise<Metadata> {
   const { key } = await props.params;
-  return { title: key };
+  return { title: key, description: `${key}: leadership, KEPs in scope, open findings and recent decisions.` };
 }
 
 // Blocking route (no Suspense above the fetch): an unknown SIG must answer with a real HTTP 404.
@@ -35,7 +35,7 @@ export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
     if (missing && served) notFound();
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold">
+        <h1 className="display mt-1 text-2xl font-semibold">
           <span className="font-mono">{key}</span>
         </h1>
         {missing ? (
@@ -56,9 +56,9 @@ export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
   const openFindings = s.findings.filter((f) => f.state === "open");
   return (
     <div className="space-y-6">
-      <header>
+      <header className="border-b border-border pb-6">
         <p className="font-mono text-sm text-fg-muted">{s.key}</p>
-        <h1 className="text-xl font-semibold">{s.display_name ?? s.key}</h1>
+        <h1 className="display mt-1 text-2xl font-semibold">{s.display_name ?? s.key}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Chip>
             {s.keps.length.toLocaleString("en-US")} KEP{pluralS(s.keps.length)}
@@ -77,7 +77,7 @@ export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
           <Link href={`/audit?sig=${encodeURIComponent(s.key)}` as Route} className="quiet-link">
             Findings in Audit
           </Link>
-          <Link href={`/?q=${encodeURIComponent(`Which KEPs in ${s.key} have metadata that is not current, and who decided their latest state?`)}` as Route} className="quiet-link">
+          <Link href={`/ask?q=${encodeURIComponent(`Which KEPs in ${s.key} have metadata that is not current, and who decided their latest state?`)}` as Route} className="quiet-link">
             Ask about this SIG
           </Link>
         </div>

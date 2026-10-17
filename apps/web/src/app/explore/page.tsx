@@ -14,7 +14,10 @@ import { ExploreSearch } from "@/components/explore/ExploreSearch";
 import { RowsPerPage } from "@/components/explore/RowsPerPage";
 import { ROWS_DEFAULT, parseRows } from "@/lib/rows";
 
-export const metadata: Metadata = { title: "Explore" };
+export const metadata: Metadata = {
+  title: "Explore",
+  description: "Search Kubernetes KEPs by number or title, browse SIGs and the people who author, review and approve them.",
+};
 
 export default function ExplorePage(props: PageProps<"/explore">) {
   return (

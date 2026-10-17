@@ -13,10 +13,10 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar
 
 from falkordb import Edge, Node, Path
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from app.db.falkordb import GRAPH_KEP, MAX_ROWS, READ_TIMEOUT_MS, FalkorPool
 from app.db.results import Evidence, evidence_id, node_title, primary_label
@@ -74,6 +74,20 @@ class ToolResult(BaseModel):
     truncated: bool = False
     ms: float = 0.0
     template: str = ""
+
+
+def sig_key(value: Any) -> Any:
+    """The graph key for a SIG written any common way: "sig-node", "node", "SIG Apps", "Apps SIG", "api machinery"."""
+    if not isinstance(value, str):
+        return value
+    v = re.sub(r"[\s_]+", "-", value.strip().lower())
+    v = re.sub(r"^sig-?", "", v)
+    v = re.sub(r"-?sig$", "", v)
+    return f"sig-{v}" if v else v
+
+
+SigKey = Annotated[str, BeforeValidator(sig_key), Field(pattern=r"^sig-[a-z0-9][a-z0-9-]{0,55}$")]
+"""A SIG key parameter: accepts the ways people write a SIG and validates the normalised graph key."""
 
 
 class ToolParams(BaseModel):

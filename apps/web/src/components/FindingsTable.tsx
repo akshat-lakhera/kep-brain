@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { PagerBar, usePaging } from "@/components/PagedTable";
 import { SortHeader } from "@/components/SortHeader";
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure, ApiResult } from "@/lib/api/core";
@@ -88,6 +89,18 @@ export function FindingsTable({
   const [draft, setDraft] = useState<{ finding: Finding; opener: HTMLElement | null } | null>(null);
   const [sort, setSort] = useState<Sort>({ key: "state", dir: 1 });
   const anyVerdict = items.some((f) => f.human_verdict);
+  const sorted = [...items].sort(
+    (a, b) => compare(a, b, sort.key) * sort.dir || (kepNum(a) ?? 0) - (kepNum(b) ?? 0) || a.kind.localeCompare(b.kind),
+  );
+  const paging = usePaging(items.length);
+  // A finding opened through ?finding= must be on the visible page (derived once per selected key).
+  const [pagedFor, setPagedFor] = useState<string | undefined>(undefined);
+  if (selected && pagedFor !== selected) {
+    setPagedFor(selected);
+    const idx = sorted.findIndex((f) => f.key === selected);
+    if (idx >= 0) paging.setPage(Math.floor(idx / paging.size) + 1);
+  }
+  const pageRows = sorted.slice(paging.start, paging.end);
 
   // Results are stored from the callbacks only; a missing entry renders as loading.
   const fetchFor = (f: Finding, withEvidence: boolean, withDecisions: boolean) => {
@@ -135,10 +148,6 @@ export function FindingsTable({
       </EmptyState>
     );
   }
-  const sorted = [...items].sort(
-    (a, b) => compare(a, b, sort.key) * sort.dir || (kepNum(a) ?? 0) - (kepNum(b) ?? 0) || a.kind.localeCompare(b.kind),
-  );
-
   function toggle(f: Finding) {
     setOpen((prev) => {
       const next = new Set(prev);
@@ -162,6 +171,9 @@ export function FindingsTable({
             Click or Enter expands a row · d drafts a fix for the focused row · nothing on this page posts to GitHub
           </p>
         </div>
+        <div className="px-4 pt-3">
+          <PagerBar paging={paging} />
+        </div>
         <TableWrap label="Findings table">
           <table className={tableClass}>
             <caption className="sr-only">Each finding with both disagreeing records; column headers sort</caption>
@@ -181,7 +193,7 @@ export function FindingsTable({
               </tr>
             </thead>
             <tbody>
-              {sorted.map((f, i) => {
+              {pageRows.map((f, i) => {
                 const n = kepNum(f);
                 const expanded = open.has(f.key);
                 const panelId = `${base}-panel-${i}`;
@@ -398,20 +410,23 @@ function FindingPanel({
     { key: "b", label: finding.b_label, value: finding.b_value, url: finding.b_url },
   ];
   return (
-    <div className="grid gap-4 lg:grid-cols-12">
-      <div className="space-y-3 lg:col-span-8">
-        {FINDING_KIND_TEXT[finding.kind] ? <p className="text-sm">{FINDING_KIND_TEXT[finding.kind]}</p> : null}
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-5 lg:grid-cols-12">
+      <div className="space-y-4 lg:col-span-8">
+        <div>
+          <p className="eyebrow">{kindLabel(finding.kind)}</p>
+          {FINDING_KIND_TEXT[finding.kind] ? <p className="mt-1 max-w-[60ch] text-md">{FINDING_KIND_TEXT[finding.kind]}</p> : null}
+        </div>
+        <div className="grid border-y border-border-strong sm:grid-cols-2 sm:divide-x sm:divide-border">
           {sides.map((s) => (
-            <div key={s.key} className="rounded-md border border-border bg-surface p-3">
-              <p className="mb-1 text-xs font-medium text-fg-secondary">Record {s.key.toUpperCase()} · who set it</p>
+            <div key={s.key} className="py-3 first:pr-4 last:border-t last:border-border last:pt-3 sm:last:border-t-0 sm:last:pl-4">
+              <p className="eyebrow mb-1">Record {s.key.toUpperCase()} · who set it</p>
               <Side label={s.label} value={s.value} url={s.url} />
               <WhoSet side={s.key} finding={finding} detail={detail} decisions={decisions} />
             </div>
           ))}
         </div>
         <div>
-          <p className="text-xs font-medium text-fg-secondary">Evidence records</p>
+          <p className="eyebrow">Evidence records</p>
           <EvidenceList detail={detail} />
         </div>
         <p className="text-xs text-fg-muted">
@@ -426,7 +441,7 @@ function FindingPanel({
       </div>
       <div className="space-y-3 lg:col-span-4">
         <div className="rounded-md border border-border bg-surface p-3">
-          <p className="text-xs font-medium text-fg-secondary">Hand check</p>
+          <p className="eyebrow">Hand check</p>
           {finding.human_verdict ? (
             <>
               <p className="mt-1">
@@ -445,7 +460,7 @@ function FindingPanel({
           )}
         </div>
         <div className="rounded-md border border-border bg-surface p-3">
-          <p className="text-xs font-medium text-fg-secondary">Agent triage (advisory)</p>
+          <p className="eyebrow">Agent triage (advisory)</p>
           {finding.triage_verdict || finding.assessment ? (
             <>
               {finding.triage_verdict ? (
@@ -460,7 +475,7 @@ function FindingPanel({
           )}
         </div>
         <div className="rounded-md border border-border bg-surface p-3">
-          <p className="text-xs font-medium text-fg-secondary">Fix</p>
+          <p className="eyebrow">Fix</p>
           <p className="mt-1 text-sm">
             Suggested {finding.suggested_fix ? <span className="font-medium">{humanize(finding.suggested_fix).toLowerCase()}</span> : <Dash />}
           </p>

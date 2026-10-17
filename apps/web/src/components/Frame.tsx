@@ -67,7 +67,7 @@ export async function Footer() {
           </Link>
         </span>
         <span className="w-full">
-          Data: Kubernetes Enhancement Proposals and issues, © The Kubernetes Authors, Apache-2.0.
+          Code: MIT licence · Data: Kubernetes Enhancement Proposals and issues, © The Kubernetes Authors, Apache-2.0.
         </span>
       </div>
     </footer>

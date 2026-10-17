@@ -1,16 +1,9 @@
 """Changes since a release (05 §4.3.2).
 
-"Since release X" starts at the first event that introduced X as a milestone value:
-
-1. the earliest tracking-issue milestone event that set milestone X (`StatusChange{kind: milestone,
-   to_value: X}`): the enhancements team opting the first KEP into X's cycle;
-2. if no issue was ever milestoned X, the earliest kep.yaml commit that set `latest_milestone` or a
-   `milestone.*` field to X;
-3. if X never appears as a milestone value, the release node's first appearance in the graph
-   (`Release.first_seen_at`).
-
-Every StatusChange at or after that instant is in the window. `changed_since` (Track 1 tool) is not
-reused: it starts at the release's ship date, which leaves out the release's own cycle.
+"Since release X" starts where `app.tools.releases.window_start` says: the first event that introduced X
+as a milestone value, so the release's own cycle is in the window. Every StatusChange at or after that
+instant is in the window. `changed_since` (Track 1 tool) is not reused: it starts at the release's ship
+date.
 
 Items: kep.yaml changes to status, stage, latest_milestone, milestone.*, replaces and superseded_by
 (`metadata`), tracking-issue milestone events (`milestone`), and tracking-issue label events for the
@@ -38,32 +31,15 @@ from app.db.falkordb import FalkorPool
 from app.errors import AppError
 from app.ingest.common import iso
 from app.tools.noise import automation_label_predicate
+from app.tools.releases import MILESTONE_FIELDS, window_start
 
 router = APIRouter(tags=["changes"])
 
-MILESTONE_FIELDS = [
-    "latest_milestone", "milestone.alpha", "milestone.beta", "milestone.stable", "milestone.deprecated",
-    "milestone.disabled", "milestone.removed",
-]  # fmt: skip
 METADATA_FIELDS = ["status", "stage", *MILESTONE_FIELDS, "replaces", "superseded_by"]
 TRACKING_LABELS = ["tracked/yes", "tracked/no", "tracked/out-of-tree", "lead-opted-in"]
 LIMITS = (50, 100, 200, 500)
 
 RELEASES = "MATCH (r:Release) RETURN r.key AS key, r.ordinal AS ordinal, r.is_future AS is_future"
-
-RELEASE = "MATCH (r:Release {key: $release}) RETURN r.first_seen_at AS first_seen_at LIMIT 1"
-
-ISSUE_START = """
-MATCH (c:StatusChange {kind: 'milestone'})
-WHERE c.to_value = $release
-RETURN min(c.at) AS t
-"""
-
-KEP_YAML_START = """
-MATCH (c:StatusChange {kind: 'metadata'})
-WHERE c.to_value = $release AND c.field IN $milestone_fields
-RETURN min(c.at) AS t
-"""
 
 IN_WINDOW = f"""c.at >= $t AND (
   (c.kind = 'metadata' AND c.field IN $metadata_fields)
@@ -125,19 +101,6 @@ async def release_keys(pool: FalkorPool, graph: str) -> list[str]:
     return [r["key"] for r in sorted(rows, key=_release_order)]
 
 
-async def window_start(pool: FalkorPool, graph: str, release: str) -> tuple[int, str] | None:
-    """(epoch seconds, basis) for the start of "since `release`" (module docstring); None if unknown."""
-    args = {"release": release, "milestone_fields": MILESTONE_FIELDS}
-    for basis, query in (("tracking_issue_milestone", ISSUE_START), ("kep_yaml_milestone", KEP_YAML_START)):
-        rows = (await pool.ro_query(graph, query, args)).rows
-        if rows and rows[0][0] is not None:
-            return int(rows[0][0]), basis
-    rows = (await pool.ro_query(graph, RELEASE, args)).rows
-    if rows and rows[0][0] is not None:
-        return int(rows[0][0]), "release_first_seen"
-    return None
-
-
 async def default_since(pool: FalkorPool, graph: str) -> str | None:
     """The latest shipped release (highest `Release` with is_future = false); the second-highest release
     in the graph when no release is marked shipped."""
@@ -167,7 +130,11 @@ async def list_changes(
             since = "v" + since
     if since is None or since not in releases:
         raise AppError("not_found", {"since": (since or "")[:20], "releases": releases})
-    start = await window_start(pool, graph, since)
+
+    async def query(statement: str, args: dict[str, Any]) -> list[dict[str, Any]]:
+        return rows_of(await pool.ro_query(graph, statement, args))
+
+    start = await window_start(query, since)
     if start is None:
         raise AppError("not_found", {"since": since, "reason": "no window start for this release"})
     t, basis = start

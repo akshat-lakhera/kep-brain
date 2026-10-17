@@ -19,7 +19,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from app.ingest.common import iso
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 
 FIELD_GROUPS: dict[str, tuple[str, ...]] = {
     "status": ("status",),
@@ -57,7 +57,7 @@ CHANGES = {n: _changes_template(n) for n in (50, 100, 200)}
 
 class ChangedSinceParams(ToolParams):
     release: str = Field(description="A shipped release, e.g. v1.36; changes after its release date are returned")
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$")
+    sig: SigKey | None = Field(default=None)
     fields: list[Literal["status", "stage", "milestone"]] = Field(
         default_factory=list, description="status, stage, milestone; empty means all three"
     )

@@ -10,7 +10,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { cx } from "./ui";
 
 const NAV: { href: Route; label: string }[] = [
-  { href: "/", label: "Ask" },
+  { href: "/ask" as Route, label: "Ask" },
   { href: "/explore" as Route, label: "Explore" },
   { href: "/audit", label: "Audit" },
   { href: "/memory", label: "Memory" },

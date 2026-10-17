@@ -14,7 +14,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from app.schema.labels import ACTIVE_FINDING_STATES, FINDING_KINDS
-from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
+from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import KepRef, resolve_kep, unresolved_rows
 
 FindingKind = Literal[
@@ -58,6 +58,33 @@ LIMIT {limit}
 CORPUS = {n: _corpus(n) for n in (20, 50, 100)}
 FOR_KEP = {n: _for_kep(n) for n in (20, 50, 100)}
 
+# What a corpus or SIG hit keeps. The planner sees a few thousand characters of a tool result, so a
+# finding is reduced to its two sides and its fix, and the KEP and issue to citable records; the kep.yaml
+# status, stage and milestones already appear as the finding's values. A single-KEP scope keeps the
+# evidence records as well.
+_FINDING_FIELDS = ("kind", "state", "a_label", "a_value", "b_label", "b_value", "suggested_fix")
+_KEP_FIELDS = ("label", "key", "title", "url", "evidence_id", "number", "owning_sig")
+_ISSUE_FIELDS = ("label", "key", "title", "url", "evidence_id", "number", "state", "state_reason", "closed_at_iso")
+
+
+def _pick(record: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
+    return {k: record[k] for k in fields if k in record}
+
+
+def lean_hit(hit: dict[str, Any], *, keep_evidence: bool) -> dict[str, Any]:
+    """A hit reduced to what an answer needs; `keep_evidence` keeps the EVIDENCED_BY records."""
+    if "finding" not in hit:
+        return hit
+    out = {
+        "finding": _pick(hit["finding"], _FINDING_FIELDS),
+        "kep": _pick(hit["kep"], _KEP_FIELDS),
+        "tracking_issue": [_pick(i, _ISSUE_FIELDS) for i in hit.get("tracking_issue", [])],
+    }
+    if keep_evidence:
+        out["evidence"] = hit.get("evidence", [])
+    return out
+
+
 COUNTS = """
 MATCH (f:Finding)
 WHERE f.state IN $states AND (size($kinds) = 0 OR f.kind IN $kinds)
@@ -70,7 +97,7 @@ ORDER BY kind
 
 class FindContradictionsParams(ToolParams):
     kep_ref: KepRef | None = Field(default=None, description="Scope to one KEP (number or path)")
-    sig: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,60}$", description="Scope to one SIG key")
+    sig: SigKey | None = Field(default=None, description="Scope to one SIG key")
     kinds: list[FindingKind] = Field(default_factory=list, description="Predicates; empty means all five")
     include_closed: bool = Field(default=False, description="Also return dismissed and resolved findings")
     limit: Literal[20, 50, 100] = 20
@@ -116,8 +143,9 @@ class FindContradictions(Tool):
                 run.add_path(h["kep"]["key"], "TRACKED_BY", i["key"])
         rows: list[dict[str, Any]] = []
         if counts:
-            rows.append({"counts_by_kind": counts, "total": sum(c["findings"] for c in counts)})
-        rows.extend(hits)
+            total = sum(c["findings"] for c in counts)
+            rows.append({"total_findings": total, "findings_returned": len(hits), "by_kind": counts})
+        rows.extend(lean_hit(h, keep_evidence=p.kep_ref is not None) for h in hits)
         return run.result(rows)
 
 

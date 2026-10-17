@@ -299,8 +299,9 @@ export function AskClient({
             Ask the decision record
           </label>
           <p className="mb-2 text-sm text-fg-secondary">
-            Why a KEP is designed the way it is, who decided and on what evidence, who owns it, who knows it, and whether its record
-            is still current. Every answer shows the graph path it read and links each claim to GitHub.
+            Why a KEP (Kubernetes Enhancement Proposal) is designed the way it is, who decided and on what evidence, who owns
+            it, who knows it, and whether its record is still current. Every answer shows the graph path it read and links each
+            claim to GitHub.
           </p>
           <textarea
             id="ask-input"

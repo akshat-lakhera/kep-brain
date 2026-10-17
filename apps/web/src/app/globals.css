@@ -3,20 +3,21 @@
 /* Dark mode follows data-theme="dark" on <html>, set before paint from the stored choice or the OS preference. */
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
-/* Semantic colour tokens (05 §3.1). Raw hex values appear only here. */
+/* Semantic colour tokens (05 §3.1). Raw hex values appear only here.
+   Grade: cool graphite surfaces with a single teal accent; status colours stay conventional. */
 :root {
-  --c-bg: #f6f7f9;
+  --c-bg: #f7f8f8;
   --c-surface: #ffffff;
-  --c-surface-subtle: #f1f3f5;
-  --c-border: #d9dde3;
-  --c-border-strong: #b8c0ca;
-  --c-border-input: #7b8591;
-  --c-text-primary: #15191f;
-  --c-text-secondary: #5b6572;
-  --c-text-muted: #626d7a;
-  --c-accent: #1f5fc5;
-  --c-accent-hover: #17499a;
-  --c-accent-subtle: #e8eefb;
+  --c-surface-subtle: #f0f3f3;
+  --c-border: #d7dddd;
+  --c-border-strong: #b4bfbf;
+  --c-border-input: #76858a;
+  --c-text-primary: #121a1c;
+  --c-text-secondary: #566468;
+  --c-text-muted: #5f6e73;
+  --c-accent: #0f766e;
+  --c-accent-hover: #0b5d57;
+  --c-accent-subtle: #dff4f0;
   --c-on-accent: #ffffff;
   --c-success: #167330;
   --c-success-subtle: #e8f5ec;
@@ -35,19 +36,19 @@
 }
 
 [data-theme="dark"] {
-  --c-bg: #0f1216;
-  --c-surface: #161a20;
-  --c-surface-subtle: #1d2229;
-  --c-border: #2b323b;
-  --c-border-strong: #3d4652;
-  --c-border-input: #6f7a87;
-  --c-text-primary: #e6e9ed;
-  --c-text-secondary: #a9b2bd;
-  --c-text-muted: #8c95a1;
-  --c-accent: #6ea2f0;
-  --c-accent-hover: #8db6f5;
-  --c-accent-subtle: #1a2a44;
-  --c-on-accent: #0f1216;
+  --c-bg: #0a0e12;
+  --c-surface: #11161b;
+  --c-surface-subtle: #171d23;
+  --c-border: #222a31;
+  --c-border-strong: #334049;
+  --c-border-input: #69777f;
+  --c-text-primary: #e9eef1;
+  --c-text-secondary: #a7b3ba;
+  --c-text-muted: #88959d;
+  --c-accent: #5eead4;
+  --c-accent-hover: #99f6e4;
+  --c-accent-subtle: #0f2a28;
+  --c-on-accent: #04201c;
   --c-success: #3fb950;
   --c-success-subtle: #12261a;
   --c-warning: #d29922;
@@ -120,6 +121,8 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 20px;
+  /* Wide content scrolls inside its own wrapper (tables, tab lists, code); the page itself never pans sideways. */
+  overflow-x: clip;
 }
 
 /* Visible focus on every focusable element: 2px accent outline, 2px offset. */
@@ -241,4 +244,20 @@ body {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* Editorial type: a display title is tighter than running text; an eyebrow is the small label above it. */
+.display {
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.eyebrow {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
 }
