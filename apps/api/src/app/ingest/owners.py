@@ -326,32 +326,6 @@ def _doc_row(f: OwnersFile, sha: str) -> dict[str, Any]:
     }
 
 
-def _merge_open(writer: BatchWriter, rel: str, from_label: str, to_label: str, rows: list[dict[str, Any]]) -> None:
-    for i in range(0, len(rows), 500):
-        writer.query(
-            f"UNWIND $rows AS r MATCH (a:{from_label} {{key: r.from}}) MATCH (b:{to_label} {{key: r.to}}) "
-            f"MERGE (a)-[e:{rel} {{valid_to: $open}}]->(b) "
-            "ON CREATE SET e += r.props, e.observed_at = $now, e.sync_run_id = $run "
-            "ON MATCH SET e.observed_at = $now, e.sync_run_id = $run",
-            {"rows": rows[i : i + 500], "open": VALID_TO_OPEN, "now": writer.observed_at, "run": writer.sync_run_id},
-        )
-
-
-def _close_absent(writer: BatchWriter, rel: str, from_label: str, current: dict[str, list[str]]) -> None:
-    rows = [{"key": k, "current": v} for k, v in current.items()]
-    for i in range(0, len(rows), 500):
-        writer.query(
-            f"UNWIND $rows AS r MATCH (a:{from_label} {{key: r.key}})-[e:{rel}]->(b) "
-            "WHERE e.valid_to = $open AND NOT b.key IN r.current SET e.valid_to = $at, e.valid_to_iso = $at_iso",
-            {
-                "rows": rows[i : i + 500],
-                "open": VALID_TO_OPEN,
-                "at": writer.observed_at,
-                "at_iso": iso(writer.observed_at),
-            },
-        )
-
-
 def sync_owners(
     writer: BatchWriter,
     settings: Settings,
@@ -462,7 +436,7 @@ def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[st
         for name in used_aliases.values()
         for pos, login in enumerate(filter(None, map(normalise_login, aliases[name])))
     ]
-    _merge_open(writer, "MEMBER_OF", "Person", "Alias", member_rows)
+    writer.merge_open_edges("MEMBER_OF", "Person", "Alias", member_rows)
     writer.query(
         "UNWIND $rows AS r MATCH (a:Alias {key: r.key})<-[e:MEMBER_OF]-(p:Person) "
         "WHERE e.valid_to = $open AND NOT p.key IN r.current SET e.valid_to = $at, e.valid_to_iso = $at_iso",
@@ -498,9 +472,9 @@ def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[st
                 label, key = resolved
                 current[doc_key].append(key)
                 by_label[label].append({"from": doc_key, "to": key, "props": props})
-        _close_absent(writer, rel, "Document", current)
+        writer.close_absent_edges(rel, "Document", None, current)
         for label, rows in by_label.items():
-            _merge_open(writer, rel, "Document", label, rows)
+            writer.merge_open_edges(rel, "Document", label, rows)
             counts[rel] += len(rows)
 
     sig_rows: list[dict[str, Any]] = []
@@ -513,8 +487,8 @@ def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[st
             if label.startswith("sig/"):
                 sig_current[doc_key].append("sig-" + label[4:])
                 sig_rows.append({"from": doc_key, "to": "sig-" + label[4:], "props": props})
-    _close_absent(writer, "APPLIES_LABEL", "Document", sig_current)
-    _merge_open(writer, "APPLIES_LABEL", "Document", "SIG", sig_rows)
+    writer.close_absent_edges("APPLIES_LABEL", "Document", None, sig_current)
+    writer.merge_open_edges("APPLIES_LABEL", "Document", "SIG", sig_rows)
 
     component_rows: dict[str, list[dict[str, Any]]] = {"SIG": [], "Subproject": []}
     component_current: dict[str, dict[str, list[str]]] = {
@@ -527,8 +501,8 @@ def _sync(writer: BatchWriter, src: OwnersSource, chart: OrgChart, scope: set[st
             component_rows[label].append({"from": key, "to": f"{KK_REPO}:{path}", "props": props})
             component_current[label].setdefault(key, []).append(f"{KK_REPO}:{path}")
     for label, rows in component_rows.items():
-        _close_absent(writer, "COMPONENT_DIR", label, component_current[label])
-        _merge_open(writer, "COMPONENT_DIR", label, "Document", rows)
+        writer.close_absent_edges("COMPONENT_DIR", label, None, component_current[label])
+        writer.merge_open_edges("COMPONENT_DIR", label, "Document", rows)
 
     by_dir = {f.directory: f for f in files}
     parent_rows: list[dict[str, Any]] = []

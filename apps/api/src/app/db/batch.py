@@ -10,12 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 import structlog
 
 from app.db.falkordb import WRITE_TIMEOUT_MS, FalkorPool, Role
+from app.ingest.common import iso
 from app.schema.apply import MANDATORY_NODE
 from app.schema.labels import NODE_LABELS, REL_TYPES, VALID_TO_OPEN
 
@@ -146,14 +147,68 @@ class BatchWriter:
         log.info("upsert_edges", rel=rel, rows=len(prepared), created=created)
         return created
 
-    def close_state_edges(
-        self, rel: str, from_label: str, to_label: str, subject_key: str, current_keys: Sequence[str], at: int
-    ) -> None:
-        """Close every open `rel` edge from `subject_key` whose target is no longer current (03 §3.3)."""
-        if rel not in REL_TYPES or from_label not in NODE_LABELS or to_label not in NODE_LABELS:
-            raise ValueError("edge not in allow-list")
-        self._run(
-            f"MATCH (a:{from_label} {{key: $k}})-[e:{rel}]->(b:{to_label}) "
-            f"WHERE e.valid_to = $open AND NOT b.key IN $current SET e.valid_to = $at",
-            {"k": subject_key, "current": list(current_keys), "open": VALID_TO_OPEN, "at": at},
+    def merge_open_edges(self, rel: str, from_label: str, to_label: str, rows: Sequence[dict[str, Any]]) -> None:
+        """One open interval per (from, rel, to): created once with its envelope, then only re-observed (03 §3.3).
+
+        `rows` are `{from, to, props}`; None-valued props are dropped so a MERGE never writes nulls.
+        """
+        self._check_edge(rel, from_label, to_label)
+        prepared = [
+            {
+                "from": r["from"],
+                "to": r["to"],
+                "props": {k: v for k, v in (r.get("props") or {}).items() if v is not None},
+            }
+            for r in rows
+        ]
+        query = (
+            f"UNWIND $rows AS r MATCH (a:{from_label} {{key: r.from}}) MATCH (b:{to_label} {{key: r.to}}) "
+            f"MERGE (a)-[e:{rel} {{valid_to: $open}}]->(b) "
+            "ON CREATE SET e += r.props, e.observed_at = $now, e.sync_run_id = $run "
+            "ON MATCH SET e.observed_at = $now, e.sync_run_id = $run"
         )
+        for chunk in _chunks(prepared):
+            self._run(
+                query, {"rows": list(chunk), "open": VALID_TO_OPEN, "now": self.observed_at, "run": self.sync_run_id}
+            )
+
+    def close_absent_edges(
+        self,
+        rel: str,
+        from_label: str,
+        to_label: str | None,
+        current: Mapping[str, Sequence[str]],
+        at: int | None = None,
+        *,
+        keyed_by_target: bool = False,
+    ) -> None:
+        """Close open `rel` edges that this sync no longer sees (03 §3.3).
+
+        `current` maps a subject key to the keys still connected to it. By default the subject is the edge's
+        source and the listed keys are targets; with `keyed_by_target` the subject is the target and the listed
+        keys are sources (leadership edges are keyed by the group). `to_label` None matches any target label.
+        """
+        self._check_edge(rel, from_label, *(() if to_label is None else (to_label,)))
+        when = self.observed_at if at is None else at
+        target = f"b:{to_label}" if to_label else "b"
+        if keyed_by_target:
+            match = (
+                f"MATCH (a:{from_label})-[e:{rel}]->({target} {{key: r.key}}) "
+                "WHERE e.valid_to = $open AND NOT a.key IN r.current"
+            )
+        else:
+            match = (
+                f"MATCH (a:{from_label} {{key: r.key}})-[e:{rel}]->({target}) "
+                "WHERE e.valid_to = $open AND NOT b.key IN r.current"
+            )
+        rows = [{"key": k, "current": list(v)} for k, v in current.items()]
+        for chunk in _chunks(rows):
+            self._run(
+                f"UNWIND $rows AS r {match} SET e.valid_to = $at, e.valid_to_iso = $at_iso",
+                {"rows": list(chunk), "open": VALID_TO_OPEN, "at": when, "at_iso": iso(when)},
+            )
+
+    @staticmethod
+    def _check_edge(rel: str, *labels: str) -> None:
+        if rel not in REL_TYPES or any(label not in NODE_LABELS for label in labels):
+            raise ValueError("edge not in allow-list")

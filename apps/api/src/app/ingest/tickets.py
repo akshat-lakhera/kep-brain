@@ -41,7 +41,7 @@ from app.db.falkordb import GRAPH_KEP, FalkorPool
 from app.ingest.common import ENHANCEMENTS_REPO, is_bot, iso, normalise_login, path_weight, person_url, pr_url
 from app.ingest.github import GitHubClient
 from app.ingest.kep_yaml import release_key
-from app.schema.labels import NODE_LABELS, REL_TYPES, VALID_TO_OPEN
+from app.schema.labels import NODE_LABELS, VALID_TO_OPEN
 from app.settings import Settings
 
 log = structlog.get_logger(__name__)
@@ -428,11 +428,6 @@ def _complete_pr_pages(client: GitHubClient, pr: dict[str, Any]) -> None:
 # -- graph writes ---------------------------------------------------------------
 
 
-def _check(rel: str, *labels: str) -> None:
-    if rel not in REL_TYPES or any(lab not in NODE_LABELS for lab in labels):
-        raise ValueError(f"not in allow-list: {rel} {labels}")
-
-
 def ensure_nodes(writer: BatchWriter, label: str, rows: Sequence[dict[str, Any]]) -> None:
     """Create entity nodes introduced by a mention without overwriting another writer's properties."""
     if label not in NODE_LABELS:
@@ -446,40 +441,6 @@ def ensure_nodes(writer: BatchWriter, label: str, rows: Sequence[dict[str, Any]]
             {"rows": [{k: v for k, v in r.items() if v is not None} for r in rows[i : i + 500]],
              "now": writer.observed_at, "run": writer.sync_run_id},
         )  # fmt: skip
-
-
-def merge_open_state_edges(
-    writer: BatchWriter, rel: str, from_label: str, to_label: str, rows: Sequence[dict[str, Any]]
-) -> None:
-    """Open interval per (from, rel, to): created once with its envelope, then only re-observed (03 §3.3)."""
-    _check(rel, from_label, to_label)
-    prepared = [
-        {"from": r["from"], "to": r["to"], "props": {k: v for k, v in r["props"].items() if v is not None}}
-        for r in rows
-    ]
-    for i in range(0, len(prepared), 500):
-        writer.query(
-            f"UNWIND $rows AS r MATCH (a:{from_label} {{key: r.from}}) MATCH (b:{to_label} {{key: r.to}}) "
-            f"MERGE (a)-[e:{rel} {{valid_to: $open}}]->(b) "
-            "ON CREATE SET e += r.props, e.observed_at = $now, e.sync_run_id = $run "
-            "ON MATCH SET e.observed_at = $now, e.sync_run_id = $run",
-            {"rows": prepared[i : i + 500], "open": VALID_TO_OPEN, "now": writer.observed_at,
-             "run": writer.sync_run_id},
-        )  # fmt: skip
-
-
-def close_absent_state_edges(
-    writer: BatchWriter, rel: str, from_label: str, to_label: str, current: dict[str, list[str]], at: int
-) -> None:
-    """For each subject key, close open `rel` edges whose target is not in its current set."""
-    _check(rel, from_label, to_label)
-    rows = [{"key": k, "current": v} for k, v in current.items()]
-    for i in range(0, len(rows), 500):
-        writer.query(
-            f"UNWIND $rows AS r MATCH (a:{from_label} {{key: r.key}})-[e:{rel}]->(b:{to_label}) "
-            "WHERE e.valid_to = $open AND NOT b.key IN r.current SET e.valid_to = $at, e.valid_to_iso = $at_iso",
-            {"rows": rows[i : i + 500], "open": VALID_TO_OPEN, "at": at, "at_iso": iso(at)},
-        )
 
 
 def person_row(login: str, raw: str | None = None) -> dict[str, Any]:
@@ -678,12 +639,12 @@ def write_issues(
     ensure_nodes(writer, "Label", list(label_rows.values()))
     write_releases(writer, milestones, stats)
     writer.upsert_nodes("Issue", issue_rows, extra_labels=["Ticket"])
-    close_absent_state_edges(writer, "TRACKED_BY", "KEP", "Issue", current_tracked, now)
-    merge_open_state_edges(writer, "TRACKED_BY", "KEP", "Issue", tracked)
-    close_absent_state_edges(writer, "LABELED", "Issue", "Label", current_labels, now)
-    merge_open_state_edges(writer, "LABELED", "Issue", "Label", labeled)
-    close_absent_state_edges(writer, "MILESTONED", "Issue", "Release", current_ms, now)
-    merge_open_state_edges(writer, "MILESTONED", "Issue", "Release", milestoned)
+    writer.close_absent_edges("TRACKED_BY", "KEP", "Issue", current_tracked, now)
+    writer.merge_open_edges("TRACKED_BY", "KEP", "Issue", tracked)
+    writer.close_absent_edges("LABELED", "Issue", "Label", current_labels, now)
+    writer.merge_open_edges("LABELED", "Issue", "Label", labeled)
+    writer.close_absent_edges("MILESTONED", "Issue", "Release", current_ms, now)
+    writer.merge_open_edges("MILESTONED", "Issue", "Release", milestoned)
     writer.upsert_edges("OPENED", "Person", "Issue", opened)
     stats.issues = len(issue_rows)
     stats.labels = len(label_rows)

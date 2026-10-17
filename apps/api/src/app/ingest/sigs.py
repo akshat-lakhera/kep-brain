@@ -230,18 +230,11 @@ def _write_subprojects(writer: BatchWriter, chart: OrgChart, source: str, t: int
         {"from": login, "to": key, "props": {**open_state_props(t, source, "first_observed"), "w": 4}}
         for login, key in chart.subproject_leads
     ]
-    _open_snapshot_edges(writer, "SUBPROJECT_LEAD", "Person", "Subproject", rows)
-    for sp in chart.subprojects:
-        writer.query(
-            "MATCH (a:Person)-[e:SUBPROJECT_LEAD]->(b:Subproject {key: $k}) "
-            "WHERE e.valid_to = $open AND NOT a.key IN $current SET e.valid_to = $t",
-            {
-                "k": sp["key"],
-                "current": [login for login, key in chart.subproject_leads if key == sp["key"]],
-                "open": open_state_props(t, "")["valid_to"],
-                "t": t,
-            },
-        )
+    writer.merge_open_edges("SUBPROJECT_LEAD", "Person", "Subproject", rows)
+    current = {
+        sp["key"]: [login for login, key in chart.subproject_leads if key == sp["key"]] for sp in chart.subprojects
+    }
+    writer.close_absent_edges("SUBPROJECT_LEAD", "Person", "Subproject", current, t, keyed_by_target=True)
 
 
 def _write_snapshot_edges(
@@ -254,35 +247,11 @@ def _write_snapshot_edges(
     t: int,
 ) -> None:
     """Open edges for the current snapshot (keeping an existing open interval), close the ones that disappeared."""
-    _open_snapshot_edges(writer, rel, from_label, to_label, rows)
-    current = {(r["from"], r["to"]) for r in rows}
-    for target_dir, label in chart.label_of.items():
-        if label != to_label:
-            continue
-        writer.query(
-            f"MATCH (a:{from_label})-[e:{rel}]->(b:{to_label} {{key: $k}}) "
-            "WHERE e.valid_to = $open AND NOT a.key IN $current SET e.valid_to = $t",
-            {
-                "k": target_dir,
-                "current": [f for f, to in current if to == target_dir],
-                "open": open_state_props(t, "")["valid_to"],
-                "t": t,
-            },
-        )
-
-
-def _open_snapshot_edges(
-    writer: BatchWriter, rel: str, from_label: str, to_label: str, rows: list[dict[str, Any]]
-) -> None:
-    if not rows:
-        return
-    for row in rows:
-        row["props"]["observed_at"] = writer.observed_at
-        row["props"]["sync_run_id"] = writer.sync_run_id
-    writer.query(
-        f"UNWIND $rows AS r MATCH (a:{from_label} {{key: r.from}}) MATCH (b:{to_label} {{key: r.to}}) "
-        f"MERGE (a)-[e:{rel} {{valid_to: r.props.valid_to}}]->(b) "
-        "ON CREATE SET e += r.props ON MATCH SET e.observed_at = r.props.observed_at, "
-        "e.sync_run_id = r.props.sync_run_id",
-        {"rows": rows},
-    )
+    writer.merge_open_edges(rel, from_label, to_label, rows)
+    sources = {(r["from"], r["to"]) for r in rows}
+    current = {
+        target: [f for f, to in sources if to == target]
+        for target, label in chart.label_of.items()
+        if label == to_label
+    }
+    writer.close_absent_edges(rel, from_label, to_label, current, t, keyed_by_target=True)
