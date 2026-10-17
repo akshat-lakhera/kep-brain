@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | Draft **v1.2** for team review. Graph-model sketch only (Rule 8): no source files, manifests or paste-ready query catalog. v1.1 (2026-10-12) was a consistency pass. **v1.2 (2026-10-12) resolves the second design review** (15 findings; map in §0.5). It changes the design in these places: the narrow job and a v1 tool set of 14 (§0.1, §15.0); the contradiction kinds, recounted against live data (§7.5); graph-level staleness in place of per-node `last_seen_at` (§7.4); validity closure by per-document set difference with interval identity (§3.3); OWNERS/`sigs.yaml` validity from first observation (§7.6); a fenced, single-task lease claim on the server clock (§10.1); hub-penalised path search with deterministic ordering (§5.0, §14, tools 13/20–22); a pre-`MERGE` PII assertion with auto-redaction (§9); a shared organisational memory, `Finding`, written by an LLM triage agent and read by the planner and MCP (§4.7, tool 30); B13/B7/B2/B17 of `06` folded in (`kb_ops`, `BudgetDay`, `AuditEvent`, `Chunk.text` full-text, unprefixed settings, MCP list); human ownership of the core artefacts (§20) 2026-10-12: applied 06 §1.6 register (ratified). |
-| Authorship | Drafted by an AI assistant (Claude) as pre-event notes. Every DECISION here is veto-able by the human owner named by role in §20, and the human owners write the artefacts listed there by hand after 00:01 IST on 2026-10-15 |
+| Authorship | Drafted by an AI assistant as pre-event notes. Every DECISION here is veto-able by the human owner named by role in §20, and the human owners write the artefacts listed there by hand after 00:01 IST on 2026-10-15 |
 | Date | 2026-10-11/12 (IST) |
 | Authoritative for | Graph names, node labels, relationship types, property names and types, keys, indexes, constraints, the temporal and provenance conventions, and the tool (query-intent) catalog. `02-architecture.md` §5 and §7 and the ADRs defer to this document for names; §17 lists the deltas they must adopt. |
 | Companion docs | `01-recon-kubernetes-data.md` (data facts; its decisions D1–D12 are adopted), `02-architecture.md` (processes, ACL users, API contract), `05-ui-brief.md` (what the UI needs from evidence and paths), `adr/0006` (graph families), `adr/0008` (MERGE discipline) |
@@ -24,7 +24,7 @@ Tags used below: **VERIFIED** (opened at the source, URL given), **OBSERVED** (m
 
 The checkable outcome is a number: on the 2026-10-12 snapshot the five contradiction predicates of §7.5 flag **47 distinct KEPs** in the three loaded SIGs (39 + 8 + 5 + 3 + 1 hits; counts and every hit in `D:\kep-brain\.recon\eval\contradiction-counts.json`, derived from `census-three-sigs.json` and a GraphQL fetch of all 234 tracking issues on 2026-10-12, OBSERVED). The product reports the same predicates over the live graph. A human hand-checks every hit before the freeze and the README publishes precision, not just the count (§20, H3). The hero is **`find_contradictions` + `trace_decision`**: a disagreement between the project's own records, then the people, PR and commit behind each side of it. Everything else in this document either serves that job or carries the T01/T02 layers.
 
-Alternative: the v1.1 framing ("why / who decided / who owns / who knows / is it current" across 29 tools). Rejected because the organisers' advice quoted in `FABLE_CONTEXT.md` §2 rewards "one narrow job done end to end", and because "why did we decide X" alone is a T03 cliché (`FABLE_CONTEXT.md` §3) that two listed competitors (`volfiros/axon-brain`, `RAJ-A58/NodeOps`) already cover in part.
+Alternative: the v1.1 framing ("why / who decided / who owns / who knows / is it current" across 29 tools). Rejected because the organisers' advice quoted in the planning notes §2 rewards "one narrow job done end to end", and because "why did we decide X" alone is a T03 cliché (the planning notes §3) that two listed competitors (`volfiros/axon-brain`, `RAJ-A58/NodeOps`) already cover in part.
 
 ### 0.2 v1 scope in one table
 
@@ -906,7 +906,7 @@ A `Decision` whose only `DECIDED_BY` candidate is a bot still gets the bot edge 
 
 ## 9. Rule 6 at the model level: e-mail and personal data can never enter the graph
 
-Rule 6 (verified wording in `FABLE_CONTEXT.md` §0): only public data; strip e-mails and personal details. The architecture's scrubber (§9.5 there) is necessary but it is code; the model adds five guarantees (G1–G5) that hold even if the scrubber has a bug.
+Rule 6 (verified wording in the planning notes §0): only public data; strip e-mails and personal details. The architecture's scrubber (§9.5 there) is necessary but it is code; the model adds five guarantees (G1–G5) that hold even if the scrubber has a bug.
 
 | # | Guarantee | Mechanism |
 |---|---|---|
@@ -1465,7 +1465,7 @@ v1 = the 14 LLM-callable tools marked **(v1)** below plus the three system tools
 
 ### 15.2 T01 — Agents that act on connected data
 
-**20. `impact_of`** (deferred, §15.0) — the implementation footprint of a KEP: gates, components and implementing PRs. The *lineage* half of the v1.1 tool ("which KEPs build on or replace this one") moved to `kep_relations` (13). The v1.1 framing as "blast radius" is dropped: it is the most overused T01 theme (`FABLE_CONTEXT.md` §3) and NodeOps already ships it.
+**20. `impact_of`** (deferred, §15.0) — the implementation footprint of a KEP: gates, components and implementing PRs. The *lineage* half of the v1.1 tool ("which KEPs build on or replace this one") moved to `kep_relations` (13). The v1.1 framing as "blast radius" is dropped: it is the most overused T01 theme (the planning notes §3) and NodeOps already ships it.
 
 | | |
 |---|---|
@@ -1734,7 +1734,7 @@ Recommendation for HUM-00a (veto-able): once the rows above are applied, `06` §
 | `kep.yaml` field shapes, counts, quality findings, provenance examples, SIG choice, scale | `01-recon-kubernetes-data.md` | 2026-10-11 | adopted; re-measured 2026-10-15 (recon D12) |
 | Anthropic has no embeddings model; Voyage models default 1024 with `output_dimension` {256, 512, 1024, 2048}; normalised vectors (cosine = dot) | https://platform.claude.com/docs/en/docs/build-with-claude/embeddings; https://docs.voyageai.com/docs/embeddings | 2026-10-12 | VERIFIED |
 | OpenAI `dimensions` parameter "Only supported in `text-embedding-3` and later models" | https://github.com/openai/openai-python `src/openai/resources/embeddings.py` (platform docs returned 403) | 2026-10-12 | VERIFIED (SDK source) |
-| Hackathon Rule 3, 6, 8, 10 wording; track focus wording | `FABLE_CONTEXT.md` §0–§1 (quoting https://www.wemakedevs.org/hackathons/falkordb and …/rules) | 2026-10-11 | adopted |
+| Hackathon Rule 3, 6, 8, 10 wording; track focus wording | the planning notes §0–§1 (quoting https://www.wemakedevs.org/hackathons/falkordb and …/rules) | 2026-10-11 | adopted |
 | Whether an index on a secondary label's `key` is used when the node has two labels; whether `CREATE INDEX` on an existing index errors; `MERGE` onto `(:Ticket:Issue {key})`; `SET n:Label`; `[:A\|B*1..3]` | — | — | UNVERIFIED; each has a day-one `GRAPH.EXPLAIN`/integration check and a stated fallback |
 | `timestamp()` "Returns the current system timestamp (milliseconds since epoch)" | https://docs.falkordb.com/cypher/functions | 2026-10-12 | VERIFIED (the lease clock, §10.1) |
 | `LIMIT` limitation wording: "When a WITH or RETURN clause introduces a LIMIT value, this value ought to be respected by all preceding operations"; example `UNWIND [1,2,3] AS value CREATE (a {property: value}) RETURN a LIMIT 1` creates three nodes; affects `CREATE`, `SET`, `DELETE`, `MERGE` and aggregating projections | https://docs.falkordb.com/cypher/known-limitations | 2026-10-12 | VERIFIED; whether a `SET` *after* `WITH … LIMIT 1` touches one row on 4.22.0 is UNVERIFIED (test (b) of §10.1, fallback stated) |
@@ -1800,7 +1800,7 @@ Recommendation for HUM-00a (veto-able): once the rows above are applied, `06` §
 
 ## 20. Human ownership and explain-back (Rules 11–13)
 
-Rule 13: "Projects that are entirely generated using AI without meaningful participant contribution, verification, or technical understanding may be rejected." (`FABLE_CONTEXT.md` §0). This document was drafted by an AI assistant before the event. The table below states what the humans own and **write by hand** after 00:01 IST on 2026-10-15. Agents may review these artefacts but never author them. The commit author is the human named in `docs/AI_USAGE.md`. Roles are those of `06` §3.2; names are filled in when the roster is known (`06` HUM-00d).
+Rule 13: "Projects that are entirely generated using AI without meaningful participant contribution, verification, or technical understanding may be rejected." (the planning notes §0). This document was drafted by an AI assistant before the event. The table below states what the humans own and **write by hand** after 00:01 IST on 2026-10-15. Agents may review these artefacts but never author them. The commit author is the human named in `docs/AI_USAGE.md`. Roles are those of `06` §3.2; names are filled in when the roster is known (`06` HUM-00d).
 
 | # | Artefact (from this document) | Human owner (role) | Hand-written? | Explain-back at |
 |---|---|---|---|---|

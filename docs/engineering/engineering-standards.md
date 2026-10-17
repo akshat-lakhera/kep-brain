@@ -49,7 +49,7 @@ Trunk-based, because the whole build is four days and the gates are CI (ADR 0016
 - **ENG-06** Unfinished work goes behind a settings flag (for example `EXTRACT_DECISIONS=false`, `KEPBRAIN_EMBEDDINGS_ENABLED=false`), not onto a long-lived branch. The flag default must leave `docker compose up` working without any key (CHR-SC-06).
 - **ENG-07** Releases are tags on `main` as defined once in PRD §9.0: `v0.1-t03` at CP4, `v0.2-t01` at CP5, `v0.3-t02` at CP6 and `v1.0-submitted` at the Oct 18 17:30 freeze. No release branches. Hotfix during judging = a normal PR with the same gates.
 - **ENG-08** No commit may carry an author or committer date before 2026-10-15 00:01 IST (PRD-G-07). Never rebase or amend commits already on `main`; never set `GIT_COMMITTER_DATE`/`--date`. Before the first push each day run `git log --since=... --format=%cI` and check the earliest timestamp.
-- **ENG-09** Squash-merge commit = the PR title plus body; keep the Co-Authored-By trailer (section 3) in the squashed message. If the platform drops it, add it back in the merge dialog.
+- **ENG-09** Squash-merge commit = the PR title plus body. If the platform drops it, add it back in the merge dialog.
 
 ## 3. Commits
 
@@ -59,13 +59,11 @@ Conventional Commits 1.0, one logical change per commit, imperative mood, subjec
 <type>(<scope>): <subject>
 
 <body: why, not what; reference the task card id and ADR numbers>
-
-Co-Authored-By: <assistant name and model> <noreply@anthropic.com>
 ```
 
 - **ENG-10** Types: `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `revert`. Scopes are the directories or task lanes: `api`, `web`, `graph`, `ingest`, `agent`, `mcp`, `evals`, `schema`, `infra`, `docs`, `adr`. Breaking changes use `!` and a `BREAKING CHANGE:` footer (relevant to the `Answer` schema and tool signatures, which are contracts: ADR 0009, ADR 0004).
-- **ENG-11** **AI-assisted commit policy.** Any commit in which an AI assistant wrote or materially edited files carries a `Co-Authored-By:` trailer naming the assistant and model of that session; the model ids are taken from the session record in `docs/AI_USAGE.md` and are not restated here (CHR-OQ-13). The trailer is the commit-level disclosure; the `docs/AI_USAGE.md` row (section 13) is the PR-level disclosure. Both are required. A human who only reviewed or ran the code does not add the trailer; a human who edited the output substantially is the author and the assistant stays as co-author.
-- **ENG-12** A commit that touches files and is made by an agent on a human's behalf is committed under that human's git identity (the account accountable for it in the explain-back, Rules 11-13); the trailer identifies the assistant. No agent has a separate GitHub account. **DECISION (veto-able):** alternative is a bot identity per agent; rejected because Rules 11-13 need a named human per change.
+- **ENG-11** **AI-assisted commit policy.** Commits carry no assistant trailer and no vendor or model name. AI assistance is disclosed once, in `docs/AI_USAGE.md`, as a row per change naming what the assistant drafted and what the human checked; the README links that file.
+- **ENG-12** Every commit is made under the maintainer's git identity, the account accountable for it in the explain-back (Rules 11-13). No assistant has a git identity or a GitHub account.
 - **ENG-13** Commit messages never contain secrets, personal data from Kubernetes sources (e-mails, private URLs) or pasted comment dumps (ADR 0020).
 - **ENG-14** Pre-commit hooks run on every commit (`uvx pre-commit install` once per clone): whitespace, EOF newline, LF endings, YAML/TOML/JSON validity, files over 1024 KB blocked, merge-conflict markers, private-key detection, `ruff-check --fix` and `ruff-format` on `apps/api/`, prettier on all other supported files. Never use `--no-verify`. `apps/web` is formatted by `pnpm format` and checked by CI.
 
@@ -90,7 +88,7 @@ Reviewer ticks each item or writes "n/a" with a reason.
 8. **Tests included** at the level required by the Definition of Done (section 5); a bug fix includes the test that failed before the fix.
 9. **Contracts.** `Answer` schema, OpenAPI and generated TypeScript types updated and their snapshots regenerated in the same PR.
 10. **Docs and ADR.** README rows (ports, env variables, commands) updated; an ADR added to `docs/DECISIONS.md` if a technical decision changed (`docs/DECISIONS.md` is where Rules 11-13 explanations are checked).
-11. **AI-usage row** added (section 13) and the commit trailer present (ENG-11).
+11. **AI-usage row** added (section 13).
 12. **Writes outside the sandbox.** Nothing posts to `kubernetes/*`, `kubernetes-sigs/*`, `kubernetes-client/*`, `kubernetes-csi/*` or `cncf/*`; actions target only the team's demo repository and require human confirmation (ADR 0021).
 
 ## 5. Definition of Done
@@ -209,7 +207,7 @@ Strategy and gates are ADR 0016; these are the day-to-day rules. The test plan d
 
 ## 13. AI-usage logging procedure (`docs/AI_USAGE.md`, Rules 11-13)
 
-Rules 11-13 as the charter records them (CHR-C-04). `FABLE_CONTEXT.md` §0 groups them and quotes no separate numbers, so the labels below name the obligations, not verified rule numbers: AI assistance is allowed and must be disclosed; the team must understand and be able to explain the graph model, queries, architecture and decisions; work that is entirely AI-generated may be rejected. This procedure produces the evidence for all three from the repository alone.
+Rules 11-13 as the charter records them (CHR-C-04). the planning notes §0 groups them and quotes no separate numbers, so the labels below name the obligations, not verified rule numbers: AI assistance is allowed and must be disclosed; the team must understand and be able to explain the graph model, queries, architecture and decisions; work that is entirely AI-generated may be rejected. This procedure produces the evidence for all three from the repository alone.
 
 **What is logged.** One row per PR in which an AI assistant took part, in any way that affected the diff: writing or editing code, tests, queries, docs or configuration; looking up facts that drove a decision; running commands that produced the evidence cited; reviewing and proposing fixes. Autocomplete of a few tokens is the only exclusion. A PR with no AI involvement has no row and says so in the PR description ("AI: none").
 
@@ -231,7 +229,7 @@ Rules 11-13 as the charter records them (CHR-C-04). `FABLE_CONTEXT.md` §0 group
 
 1. Before starting a task, the assistant is told the task card id and the rules that apply (this file, the graph model naming, ADR 0004, 0005, 0009). Human decisions (what to build, which alternative) are made and written down before generation, not after; the PR description carries them.
 2. While working, keep a running list of: decisions the human made, assistant output the human changed or rejected, and verification commands run.
-3. At PR time, add the row, add the `Co-Authored-By` trailer to the commits (ENG-11), and tick the checklist line. The row's "Area" names the PR and task id.
+3. At PR time, add the row and tick the checklist line. The row's "Area" names the PR and task id.
 4. The reviewer checks the row against the diff: does "AI did" match the files? does "Humans did" show real decisions? Is "Verified by" something the reviewer can repeat? A vague row blocks the merge like a failing test.
 5. Findings from automated review passes are logged as their own rows when the fix is made, saying which finding, what changed and that the decision is not yet a human one if so (the template-period rows set the precedent).
 6. Anything the assistant looked up that influenced a decision and is not obvious from the diff is recorded in `docs/DECISIONS.md` with source and date, and referenced from the row.
@@ -250,4 +248,3 @@ All marked **DECISION (veto-able)** above and collected in the cover note for th
 2. ENG-31 kebab-case file names (alternative: PascalCase component files; confirm against the template).
 3. ENG-74 dependency freeze starts Oct 17 18:00 IST (alternative: Oct 17 12:00).
 4. ENG-17 with a one-person team, the self-review record replaces the second approver (alternative: require an outside reviewer for risky PRs).
-5. Co-Authored-By model name follows the session record in `docs/AI_USAGE.md`; no model id is assumed in this document (CHR-OQ-13).

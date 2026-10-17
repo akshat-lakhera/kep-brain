@@ -7,7 +7,7 @@
 | Document | `docs/engineering/TRD.md` |
 | Version / status | v0.1 draft for team sign-off (H-Lead, H-Review). Pre-kickoff note only (Rule 8): no source, scripts or manifests. |
 | Date | 2026-10-12 (IST) |
-| Upstream | `docs/product/PRD.md` (every `PRD-FR-nnn`, `PRD-G-nn`), `docs/product/project-charter.md`, `FABLE_CONTEXT.md` §1, §2, §4 |
+| Upstream | `docs/product/PRD.md` (every `PRD-FR-nnn`, `PRD-G-nn`), `docs/product/project-charter.md`, the planning notes §1, §2, §4 |
 | Design inputs (linked, not copied) | [02-architecture](../design/02-architecture.md) §4 containers, §6 flow, §7 tools, §11 cross-cutting, §12 API, §14 Rule 3, §15 budgets; [03-graph-model](../design/03-graph-model.md) §3 keys, §12 indexes, §13 constraints, §14 algorithms, §15 tools; [04-eval-set](../design/04-eval-set.md) §7 metrics, §8 arms; [security-threat-model](security-threat-model.md) §6; [data-governance](data-governance.md) §4 |
 | Siblings | `TST-*` test plan, `OPS-*` operations, `RSK-*` risks (`docs/ops/risk-register.md`, cited by id) |
 | Authority | Names of labels, edges, tools: 03-graph-model. HTTP shapes: 02 §12 plus the deltas in §9 here. Where this TRD and a design document disagree, the disagreement is listed in §17 and the design document wins until the team decides. |
@@ -27,7 +27,7 @@ Conventions.
 - Every `TRD-TR` row has a **Realises** column (PRD-FR ids) and a **Verification** column. §4.18 inverts this: every `PRD-FR-001..077` appears in at least one TR or is named as process-only.
 - A requirement with a number is a target that must be measured. A number marked **(decided)** is chosen here because no source gives one; it is **veto-able**, no measurement backs it yet, and it is frozen or revised after the first measurement at the checkpoint named in its row.
 - Priority P0/P1/P2 follows PRD §0.1 (T03, T01, T02). Security rows carry the threat model's own P0/P1/P2 (before CP4, CP6, CP7/CP8).
-- "Rule" means a WeMakeDevs hackathon rule as quoted in `FABLE_CONTEXT.md` §0 and §1. Rule 8: all code starts after 2026-10-15 00:01 IST. This file therefore contains prose and tables only.
+- "Rule" means a WeMakeDevs hackathon rule as quoted in the planning notes §0 and §1. Rule 8: all code starts after 2026-10-15 00:01 IST. This file therefore contains prose and tables only.
 - LLM defaults (undecided by the user, treated as open): Anthropic `claude-sonnet-5-5` answering, `claude-haiku-5-5` extraction. Team: 1-4 people, roles as a template. Hosting: single VM, Docker Compose, Caddy (ADR 0017).
 
 ---

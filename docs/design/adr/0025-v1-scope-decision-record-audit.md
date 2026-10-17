@@ -11,9 +11,9 @@ Amended 2026-10-12 per 06 §1.6 (ratified register).
 
 ## Context
 
-Organiser advice (`FABLE_CONTEXT.md` §2): "One narrow job done end to end scores better than a platform with three half-finished features"; winners did "one narrow job with a checkable outcome". The v1 design had 29 tools, 10 routes, 25+ endpoints, 5 eval arms, OpenTelemetry with Jaeger, a blue/green rebuild, a backup sidecar and a seven-segment video in which several segments got about 20 seconds; `06` R7 rated scope creep high/high.
+Organiser advice (the planning notes §2): "One narrow job done end to end scores better than a platform with three half-finished features"; winners did "one narrow job with a checkable outcome". The v1 design had 29 tools, 10 routes, 25+ endpoints, 5 eval arms, OpenTelemetry with Jaeger, a blue/green rebuild, a backup sidecar and a seven-segment video in which several segments got about 20 seconds; `06` R7 rated scope creep high/high.
 
-Differentiation (`gh api repos/RAJ-A58/NodeOps/readme`, read 2026-10-12): NodeOps calls itself the repository's "Company Brain", targets Tracks 01 and 03, names Kubernetes, ranks people by "`algo.pageRank` contributor importance over merged PR file footprints" and does "dependency blast radius". `FABLE_CONTEXT.md` §3 lists blast radius as the most overused T01 theme and "why did we decide X" as a T03 cliché. KEP Brain v1 shipped PageRank "who knows", directory ownership and an "if reverted" impact tool: too close.
+Differentiation (`gh api repos/RAJ-A58/NodeOps/readme`, read 2026-10-12): NodeOps calls itself the repository's "Company Brain", targets Tracks 01 and 03, names Kubernetes, ranks people by "`algo.pageRank` contributor importance over merged PR file footprints" and does "dependency blast radius". the planning notes §3 lists blast radius as the most overused T01 theme and "why did we decide X" as a T03 cliché. KEP Brain v1 shipped PageRank "who knows", directory ownership and an "if reverted" impact tool: too close.
 
 ## Decision
 

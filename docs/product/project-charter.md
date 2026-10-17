@@ -6,7 +6,7 @@
 | Date | 2026-10-12 (IST) |
 | Event | WeMakeDevs × FalkorDB "Graph Hacks: Context for AI Agents", 2026-10-15 00:01 IST → 2026-10-18 23:59 IST (public API `start_date 2026-10-14T18:31:00Z`, `end_date 2026-10-18T18:29:00Z`, `max_team_size 4`, `registration_count 4724` on 2026-10-12; https://wemakedevs-server.onrender.com/hackathons/falkordb) |
 | Master track | **T03 Company Brain (prize: M6 Mac Mini)**, with T01 Agents That Act on Connected Data (iPhone 18 Pro) and T02 Agent Memory and Coordination (PS5 with GTA VI) entered as genuine secondary layers built on the T03 core. Track names and prizes re-read at https://www.wemakedevs.org/hackathons/falkordb on 2026-10-12; the page says "Build for one, or for all three at once. Each track has its own prize." |
-| Source documents | `E:\graph-hacks-prep\FABLE_CONTEXT.md` (judging research); `docs/design/01`–`06` and `docs/design/adr/0001`–`0021` (scope, architecture, graph model, eval, UI, schedule). Where this charter and a design document disagree, the design document wins and the disagreement is listed in §11. |
+| Source documents | the pre-event planning notes (kept outside this repository) (judging research); `docs/design/01`–`06` and `docs/design/adr/0001`–`0021` (scope, architecture, graph model, eval, UI, schedule). Where this charter and a design document disagree, the design document wins and the disagreement is listed in §11. |
 | ID conventions | `PRD-G-nn` goals, `PRD-NG-nn` non-goals (defined here; the PRD refines them without renumbering), `CHR-SC-nn` success criteria, `CHR-ST-nn` stakeholders, `CHR-M-nn` milestones, `CHR-B-nn` budget lines, `CHR-C-nn` constraints, `CHR-GOV-nn` governance rules, `CHR-CMP-nn` compliance statements, `CHR-OQ-nn` open questions. Decisions made in this file because the design is silent are marked **DECISION (veto-able)** with the alternative. |
 
 ---
@@ -33,7 +33,7 @@ Treat the Kubernetes project as a company with a public org chart and public dec
 
 | Id | Non-goal | Why |
 |---|---|---|
-| PRD-NG-01 | Issue triage, reviewer routing, duplicate detection | Another entry (RAJ-A58/NodeOps) covers it; `FABLE_CONTEXT.md` §3 |
+| PRD-NG-01 | Issue triage, reviewer routing, duplicate detection | Another entry (RAJ-A58/NodeOps) covers it; the planning notes §3 |
 | PRD-NG-02 | Chat-with-your-docs UX or a generic "company brain" platform | Organiser guidance: one narrow job finished end to end |
 | PRD-NG-03 | Free-form text-to-Cypher anywhere in the judged path | Fixed team decision (ADR 0004) |
 | PRD-NG-04 | Any write to `kubernetes/*`, `kubernetes-sigs/*`, `kubernetes-client/*`, `kubernetes-csi/*`, `cncf/*` | Built-in denylist (ADR 0021) |
@@ -44,7 +44,7 @@ Treat the Kubernetes project as a company with a public org chart and public dec
 
 ### 4.1 Hackathon: what "won T03" requires in judge-visible terms
 
-Judging criteria are not published (rules page and public API re-read 2026-10-12). The criteria below are drawn from the 2026 WeMakeDevs six-criterion template, the organisers' and FalkorDB's own published advice, and verified winner patterns (`FABLE_CONTEXT.md` §2).
+Judging criteria are not published (rules page and public API re-read 2026-10-12). The criteria below are drawn from the 2026 WeMakeDevs six-criterion template, the organisers' and FalkorDB's own published advice, and verified winner patterns (the planning notes §2).
 
 | Id | Criterion (what a judge sees) | Where it lives |
 |---|---|---|
@@ -95,7 +95,7 @@ timeline
 
 | Id | Milestone | When | Exit evidence |
 |---|---|---|---|
-| CHR-M-01 | Docs and design complete; every pre-event veto-able default accepted or overturned in an ADR | Oct 14 23:59 | `docs/design/*` and `docs/product/*` consistent; `FABLE_CONTEXT.md` §1 updated by HUM-00c |
+| CHR-M-01 | Docs and design complete; every pre-event veto-able default accepted or overturned in an ADR | Oct 14 23:59 | `docs/design/*` and `docs/product/*` consistent; the planning notes §1 updated by HUM-00c |
 | CHR-M-02 | Coding starts; template committed as baseline | Oct 15 00:01–00:30 (CP0) | First commit timestamp ≥ 00:01 IST; CI green on the private repository |
 | CHR-M-03 | First cited answer (PRD-G-01) | Oct 15 23:00 (CP2) | CP2 smoke test |
 | CHR-M-04 | Public push and first deployment with HTTPS and a first backup (PRD-G-02) | Oct 16 21:00 (CP4) | Public repository with full history; live URL |
@@ -126,13 +126,13 @@ Assumptions, all written out so a reader can redo the arithmetic:
 | CHR-B-06 | **DECISION (veto-able):** a hard spend limit of **$150 combined** for Oct 15 → results, split across two keys ($80 on the prod/dev key, $70 on the separate eval key; OPS-056), each set in the provider console before the first request; alternative: no cap, rely on the per-user rate limit only | — | $150 |
 | | **Total** | ≈ $80 + ≈ €15 | $150 + €40 |
 
-Who pays the key and the VM is open (CHR-OQ-01, CHR-OQ-03). No sponsor LLM credits were found (`FABLE_CONTEXT.md` §5).
+Who pays the key and the VM is open (CHR-OQ-01, CHR-OQ-03). No sponsor LLM credits were found (the planning notes §5).
 
 ## 8. Top constraints
 
 | Id | Constraint | Source |
 |---|---|---|
-| CHR-C-01 | No product code, no git repository and no UI build before 2026-10-15 00:01 IST; notes, graph-model sketches and diagrams only. **Position (decided, veto-able):** the generic template already in the working tree (`apps/`, `docker-compose.yml`, `.github/`, hooks, `LICENSE`, `README.md`) is pre-existing scaffolding disclosed under Rule 9, not hackathon work and not claimed as such (CHR-CMP-01); it is committed as the first, labelled commit at or after 00:01 and no `git init` happens earlier. Alternative: remove the template from the tree until 00:01 and add it then | Rule 8 and Rule 9 (re-read 2026-10-12); `FABLE_CONTEXT.md` §0 |
+| CHR-C-01 | No product code, no git repository and no UI build before 2026-10-15 00:01 IST; notes, graph-model sketches and diagrams only. **Position (decided, veto-able):** the generic template already in the working tree (`apps/`, `docker-compose.yml`, `.github/`, hooks, `LICENSE`, `README.md`) is pre-existing scaffolding disclosed under Rule 9, not hackathon work and not claimed as such (CHR-CMP-01); it is committed as the first, labelled commit at or after 00:01 and no `git init` happens earlier. Alternative: remove the template from the tree until 00:01 and add it then | Rule 8 and Rule 9 (re-read 2026-10-12); the planning notes §0 |
 | CHR-C-02 | FalkorDB must carry the product; "a visualisation drawn on top of ordinary storage does not qualify"; no second datastore | Rules 2–3; ADR 0006; `02` §14 |
 | CHR-C-03 | Public data only; nothing "private, login-protected, paywalled, personal, or otherwise restricted"; e-mails and personal details stripped | Rule 6; ADR 0020 |
 | CHR-C-04 | AI assistance disclosed; the team understands and can explain the graph model, queries, architecture and decisions; entirely AI-generated work may be rejected | Rules 11–13; `docs/AI_USAGE.md`; ADR 0001 |
@@ -141,7 +141,7 @@ Who pays the key and the VM is open (CHR-OQ-01, CHR-OQ-03). No sponsor LLM credi
 | CHR-C-07 | FalkorDB pinned to `v4.22.0` (C engine); 6.x only after the event; password and ACL users required | ADR 0002 |
 | CHR-C-08 | Host ports 6379 and 5432 are never used (other projects' containers); dev FalkorDB on loopback 6380/3001 | `docs/DECISIONS.md` ADR-0002/0003; `06` §1.1 |
 | CHR-C-09 | Release v1.38 is in flight: `latest-milestone`, `stage/*` and `tracked/*` values will move between Oct 11 and Oct 18; ground truth is re-verified on Oct 15 and every number carries its SHA and fetch time | `04` §3.3 |
-| CHR-C-10 | Judging criteria, judges, kickoff time and results date are unpublished (re-checked 2026-10-12); the plan optimises the published template and advice, and HUM-00c re-reads the pages on Oct 14 | `FABLE_CONTEXT.md` §1; §11 below |
+| CHR-C-10 | Judging criteria, judges, kickoff time and results date are unpublished (re-checked 2026-10-12); the plan optimises the published template and advice, and HUM-00c re-reads the pages on Oct 14 | the planning notes §1; §11 below |
 | CHR-C-11 | About 30 human-hours across four days; the plan must still close with one person at the checkpoints | `06` §3.2 |
 | CHR-C-12 | Hard internal stop: submission by 18:00 IST Oct 18, no later than 19:59 IST | `06` header |
 
@@ -162,9 +162,9 @@ Who pays the key and the VM is open (CHR-OQ-01, CHR-OQ-03). No sponsor LLM credi
 
 | Id | Statement |
 |---|---|
-| CHR-CMP-01 | **Template reuse.** The repository was bootstrapped before the event from a generic FastAPI + Next.js + FalkorDB template (Docker Compose, CI, Dependabot, hooks, environment handling, licence, documentation skeleton, a status page and layout shell). It contains no product logic: no graph model, no Cypher beyond a connectivity check, no ingestion, prompts, tools, memory, evaluation or product UI. It is pre-existing scaffolding disclosed under Rule 9 as re-read on 2026-10-12: "You may use frameworks, open-source libraries, public APIs, templates, third-party tools, and publicly available datasets and assets. The original work completed during the hackathon will be judged." The only FAQ text verified is "The submission and its main FalkorDB implementation must be new work completed during the event" (`FABLE_CONTEXT.md` §0): the template is not the FalkorDB implementation, and every graph, query, tool, prompt and screen is new work. The FAQ sentence quoted in `README.md` "Provenance" and ADR-0001 ("You may reuse general libraries, templates, and infrastructure") could not be located on the rules page on 2026-10-11 or 2026-10-12 (UNVERIFIED; CHR-OQ-05) and is not relied on. The organisers are asked in Discord on Oct 14 whether a pre-event template is acceptable, and the answer is recorded as an ADR before Oct 15. |
+| CHR-CMP-01 | **Template reuse.** The repository was bootstrapped before the event from a generic FastAPI + Next.js + FalkorDB template (Docker Compose, CI, Dependabot, hooks, environment handling, licence, documentation skeleton, a status page and layout shell). It contains no product logic: no graph model, no Cypher beyond a connectivity check, no ingestion, prompts, tools, memory, evaluation or product UI. It is pre-existing scaffolding disclosed under Rule 9 as re-read on 2026-10-12: "You may use frameworks, open-source libraries, public APIs, templates, third-party tools, and publicly available datasets and assets. The original work completed during the hackathon will be judged." The only FAQ text verified is "The submission and its main FalkorDB implementation must be new work completed during the event" (the planning notes §0): the template is not the FalkorDB implementation, and every graph, query, tool, prompt and screen is new work. The FAQ sentence quoted in `README.md` "Provenance" and ADR-0001 ("You may reuse general libraries, templates, and infrastructure") could not be located on the rules page on 2026-10-11 or 2026-10-12 (UNVERIFIED; CHR-OQ-05) and is not relied on. The organisers are asked in Discord on Oct 14 whether a pre-event template is acceptable, and the answer is recorded as an ADR before Oct 15. |
 | CHR-CMP-02 | **Pre-event notes.** `docs/design/` and `docs/product/` hold notes, graph-model sketches, diagrams and plans written before kickoff, which Rule 8 permits verbatim ("You may discuss ideas, create notes, sketch the graph model, or prepare diagrams beforehand"). They contain no source files, scripts, manifests or paste-ready query catalog; the DDL and procedure forms quoted in `03-graph-model.md` are documented FalkorDB syntax with our names substituted, for review. Everything KEP-specific that executes is written from 2026-10-15 00:01 IST. |
-| CHR-CMP-03 | **AI assistance.** Claude Code (Anthropic) wrote the template, the design notes, the ADRs and this charter, with the stack, the master track, the data source and the template boundary fixed by the team beforehand; the model ids of every session are recorded once, from the actual sessions, in `docs/AI_USAGE.md` and are cited from there, never restated (CHR-OQ-13). During the event, AI build agents write code inside contracts they may not change (CHR-GOV-03); humans decide, review and merge every PR, re-verify the ground truth by hand, hand-label the judge calibration set, run the eval, record the video and submit. Every contribution is logged at the time it happens in `docs/AI_USAGE.md` (date, area, what AI did, what humans did, how it was verified), and every decision in `docs/DECISIONS.md`. The product itself also discloses this on `/about` and in the README, together with the LLM model ids in use. |
+| CHR-CMP-03 | **AI assistance.** An AI coding assistant wrote the template, the design notes, the ADRs and this charter, with the stack, the master track, the data source and the template boundary fixed by the team beforehand; the model ids of every session are recorded once, from the actual sessions, in `docs/AI_USAGE.md` and are cited from there, never restated (CHR-OQ-13). During the event, AI build agents write code inside contracts they may not change (CHR-GOV-03); humans decide, review and merge every PR, re-verify the ground truth by hand, hand-label the judge calibration set, run the eval, record the video and submit. Every contribution is logged at the time it happens in `docs/AI_USAGE.md` (date, area, what AI did, what humans did, how it was verified), and every decision in `docs/DECISIONS.md`. The product itself also discloses this on `/about` and in the README, together with the LLM model ids in use. |
 | CHR-CMP-04 | **Understanding (Rules 11-13).** The ADR series exists so that any member can defend each choice; the explain-back session (CHR-SC-08) is held before submission and its outcome is recorded in `docs/AI_USAGE.md`. |
 | CHR-CMP-05 | **Data (Rule 6).** Only the three public Apache-2.0 repositories named in `01-recon-kubernetes-data.md` are read; e-mails, private lists and password-bearing meeting URLs are dropped at parse time, free text is scrubbed before hashing, forbidden property names cannot exist in the schema, and a post-sync invariant scan fails the sync on any hit (`03` §9). The README carries the data statement, the NOTICE and the removal-request path. |
 
@@ -179,12 +179,12 @@ Who pays the key and the VM is open (CHR-OQ-01, CHR-OQ-03). No sponsor LLM credi
 | CHR-OQ-05 | `README.md` "Provenance" and `docs/DECISIONS.md` ADR-0001 quote an FAQ sentence not found on the rules page on Oct 11 or Oct 12; both files are outside this document set | Re-check on Oct 14 (HUM-00c); ask the organisers in Discord and record the answer as an ADR; reword both files to Rule 9's verified text and the verified FAQ line (CHR-C-01, CHR-CMP-01) and state the pre-existing-scaffolding position in the README "Provenance" |
 | CHR-OQ-06 | `06-build-plan.md` §0 refers to §5 task cards, §6 checkpoint smoke tests, §7 human tasks, §8 risk register and cut lines, §9 README checklist; the file read on 2026-10-12 ends at §4 | Sibling workflow to confirm the sections land before Oct 14 23:59; CHR-GOV-04/05 state the cut-line policy at charter level meanwhile |
 | CHR-OQ-07 | Sonnet 5.5 cache-read price is $0.10/MTok on the live pricing page, not the $0.20 assumed in `04` §7 and `02` §6.1 | Re-verify all model prices on Oct 15 (ADR 0010) and update the eval price table; estimates here already use $0.10 |
-| CHR-OQ-08 | Do judging criteria, a kickoff time or a results date appear before Oct 15? | HUM-00c re-reads the rules page and public API on Oct 14 evening; `FABLE_CONTEXT.md` §1 is updated; PRD-G-06's funding horizon follows the results date once known |
+| CHR-OQ-08 | Do judging criteria, a kickoff time or a results date appear before Oct 15? | HUM-00c re-reads the rules page and public API on Oct 14 evening; the planning notes §1 is updated; PRD-G-06's funding horizon follows the results date once known |
 | CHR-OQ-09 | Should the README publish the full 56 × 5 per-question table or link to it? | Publish the table on `/eval` and link from the README (`04` §12) |
 | CHR-OQ-10 | `Person.name`/`company` from `sigs.yaml`: keep (default) or store logins only? | Keep, behind `STORE_PERSON_NAME_COMPANY=true` (ADR 0020); decide before the first public deploy (CP4) |
 | CHR-OQ-11 | P1 `kubernetes/kubernetes` tickets in or out of the event build? | Scope call at CP3 (Oct 16 14:00) on the measured P0 load time (ADR 0019) |
 | CHR-OQ-12 | Goal numbering: this charter defines PRD-G-01–07 and PRD-NG-01–06; the PRD must adopt them or the orchestrating workflow renumbers one side | Charter numbering is canonical (**DECISION, veto-able**; alternative: the PRD owns goals and the charter cites them) |
-| CHR-OQ-13 | Model names for the AI disclosure differ between the charter draft, ENG-11 and `docs/AI_USAGE.md` ("Fable 5" and "Fable 5.1" both appear there) | Humans take the ids from the actual sessions and fix `docs/AI_USAGE.md` once; this charter, ENG-11 and form text C.6 cite that record (**DECISION, veto-able**; alternative: restate the ids in each place) |
+| CHR-OQ-13 | Model names for the AI disclosure differ between the charter draft, ENG-11 and `docs/AI_USAGE.md` (two versions of the same assistant appear there) | Humans take the ids from the actual sessions and fix `docs/AI_USAGE.md` once; this charter, ENG-11 and form text C.6 cite that record (**DECISION, veto-able**; alternative: restate the ids in each place) |
 
 ## 12. Verification ledger (facts checked for this charter)
 
@@ -197,6 +197,6 @@ Who pays the key and the VM is open (CHR-OQ-01, CHR-OQ-03). No sponsor LLM credi
 | `voyage-4` $0.06/MTok, first 200M tokens free | https://docs.voyageai.com/docs/pricing | 2026-10-12 | VERIFIED |
 | Hetzner CPX21 / CPX22 specifications | https://www.hetzner.com/cloud/regular-performance/ | 2026-10-12 | specs VERIFIED; prices and availability UNVERIFIED (not rendered) |
 | FAQ clause "You may reuse general libraries, templates, and infrastructure" | rules page | 2026-10-11, 2026-10-12 | UNVERIFIED (not found) |
-| Judging template, winner patterns, organiser and FalkorDB judge advice, Kunal Kushwaha's tips | `FABLE_CONTEXT.md` §2 (its own sources) | 2026-10-11 | adopted |
+| Judging template, winner patterns, organiser and FalkorDB judge advice, Kunal Kushwaha's tips | the planning notes §2 (its own sources) | 2026-10-11 | adopted |
 | Scope, counts, checkpoints, roles, eval design, price assumptions | `docs/design/01`–`06`, `adr/0001`–`0021` | 2026-10-12 | adopted; §11 lists the deltas found |
 | GitHub Actions minutes free on public repositories; OpenAI embedding price | — | — | UNVERIFIED (not relied on) |

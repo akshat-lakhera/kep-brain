@@ -14,7 +14,7 @@
 
 Decision marking. Anything the sources leave open is **DECISION (veto-able)** with its alternative and is listed in section 10. Defaults for things the user has not decided: team of 1-4 people with roles as a template (PRD-OQ-02), LLM provider Anthropic (PRD-OQ-01), hosting single VM with Docker Compose and Caddy (ADR 0017, PRD-OQ-03).
 
-Purpose. Rules 11-13 (`FABLE_CONTEXT.md` §0) allow AI assistance but require disclosure and a team that can explain "the graph model, the queries, the project architecture, and the technical decisions behind them"; entirely AI-generated work "may be rejected". About 30 human-hours exist across four days (CHR-C-11). This document says who holds which hat, who signs what, and how the human contribution is produced and recorded rather than reconstructed on Oct 18.
+Purpose. Rules 11-13 (the planning notes §0) allow AI assistance but require disclosure and a team that can explain "the graph model, the queries, the project architecture, and the technical decisions behind them"; entirely AI-generated work "may be rejected". About 30 human-hours exist across four days (CHR-C-11). This document says who holds which hat, who signs what, and how the human contribution is produced and recorded rather than reconstructed on Oct 18.
 
 ---
 
@@ -202,7 +202,7 @@ Daily rhythm (**DECISION, veto-able**; alternative: no fixed standup with one pe
 
 ### 6.1 Discord policy
 
-The two servers are the FalkorDB server and the WeMakeDevs server (`FABLE_CONTEXT.md` §1). Joining both is an organiser obligation (CHR-ST-02) and happens on Oct 13 (charter milestone).
+The two servers are the FalkorDB server and the WeMakeDevs server (the planning notes §1). Joining both is an organiser obligation (CHR-ST-02) and happens on Oct 13 (charter milestone).
 
 | Id | Policy |
 |---|---|
@@ -234,7 +234,7 @@ The schedule is 96 hours, about 30 human-hours of mandatory acts, and the submis
 
 | Step | Owner (A) | By (IST) | Verification |
 |---|---|---|---|
-| Re-read rules, form questions, judging criteria | LEAD | Oct 18 09:00 | Notes in channel; `FABLE_CONTEXT.md` §1 updated if changed |
+| Re-read rules, form questions, judging criteria | LEAD | Oct 18 09:00 | Notes in channel; the planning notes §1 updated if changed |
 | Frozen eval run id written in README and `docs/EVAL.md` | EVAL | Oct 18 12:00 (CP7) | HUM-10 record |
 | Explain-back held | LEAD | Oct 18 10:45 | `AI_USAGE.md` row |
 | README final, no placeholders, links resolve | DEMO | Oct 18 10:00 draft, 14:00 final | Clean-machine run by REV |
@@ -258,7 +258,7 @@ KEP Brain · who did what
 Team: <n> people. Tracks entered: T03 Company Brain (primary), T01 Agents That
 Act on Connected Data, T02 Agent Memory and Coordination.
 
-AI assistance. Claude Code (Anthropic) was used as an agent for coding inside
+AI assistance. An AI coding assistant was used as an agent for coding inside
 contracts it could not change; the models used to build are the ids recorded in docs/AI_USAGE.md (<copy from that record>),
 and at runtime <answering model> and <extraction model>. A template boundary
 and pre-event notes are disclosed in README "Provenance" and docs/DECISIONS.md.

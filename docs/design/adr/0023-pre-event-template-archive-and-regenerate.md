@@ -13,7 +13,7 @@ Amended 2026-10-12 per 06 §1.6 (ratified register).
 
 - Rule 8: "The main coding and design work must begin after the hackathon starts. You may discuss ideas, create notes, sketch the graph model, or prepare diagrams beforehand" (https://www.wemakedevs.org/hackathons/falkordb/rules).
 - FAQ, "Can I continue an existing project?": "You may reuse general libraries, templates, and infrastructure." and "The submission and its main FalkorDB implementation must be new work completed during the event." (https://www.wemakedevs.org/hackathons/falkordb, VERIFIED 2026-10-12; on the main event page, not on `/rules`).
-- The team's own constraint (`FABLE_CONTEXT.md` §0): "Not before the start: code, scaffolding, a git repo, or the UI build."
+- The team's own constraint (the planning notes §0): "Not before the start: code, scaffolding, a git repo, or the UI build."
 - OBSERVED 2026-10-12 (file modification times): a generic FastAPI + Next.js + FalkorDB template was written into `D:\kep-brain` between 2026-10-11 22:30 and 2026-10-12 08:39 IST, by the same AI assistant, for this event and this fixed stack. It contains `apps/api/src/app/*.py` including a FalkorDB connection module with `GRAPH.LIST` readiness, executed tests and caches, `apps/web/src/**`, a Compose file with a FalkorDB service and CI with a FalkorDB service container. The build plan v1.1 commits it as the baseline at 00:01 IST.
 
 The template is arguably "general infrastructure" under the FAQ. It is also, unarguably, scaffolding under the team's own rule, and part of it is FalkorDB connection code, which sits close to "the main FalkorDB implementation". If an organiser ruled against it after kickoff, the plan had no slot to rebuild.

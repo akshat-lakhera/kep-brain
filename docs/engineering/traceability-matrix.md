@@ -5,7 +5,7 @@
 | Document | `docs/engineering/traceability-matrix.md` |
 | Version / status | v0.1 draft for team sign-off (H-Review owns, H-Lead approves). Pre-kickoff note: Markdown only, no source, scripts or manifests (Rule 8). |
 | Date | 2026-10-12 (IST) |
-| Sources read | `FABLE_CONTEXT.md` §1, §2, §4; `project-charter.md`; `PRD.md` (all); `TRD.md` (all); `test-plan.md` (all); `security-threat-model.md` §4-§6; `06-build-plan.md` task cards (§5) and checkpoints (§6); `demo-script-and-submission.md` Part A and C.4 |
+| Sources read | the planning notes §1, §2, §4; `project-charter.md`; `PRD.md` (all); `TRD.md` (all); `test-plan.md` (all); `security-threat-model.md` §4-§6; `06-build-plan.md` task cards (§5) and checkpoints (§6); `demo-script-and-submission.md` Part A and C.4 |
 | Length cap | 400 lines |
 
 ## 0. How to read this file
@@ -17,7 +17,7 @@
 
 ## 1. Track focus points to requirement, design, test, task and demo
 
-Focus-point wording is quoted from `FABLE_CONTEXT.md` §1 "Tracks".
+Focus-point wording is quoted from the planning notes §1 "Tracks".
 
 | # | Track | Focus point (quoted) | Pri | PRD-FR | TRD | TST | Build task | Demo | Flag |
 |---|---|---|---|---|---|---|---|---|---|
@@ -41,7 +41,7 @@ Result of the flag check: all 15 focus points have at least one requirement and 
 
 ## 2. Hackathon rules to requirements, documents and tests
 
-The context file gives Rules 2-3 as one pair and Rules 11-13 as one group (`FABLE_CONTEXT.md` §0). No individual numbers within the group are verified, so the three rows below are labelled by obligation (a) disclose AI use, (b) explain the model, queries, architecture and decisions, (c) meaningful human contribution and verification, else "may be rejected"; the documents cite the group as "Rules 11-13".
+The context file gives Rules 2-3 as one pair and Rules 11-13 as one group (the planning notes §0). No individual numbers within the group are verified, so the three rows below are labelled by obligation (a) disclose AI use, (b) explain the model, queries, architecture and decisions, (c) meaningful human contribution and verification, else "may be rejected"; the documents cite the group as "Rules 11-13".
 
 | Rule | Evidencing requirements | Evidencing documents / artefacts | Tests | Status |
 |---|---|---|---|---|

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **v2.0** design notes only. No code, mockups, components, stylesheets or assets exist for the product UI (hackathon Rule 8: coding begins 2026-10-15 00:01 IST). 2026-10-12: applied 06 §1.6 register (ratified). |
-| Written | v1.0 2026-10-11 by Fable 5.1 (an AI model). v2.0 2026-10-12 08:50–10:30 IST revision by Claude Opus 5.5 (an AI model), resolving the review findings listed in §12. **Human owner: H-Demo** (the person is named at HUM-00d). Every decision below is a *proposal* until H-Demo accepts or vetoes it in `docs/DECISIONS.md` on 2026-10-15; the acceptance commit is a human commit. |
+| Written | v1.0 2026-10-11 by an AI assistant. v2.0 2026-10-12 08:50–10:30 IST revision by an AI assistant, resolving the review findings listed in §12. **Human owner: H-Demo** (the person is named at HUM-00d). Every decision below is a *proposal* until H-Demo accepts or vetoes it in `docs/DECISIONS.md` on 2026-10-15; the acceptance commit is a human commit. |
 | Scope | The narrow job on screen, information architecture, visual system, screen specs and states, accessibility, graph-view library decision, the 3-minute video, anti-patterns, human ownership of the UI |
 | Depends on | `03-graph-model.md` (authoritative for every label, relationship name and direction), `04-eval-set.md` (question ids, types, metrics), `02-architecture.md` §12 (HTTP and SSE shapes), `06-build-plan.md` §1.3 (B-decisions) and §4 (contracts C3s and C8). This brief states what the UI needs from them; §13 lists the changes this revision asks those documents to adopt. |
 | Decisions | Every decision has a one-line reason and an alternative, and all are veto-able (register in §10). |
@@ -14,8 +14,8 @@
 
 ### 0.1 What exists before the event, and what does not
 
-- This brief is a note. It contains token values, layout rules and copy intent; it contains no component code, no CSS file, no mockup image and no paste-ready query. Rule 8: "The main coding and design work must begin after the hackathon starts. You may discuss ideas, create notes, sketch the graph model, or prepare diagrams beforehand" (https://www.wemakedevs.org/hackathons/falkordb/rules, verified in `FABLE_CONTEXT.md` §0).
-- The event page FAQ (https://www.wemakedevs.org/hackathons/falkordb, re-read 2026-10-12 09:10 IST, VERIFIED) says both "You may reuse general libraries, templates, and infrastructure" and "The submission and its main FalkorDB implementation must be new work completed during the event." `FABLE_CONTEXT.md` §0 adds the team's own stricter line: "Not before the start: code, scaffolding, a git repo, or the UI build."
+- This brief is a note. It contains token values, layout rules and copy intent; it contains no component code, no CSS file, no mockup image and no paste-ready query. Rule 8: "The main coding and design work must begin after the hackathon starts. You may discuss ideas, create notes, sketch the graph model, or prepare diagrams beforehand" (https://www.wemakedevs.org/hackathons/falkordb/rules, verified in the planning notes §0).
+- The event page FAQ (https://www.wemakedevs.org/hackathons/falkordb, re-read 2026-10-12 09:10 IST, VERIFIED) says both "You may reuse general libraries, templates, and infrastructure" and "The submission and its main FalkorDB implementation must be new work completed during the event." the planning notes §0 adds the team's own stricter line: "Not before the start: code, scaffolding, a git repo, or the UI build."
 - **DECISION (veto-able): the web app is generated at or after 00:01 IST on Oct 15 from the public generator `create-next-app@16.4.0`** (MIT, published 2026-10-06T18:23Z, VERIFIED on the npm registry 2026-10-12), not copied from the pre-event `apps/web` folder under `D:\kep-brain`. This brief names no file from that folder, so nothing here depends on it. Reason: the UI build is on the team's own "not before" list, and a public generator's output is provably not pre-written by the team. Cost: about 1 hour more in WEB-01 (generator, the security headers and `output: "standalone"` that the archived template already had, re-applied by hand from the ADR, not copied). Alternative: build on the pre-event template, which is allowed by the FAQ's "templates" clause; if the team picks it, H-Lead records a dated ADR naming the accepted risk, and this brief applies unchanged.
 - Archiving the pre-event template out of `D:\kep-brain` before Oct 15, and the organiser question on Discord (HUM-00c), are H-Lead actions outside this document's folder; §13 lists them.
 - This file is committed in a separate commit labelled "pre-event notes (written 2026-10-11/12)" after the generated scaffold, so `git log` shows the boundary (§13, request to INF-01).
@@ -637,7 +637,7 @@ The Eval page uses at most two categorical series (slots 1 and 2) and the ordina
 
 ## 8. Demo video: three beats
 
-Three minutes or less, 1920 x 1080, browser at 125% zoom, light theme, cursor visible, no music, captions burned in, real data only, URL bar visible in the first live shot (public URL, no login). Narration names FalkorDB's role in plain words at least twice. The structure is three beats (problem, one continuous hero story, proof) because "one narrow job done end to end scores better than a platform with three half-finished features" (organiser advice, `FABLE_CONTEXT.md` §2). The hero beat runs 100 seconds and passes through the T01 and T02 evidence on the way, so every track's claim is on screen without separate segments.
+Three minutes or less, 1920 x 1080, browser at 125% zoom, light theme, cursor visible, no music, captions burned in, real data only, URL bar visible in the first live shot (public URL, no login). Narration names FalkorDB's role in plain words at least twice. The structure is three beats (problem, one continuous hero story, proof) because "one narrow job done end to end scores better than a platform with three half-finished features" (organiser advice, the planning notes §2). The hero beat runs 100 seconds and passes through the T01 and T02 evidence on the way, so every track's claim is on screen without separate segments.
 
 | Time | Beat | Shot | Must be visible |
 |---|---|---|---|
@@ -736,7 +736,7 @@ All rows are proposals until H-Demo records acceptance in `docs/DECISIONS.md` (�
 
 | Fact | Source | Read on |
 |---|---|---|
-| Rules, tracks, judging patterns, FalkorDB version table | `E:\graph-hacks-prep\FABLE_CONTEXT.md` | 2026-10-11 |
+| Rules, tracks, judging patterns, FalkorDB version table | the pre-event planning notes (kept outside this repository) | 2026-10-11 |
 | FAQ: "You may reuse general libraries, templates, and infrastructure." and "The submission and its main FalkorDB implementation must be new work completed during the event." | https://www.wemakedevs.org/hackathons/falkordb (FAQ, continuing an existing project) | 2026-10-12 09:10 IST |
 | `create-next-app` 16.4.0 exists, MIT, published 2026-10-06T18:23:58Z; `next` 16.4.0 published 2026-10-06T18:35:31Z | `npm view create-next-app`, `npm view next time` (registry.npmjs.org) | 2026-10-12 |
 | NodeOps: created 2026-10-10; targets Tracks 01 and 03; "Company Brain"; reviewer ranking by "`algo.pageRank` contributor importance over merged PR file footprints"; "dependency blast radius"; names Kubernetes | `gh api repos/RAJ-A58/NodeOps`; README cached at `D:\kep-brain\.recon\search\nodeops-readme-2026-10-12.md` | 2026-10-12 |

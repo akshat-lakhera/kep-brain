@@ -9,7 +9,7 @@
 | Date | 2026-10-12 (IST) |
 | Owner | H-Lead (role template, 1-4 people; see PRD-OQ-02) |
 | Reviewers | H-Review, H-Data/Eval, H-Demo |
-| Upstream | `docs/product/project-charter.md` (canonical for goals PRD-G-01..07 and non-goals PRD-NG-01..06, per CHR-OQ-12); `E:\graph-hacks-prep\FABLE_CONTEXT.md` §1, §2, §4 |
+| Upstream | `docs/product/project-charter.md` (canonical for goals PRD-G-01..07 and non-goals PRD-NG-01..06, per CHR-OQ-12); the pre-event planning notes (kept outside this repository) §1, §2, §4 |
 | Design inputs | `docs/design/06-build-plan.md` (checkpoints CP0-CP8), `03-graph-model.md` §15 (tool catalog, numbered 1-29), `04-eval-set.md` §4, §7, §8 (question types, metrics, arms), `05-ui-brief.md` §2, §4 (screens), `01-recon-kubernetes-data.md` §7 (SIG choice) |
 | Sibling documents | TRD (`TRD-*` ids), test plan (`TST-*`), operations (`OPS-*`), risks (`RSK-*`), all under `docs/` |
 | Decisions | Anything the sources leave open is marked **DECISION (veto-able)** with its alternative and listed in §12 |
@@ -27,7 +27,7 @@
 | `PRD-OQ-nn` | Open question | §12 |
 | `CHR-*`, `ADR-nnnn`, `TRD-*`, `TST-*`, `OPS-*`, `RSK-*` | Defined in their own documents; cited, not duplicated | |
 
-Priority codes used throughout: **P0** = T03 core (master track), **P1** = T01 layer, **P2** = T02 layer. Order of delivery is strictly P0, then P1, then P2 (FABLE_CONTEXT.md §4: "Finish and polish T03 before adding the T01/T02 layers").
+Priority codes used throughout: **P0** = T03 core (master track), **P1** = T01 layer, **P2** = T02 layer. Order of delivery is strictly P0, then P1, then P2 (planning notes §4: "Finish and polish T03 before adding the T01/T02 layers").
 
 ### 0.2 Change log
 
@@ -44,7 +44,7 @@ Priority codes used throughout: **P0** = T03 core (master track), **P1** = T01 l
 
 A large engineering organisation keeps its reasons in places that do not talk to each other. The current owner is in one file, the person who actually knows the subsystem is visible only in review history, the decision to change a status is in a pull request nobody linked from the design document, and the design document itself may disagree with the tracker. A newcomer, or an agent acting for one, asks four things and cannot get them answered in one place: **who owns this, who really knows it, why was it decided this way and by whom, and is that still true.**
 
-Generic chat-with-your-docs tools answer these from similar-looking text. They cannot join two sources, cannot say which source is newer, and do not refuse when the evidence is absent. FABLE_CONTEXT.md §4 names this: most Track 03 entries "are generic Q&A bots with no ground truth".
+Generic chat-with-your-docs tools answer these from similar-looking text. They cannot join two sources, cannot say which source is newer, and do not refuse when the evidence is absent. planning notes §4 names this: most Track 03 entries "are generic Q&A bots with no ground truth".
 
 ### 1.2 Kubernetes as the public exemplar of a company (Rule 6)
 
@@ -73,7 +73,7 @@ After the event the same system should scale to all `sig-*` directories by chang
 
 ## 2. Success in the judge's terms
 
-FABLE_CONTEXT.md §2 gives the six-criterion template WeMakeDevs has used in 2026 (potential impact, creativity, technical excellence, best use of the sponsor, UX or theme-specific, presentation) with equal weights. Judging criteria for this event are unpublished (charter CHR-C-10), so this PRD optimises the template, not a guess.
+planning notes §2 gives the six-criterion template WeMakeDevs has used in 2026 (potential impact, creativity, technical excellence, best use of the sponsor, UX or theme-specific, presentation) with equal weights. Judging criteria for this event are unpublished (charter CHR-C-10), so this PRD optimises the template, not a guess.
 
 | Template criterion | What the product shows | Requirement groups |
 |---|---|---|
@@ -84,7 +84,7 @@ FABLE_CONTEXT.md §2 gives the six-criterion template WeMakeDevs has used in 202
 | UX / theme | Ask, Explore, Freshness work without sign-up; paths and sources visible | FR-F, FR-H |
 | Presentation | Demo video of at most 3 minutes, README a judge can run | FR-H |
 
-Kunal Kushwaha's tips (FABLE_CONTEXT.md §2) become requirements: video at most 3 minutes; live demo works without sign-up; say exactly how FalkorDB was used and give feedback; say what each member did.
+Kunal Kushwaha's tips (planning notes §2) become requirements: video at most 3 minutes; live demo works without sign-up; say exactly how FalkorDB was used and give feedback; say what each member did.
 
 ---
 
@@ -94,7 +94,7 @@ Kunal Kushwaha's tips (FABLE_CONTEXT.md §2) become requirements: video at most 
 |---|---|---|---|
 | PRD-P-01 | **Judge on a 3-minute budget** | Decide whether the project is real, graph-driven and verifiable | Has about 3 minutes in total (video ≤ 3:00) and about 60 seconds and five steps on the live site (click count stated after the final design, PRD-OQ-06); will not sign up; "If the video does not show it, it does not count." |
 | PRD-P-02 | **Judge who clones and runs** | Verify the README claims: data model, queries, run instructions, eval numbers | Needs `docker compose up` to give a loaded graph without a GitHub token (build plan B11); reads Cypher and the depth table |
-| PRD-P-03 | **FalkorDB reviewer** | See graph used "for patterns, not similarity" (FABLE_CONTEXT.md §2) | Looks for traceable outputs, `MERGE` re-runs, read-only connections with timeouts, answers only from returned rows, honesty about failures |
+| PRD-P-03 | **FalkorDB reviewer** | See graph used "for patterns, not similarity" (planning notes §2) | Looks for traceable outputs, `MERGE` re-runs, read-only connections with timeouts, answers only from returned rows, honesty about failures |
 | PRD-P-04 | **New Kubernetes contributor** | Find who to talk to and why a feature is designed as it is | Does not know SIG names or KEP numbers; asks in free text |
 | PRD-P-05 | **SIG chair or tech lead** | See which of their KEPs have stale or contradictory metadata | Wants a list with sources, not a score |
 | PRD-P-06 | **Release or docs team member** | Know what changed since release X per SIG | Cares about milestone and stage accuracy |
@@ -130,7 +130,7 @@ Notes.
 
 | Id | Non-goal | Why |
 |---|---|---|
-| PRD-NG-01 | Issue triage, reviewer routing, duplicate detection | Taken by another team (FABLE_CONTEXT.md §3); this product is about decisions, freshness and organisational knowledge |
+| PRD-NG-01 | Issue triage, reviewer routing, duplicate detection | Taken by another team (planning notes §3); this product is about decisions, freshness and organisational knowledge |
 | PRD-NG-02 | Chat-with-your-docs UX or a generic company-brain platform | Organisers: "One narrow job done end to end scores better than a platform with three half-finished features." |
 | PRD-NG-03 | Free-form text-to-Cypher in the judged path | ADR 0004 |
 | PRD-NG-04 | Any write to `kubernetes/*`, `kubernetes-sigs/*`, `kubernetes-client/*`, `kubernetes-csi/*`, `cncf/*` | Built-in denylist, ADR 0021 |
@@ -260,7 +260,7 @@ Each story names the persona, the track it serves and the eval question or check
 
 ## 7. Functional requirements
 
-Columns: **Pri** P0 (T03 core), P1 (T01), P2 (T02). **Focus point** quotes the track focus in `FABLE_CONTEXT.md` §1, or the judge-facing template item for cross-cutting rows. Tool numbers refer to `03-graph-model.md` §15 (1-19 T03, 20-26 T01, 27-29 T02). Screens are those of `05-ui-brief.md` §2.1. Technical realisation belongs to the TRD.
+Columns: **Pri** P0 (T03 core), P1 (T01), P2 (T02). **Focus point** quotes the track focus in the planning notes §1, or the judge-facing template item for cross-cutting rows. Tool numbers refer to `03-graph-model.md` §15 (1-19 T03, 20-26 T01, 27-29 T02). Screens are those of `05-ui-brief.md` §2.1. Technical realisation belongs to the TRD.
 
 ### 7.A Data: sources into one graph
 
@@ -318,7 +318,7 @@ Columns: **Pri** P0 (T03 core), P1 (T01), P2 (T02). **Focus point** quotes the t
 | PRD-FR-030 | `freshness` (tool 11): how current the graph and a KEP are, with `last-updated`, last tracker activity and last sync. | P0 | Answers carry a freshness stamp | "Keeping knowledge current as things change" |
 | PRD-FR-031 | `find_contradictions` (tool 12): where `kep.yaml`, tracker labels and PRs disagree (for example KEP-583 and KEP-5978). | P0 | The differentiator: "is that still true" at corpus scale | "Keeping knowledge current as things change" |
 | PRD-FR-032 | `whats_changed` (tool 10) and `release_scope` (tool 17): what changed, graduated or slipped since a release or date. | P0 (tool 17: cut line L4) | STA-06; release-note style questions | "Keeping knowledge current as things change" |
-| PRD-FR-033 | Mark an answer **stale** (badge plus reason) when any cited node is older than the freshness threshold or contradicted by another source. Threshold set in TRD (default is veto-able). | P0 | "Flagging stale answers" (FABLE_CONTEXT.md §4) | "Keeping knowledge current as things change" |
+| PRD-FR-033 | Mark an answer **stale** (badge plus reason) when any cited node is older than the freshness threshold or contradicted by another source. Threshold set in TRD (default is veto-able). | P0 | "Flagging stale answers" (planning notes §4) | "Keeping knowledge current as things change" |
 | PRD-FR-034 | Freshness page: choose a release, list what changed, list contradictions, show sync status and a "Sync now" button. | P0 | Currency is visible without Ask | "Keeping knowledge current as things change" |
 | PRD-FR-035 | Support a point-in-time view (`as_of` release) on `get_kep`, `who_approves` and Ask scope. | P0 | Temporal edges (ADR 0008) | "Keeping knowledge current as things change" |
 
@@ -342,7 +342,7 @@ Columns: **Pri** P0 (T03 core), P1 (T01), P2 (T02). **Focus point** quotes the t
 | PRD-FR-044 | Deterministic graders for OWN, EXP, STA, MH and ABS; judge-model grading only for DEC and two STA clauses, calibrated on 16 human-labelled answers; ground truth re-verified by a human on Oct 15. | P0 | Rules 11-13: human contribution; trustworthy numbers | "Answers with clear sources" |
 | PRD-FR-045 | Run five arms (N none, L lexical RAG, V vector RAG, G graph-only, H hybrid = product) with shared controls; report an arm not run as "not run". | P0 | Separates "the graph helped" from "the model already knew" | "Answers with clear sources" |
 | PRD-FR-046 | Report accuracy by type with Wilson 95 % intervals, paired differences with bootstrap intervals, citation validity/precision/recall, abstention precision/recall, false-abstention rate, validator rescue rate, latency p50/p95/p99 per stage, tokens and cost, errors. | P0 | Metrics list of `04` §7 | "Answers with clear sources" |
-| PRD-FR-047 | Eval page: results per type and arm, per-question table sorted with baseline wins first, a "where the graph lost" block, predictions versus outcomes, frozen run id. | P0 | Honest losses win (FABLE_CONTEXT.md §2, Lethe) | "Answers with clear sources" |
+| PRD-FR-047 | Eval page: results per type and arm, per-question table sorted with baseline wins first, a "where the graph lost" block, predictions versus outcomes, frozen run id. | P0 | Honest losses win (planning notes §2, Lethe) | "Answers with clear sources" |
 | PRD-FR-048 | Eval runs through the deployed instance; the frozen run (3 reps) is committed as `summary.json` and quoted by README and video; later releases re-run it as a regression gate. | P0 | Checkable numbers | "Answers with clear sources" |
 
 ### 7.H Presentation, judge path and submission
@@ -476,13 +476,13 @@ Post-event items listed in §1.4 and PRD-NG-06 (blog post, only if everything ab
 
 | Id | Constraint | Source | Effect on the product |
 |---|---|---|---|
-| PRD-C-01 | **Rule 8.** "The main coding and design work must begin after the hackathon starts." Notes, sketches and diagrams before Oct 15 00:01 IST are allowed; no code, scaffolding, git repo or UI build for the product. **Position (decided, veto-able):** the generic template already in the working tree (`apps/`, Compose, CI, hooks, `LICENSE`, `README.md`) is pre-existing scaffolding disclosed under Rule 9, not hackathon work and not claimed as such; no `git init` and no commit before 00:01, and the template is the labelled first commit. The only FAQ text verified is "The submission and its main FalkorDB implementation must be new work completed during the event"; the template is not the FalkorDB implementation. Alternative: remove the template until 00:01. See CHR-C-01, CHR-CMP-01, CHR-OQ-05 | FABLE_CONTEXT.md §0 | All product requirements are implemented from Oct 15; commit history starts at 00:01; this PRD contains no code |
-| PRD-C-02 | **Rules 2-3.** FalkorDB must carry the product: "If the product still works once FalkorDB is taken out, the graph is decoration." | FABLE_CONTEXT.md §0 | FR-072, FR-073; every tool is a Cypher template, so removing FalkorDB removes the tool |
-| PRD-C-03 | **Rule 6.** Public, synthetic or own data only; nothing private, login-protected, paywalled, personal or restricted; strip e-mails and personal details. | FABLE_CONTEXT.md §0 | FR-005, FR-009, PRD-NG-05; memory stores no personal text (FR-066) |
-| PRD-C-04 | **Rule 10.** Submission includes a public repo, README with setup and the graph data model, the Cypher queries or algorithms the product depends on, a demo video, a live deployment (preferred) or complete local setup, and the tracks entered. | FABLE_CONTEXT.md §1 | FR-049 to FR-053 |
-| PRD-C-05 | **Rules 11-13.** AI use is allowed but disclosed; the team must be able to explain the model, queries, architecture and decisions; entirely AI-generated projects "may be rejected". | FABLE_CONTEXT.md §0 | FR-054, FR-044 (human-run ground truth and calibration), PRD-US-20 |
-| PRD-C-06 | **Rule 5.** Up to 4 people per team, one team each; every track entered is named at submission. | FABLE_CONTEXT.md §0, charter CHR-C-05 | Roles are a template (PRD-OQ-02); FR-053 |
-| PRD-C-07 | **Licences.** Source data is Apache-2.0 (`kubernetes/enhancements`, `kubernetes/community`); attribution via `NOTICE`; the repository's own code is MIT (`LICENSE`); libraries and public datasets are allowed (Rule 9). The template reuse boundary is disclosed in README "Provenance". | FABLE_CONTEXT.md §4; charter §10 | FR-009, FR-054 |
+| PRD-C-01 | **Rule 8.** "The main coding and design work must begin after the hackathon starts." Notes, sketches and diagrams before Oct 15 00:01 IST are allowed; no code, scaffolding, git repo or UI build for the product. **Position (decided, veto-able):** the generic template already in the working tree (`apps/`, Compose, CI, hooks, `LICENSE`, `README.md`) is pre-existing scaffolding disclosed under Rule 9, not hackathon work and not claimed as such; no `git init` and no commit before 00:01, and the template is the labelled first commit. The only FAQ text verified is "The submission and its main FalkorDB implementation must be new work completed during the event"; the template is not the FalkorDB implementation. Alternative: remove the template until 00:01. See CHR-C-01, CHR-CMP-01, CHR-OQ-05 | planning notes §0 | All product requirements are implemented from Oct 15; commit history starts at 00:01; this PRD contains no code |
+| PRD-C-02 | **Rules 2-3.** FalkorDB must carry the product: "If the product still works once FalkorDB is taken out, the graph is decoration." | planning notes §0 | FR-072, FR-073; every tool is a Cypher template, so removing FalkorDB removes the tool |
+| PRD-C-03 | **Rule 6.** Public, synthetic or own data only; nothing private, login-protected, paywalled, personal or restricted; strip e-mails and personal details. | planning notes §0 | FR-005, FR-009, PRD-NG-05; memory stores no personal text (FR-066) |
+| PRD-C-04 | **Rule 10.** Submission includes a public repo, README with setup and the graph data model, the Cypher queries or algorithms the product depends on, a demo video, a live deployment (preferred) or complete local setup, and the tracks entered. | planning notes §1 | FR-049 to FR-053 |
+| PRD-C-05 | **Rules 11-13.** AI use is allowed but disclosed; the team must be able to explain the model, queries, architecture and decisions; entirely AI-generated projects "may be rejected". | planning notes §0 | FR-054, FR-044 (human-run ground truth and calibration), PRD-US-20 |
+| PRD-C-06 | **Rule 5.** Up to 4 people per team, one team each; every track entered is named at submission. | planning notes §0, charter CHR-C-05 | Roles are a template (PRD-OQ-02); FR-053 |
+| PRD-C-07 | **Licences.** Source data is Apache-2.0 (`kubernetes/enhancements`, `kubernetes/community`); attribution via `NOTICE`; the repository's own code is MIT (`LICENSE`); libraries and public datasets are allowed (Rule 9). The template reuse boundary is disclosed in README "Provenance". | planning notes §4; charter §10 | FR-009, FR-054 |
 | PRD-C-08 | **Four days.** Oct 15 00:01 to Oct 18 23:59 IST; about 30 human-hours in total; internal submission target 18:00 Oct 18, hard stop 19:59. | Charter CHR-C-11, CHR-C-12 | Strict P0, P1, P2 order; cut lines; checkpoints at fixed times |
 | PRD-C-09 | **GitHub API budget.** 5,000 REST requests and 5,000 GraphQL points per hour per token, 30 search requests per minute, serial requests. | Charter CHR-C-06 | FR-008; document layer needs zero API calls |
 | PRD-C-10 | **Moving upstream.** Release v1.38 is in flight; ground truth is re-verified on Oct 15 and every number carries its SHA and fetch time. | Charter CHR-C-09 | Story examples may change at HUM-03 |
@@ -502,7 +502,7 @@ Post-event items listed in §1.4 and PRD-NG-06 (blog post, only if everything ab
 | PRD-A-04 | A single VM with 3 GB for FalkorDB suffices for the core graph plus one vector index (size not yet measured: `02` §9.6 and `03` §16 give different estimates, TRD §2, RSK-012) | Raise `maxmemory`; rebuild outside demo hours |
 | PRD-A-05 | FalkorDB 4.22 supports every feature relied on; items marked UNVERIFIED in the design are checked in hour one of Oct 15 with stated fallbacks | Use the fallbacks listed in the build plan (R2) |
 | PRD-A-06 | The judge opens the live site in a modern desktop or phone browser and the README link first | `/judge` is also linked from the README top |
-| PRD-A-07 | Reviewers value an honest loss more than a clean sweep (FABLE_CONTEXT.md §2 winner patterns) | Presentation still follows the shot list; the eval stays honest |
+| PRD-A-07 | Reviewers value an honest loss more than a clean sweep (planning notes §2 winner patterns) | Presentation still follows the shot list; the eval stays honest |
 | PRD-A-08 | The team (1-4 people) can supply the human tasks that cannot be delegated: ground-truth re-verification, 16 calibration labels, frozen run sign-off, explain-back, form text | One person collapses roles at checkpoints (build plan §3.2) |
 | PRD-A-09 | There is no existing user base to measure; success is judged on the submission, not on adoption | No adoption metrics are claimed |
 
@@ -517,7 +517,7 @@ Defaults apply until answered. Charter open questions (CHR-OQ-01..12) are not re
 | PRD-OQ-01 | LLM provider and spend cap (undecided by the user) | Anthropic `claude-sonnet-5-5` answering, `claude-haiku-5-5` extraction, $150 cap (CHR-OQ-01, ADR 0010) | OpenAI-compatible provider through the same adapter; also enables a cross-family judge | Oct 14 |
 | PRD-OQ-02 | Team size and roles (undecided) | 1-4 people on the H-Lead, H-Review, H-Data/Eval, H-Demo template (`06` §3.2) | Different split; the form must still state each member's contribution | Oct 14 |
 | PRD-OQ-03 | Hosting (undecided) | Single VM, Docker Compose, Caddy (ADR 0017) | Railway (plan B in ADR 0017) or Fly.io | Oct 14 18:00 |
-| PRD-OQ-04 | **DECISION.** Priority mapping: P0 = T03, P1 = T01, P2 = T02, delivered strictly in that order | As stated, from the task brief and FABLE_CONTEXT.md §4 | Swap T01 and T02 if the team prefers an MCP-first demo; costs no schedule but changes CP5/CP6 | Oct 14 |
+| PRD-OQ-04 | **DECISION.** Priority mapping: P0 = T03, P1 = T01, P2 = T02, delivered strictly in that order | As stated, from the task brief and planning notes §4 | Swap T01 and T02 if the team prefers an MCP-first demo; costs no schedule but changes CP5/CP6 | Oct 14 |
 | PRD-OQ-05 | **DECISION.** The tool catalog counts as a requirement, not a design detail, because tool names are what MCP clients and judges see | FRs name tools by number; the TRD owns Cypher | Keep tool names out of the PRD and cite only behaviour | Oct 14 |
 | PRD-OQ-06 | **DECISION.** Judge path is five steps (four answerable questions plus one refusal), described as "60 seconds, four clicks" in the UI brief and the charter and as "five judge-path steps" in the build plan | Keep five steps; word the copy "about 60 seconds" and count clicks after the final design | Drop the ABS-05 step; cuts the refusal demo, which is a headline | CP4 |
 | PRD-OQ-07 | **DECISION (resolved by TRD-TR-024: rules S1-S3, 90-day S3, veto-able).** Stale threshold for answers (FR-033) is not specified in the sources | Mark stale when a cited KEP is contradicted by another source, or its `last-updated` is older than its latest tracker activity; number of days left to the TRD | A fixed age in days | Oct 14 |

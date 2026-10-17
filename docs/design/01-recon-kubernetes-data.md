@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **v2, 2026-10-12 (IST): revised after the 2026-10-12 design review (index in §0).** Pre-kickoff notes only (Rule 8). This recon wrote no source files, manifests or scripts. Its raw downloads live in `D:\kep-brain\.recon\` and are treated as untrusted data. That folder is git-ignored, never committed and outside the "pre-event notes" commit (D14). The v1 header said "No source files … were created under `D:\kep-brain`". That holds for this recon but not for the folder: another workflow branch wrote a template there between 2026-10-11 22:30 and 2026-10-12 08:39 IST (file times). ADR 0023 archives that template before Oct 15 and regenerates the scaffold after 00:01 IST. Nothing in this document depends on it. |
-| Authorship and human owner | Drafted by an AI assistant (Fable 5.1 / Claude) from the cache below. **Human owner: H-Data/Eval** (ADR 0026). Before CP1 this person re-runs the counts (D12), opens every §8 chain and §11 demo case at its URL, and hand-writes the normalisation map from §3.5 Q4/Q8 (`06` HUM-14). Until a human ratifies them at HUM-00d, every DECISION here is Proposed (§12). |
+| Authorship and human owner | Drafted by an AI assistant from the cache below. **Human owner: H-Data/Eval** (ADR 0026). Before CP1 this person re-runs the counts (D12), opens every §8 chain and §11 demo case at its URL, and hand-writes the normalisation map from §3.5 Q4/Q8 (`06` HUM-14). Until a human ratifies them at HUM-00d, every DECISION here is Proposed (§12). |
 | Date of all measurements | 2026-10-11 (IST), between 22:20 and 23:40. §6.4, §8.6 and §11 were re-checked on 2026-10-12 against the GraphQL fetches in `.recon/eval/` (`tracking-issues-three-sigs.json`, fetched 2026-10-12 08:48 IST). GitHub numbers move daily, so re-run the counts on Oct 15 before publishing any figure (D12). |
 | Tooling used | `gh` CLI 2.89.0 (authenticated, scopes `repo read:org gist workflow`), `curl`, GNU `tar`, Python 3.11.4 + PyYAML 6.0.3 run with `-I` against the cache. The analysis scripts lived in the session scratchpad, not in the project. |
 | Chosen SIGs | **sig-node**, **sig-scheduling**, **sig-apps** (rationale in §7; adopted by ADR 0019). |
@@ -710,7 +710,7 @@ Source: `D:\kep-brain\.recon\eval\contradiction-counts.json`, generated 2026-10-
 
 Not counted, by decision (`03` §7.5): 7 open issues whose `stage/*` label differs from `kep.yaml` are in-flight release-cycle drift, not contradictions. KEP-4381 is a follow-up milestone. KEP-4671 agrees today (§8.6).
 
-Why this differentiates (INFERENCE, checkable): none of the entries listed in `FABLE_CONTEXT.md` §3 compares a design record against its tracking issue. NodeOps's README (read 2026-10-12, `03` §17.1) describes reviewer routing, duplicate grouping and dependency-impact warnings. The README's three-row comparison table is `02` §1.3's.
+Why this differentiates (INFERENCE, checkable): none of the entries listed in the planning notes §3 compares a design record against its tracking issue. NodeOps's README (read 2026-10-12, `03` §17.1) describes reviewer routing, duplicate grouping and dependency-impact warnings. The README's three-row comparison table is `02` §1.3's.
 
 ### 11.3 Why findings go stale, and what that means for the agents (T02, from the data)
 
@@ -736,7 +736,7 @@ Owner: **H-Data/Eval** (ADR 0026). Every check produces one `docs/AI_USAGE.md` r
 
 ### 12.2 What humans decided in this document
 
-As of 2026-10-12, no human decision is recorded against this document. The concept and the master track were the user's decisions (`FABLE_CONTEXT.md` §0, §4). Everything else (the SIG choice in §7.1, the P0-only scope in §7.2, the Rule 6 handling in §9.2 and D1–D15) is an AI proposal and is disclosed as such in `AI_USAGE.md`. At HUM-00d, H-Lead ratifies or vetoes each of these, writes the decider's name into ADR 0019 and ADR 0020 and `docs/DECISIONS.md`, and replaces this paragraph with the list.
+As of 2026-10-12, no human decision is recorded against this document. The concept and the master track were the user's decisions (the planning notes §0, §4). Everything else (the SIG choice in §7.1, the P0-only scope in §7.2, the Rule 6 handling in §9.2 and D1–D15) is an AI proposal and is disclosed as such in `AI_USAGE.md`. At HUM-00d, H-Lead ratifies or vetoes each of these, writes the decider's name into ADR 0019 and ADR 0020 and `docs/DECISIONS.md`, and replaces this paragraph with the list.
 
 ### 12.3 Open conflicts between sibling documents (for HUM-00a; `01` depends on neither)
 

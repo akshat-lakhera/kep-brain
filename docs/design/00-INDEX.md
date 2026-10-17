@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Index, written 2026-10-12 (IST) from a read of every file in `docs/design/` (`01`–`06` and `adr/0001`–`0026`) and `E:\graph-hacks-prep\FABLE_CONTEXT.md`. Pre-event notes only (Rule 8): no code, no manifests, no query catalog. Drafted by an AI assistant. Nothing here is a team decision until H-Lead ratifies it at HUM-00d on Oct 14 (ADR 0001, ADR 0026). |
+| Status | Index, written 2026-10-12 (IST) from a read of every file in `docs/design/` (`01`–`06` and `adr/0001`–`0026`) and the pre-event planning notes (kept outside this repository). Pre-event notes only (Rule 8): no code, no manifests, no query catalog. Drafted by an AI assistant. Nothing here is a team decision until H-Lead ratifies it at HUM-00d on Oct 14 (ADR 0001, ADR 0026). |
 | Event | WeMakeDevs × FalkorDB "Graph Hacks: Context for AI Agents", **2026-10-15 00:01 IST → 2026-10-18 23:59 IST**. Internal deadline: submission sent by 18:00 IST Oct 18, hard stop 19:59 (`06` header). |
 | Precedence when documents disagree | `03` owns graph names and the tool catalog. `04` owns the eval. `05` owns screens and routes. `02` owns processes, ACL users and HTTP. `06` owns the schedule and scope tiers (`06` B5, §1.6). |
 
