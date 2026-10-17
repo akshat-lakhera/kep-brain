@@ -109,6 +109,7 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 ? `${id}-opt-${active}` : undefined}
           autoComplete="off"
+          data-search="page"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);

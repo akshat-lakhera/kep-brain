@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { TopBar } from "@/components/TopBar";
 import { DataChip, Footer } from "@/components/Frame";
+import { Shortcuts } from "@/components/Shortcuts";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={<footer className="border-t border-border bg-surface px-4 py-4 md:px-6" />}>
           <Footer />
         </Suspense>
+        <Shortcuts />
       </body>
     </html>
   );

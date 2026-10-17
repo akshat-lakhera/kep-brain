@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { serverApi } from "@/lib/api/server";
 import { shortSha } from "@/lib/format";
+import { ShortcutsHint } from "./Shortcuts";
 
 /** "Data as of" chip: the ingested enhancements commit and the ticket snapshot time, from /v1/meta. */
 export async function DataChip() {
@@ -65,6 +66,10 @@ export async function Footer() {
           <Link href="/eval" className="quiet-link">
             Eval
           </Link>
+          <Link href={"/about#privacy" as Route} className="quiet-link">
+            Privacy
+          </Link>
+          <ShortcutsHint />
         </span>
         <span className="w-full">
           Code: MIT licence · Data: Kubernetes Enhancement Proposals and issues, © The Kubernetes Authors, Apache-2.0.

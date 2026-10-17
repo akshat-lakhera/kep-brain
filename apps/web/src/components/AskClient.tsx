@@ -236,18 +236,7 @@ export function AskClient({
     return () => clearInterval(t);
   }, [phase.kind]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
-      if (e.key === "/" && !typing) {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  // "/" focuses the question box through the global Shortcuts handler, which finds it by id="ask-input".
 
   const loading = phase.kind === "live";
   const len = text.trim().length;
@@ -325,7 +314,8 @@ export function AskClient({
           />
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p id="ask-help" className="text-xs text-fg-muted">
-              Enter sends · Shift+Enter new line · / focuses · Escape cancels
+              <kbd>Enter</kbd> sends · <kbd>Shift Enter</kbd> new line · <kbd>/</kbd> focuses · <kbd>Esc</kbd> cancels ·{" "}
+              <kbd>?</kbd> all shortcuts
               {len >= 900 ? (
                 <span className={cx("ml-2 tabular", tooLong && "text-danger")}>
                   {len.toLocaleString("en-US")} / 1,000 characters

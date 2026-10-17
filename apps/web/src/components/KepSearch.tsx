@@ -81,6 +81,7 @@ export function KepSearch() {
         aria-activedescendant={active >= 0 ? `${id}-opt-${active}` : undefined}
         placeholder="Search KEPs"
         autoComplete="off"
+        data-search="top"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);
@@ -109,8 +110,13 @@ export function KepSearch() {
             setOpen(false);
           }
         }}
-        className="h-8 w-full rounded-sm border border-border-input bg-surface pl-8 pr-2 text-base placeholder:text-fg-muted"
+        className="h-8 w-full rounded-sm border border-border-input bg-surface pl-8 pr-2 text-base placeholder:text-fg-muted md:pr-16"
       />
+      {q === "" ? (
+        <kbd aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 md:inline-block">
+          Ctrl K
+        </kbd>
+      ) : null}
       {open && q.trim().length >= 2 ? (
         <div className="absolute right-0 z-40 mt-1 w-[min(28rem,90vw)] rounded-md border border-border bg-surface">
           {state.kind === "loading" ? (

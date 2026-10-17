@@ -161,6 +161,28 @@ body {
   text-underline-offset: 2px;
 }
 
+/* Keyboard keys in help text and the shortcuts dialog. */
+kbd {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--c-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: var(--c-surface-subtle);
+  color: var(--c-text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* While a `g` chord is pending, the pointer hints that the next key goes somewhere. */
+:root[data-chord] body {
+  cursor: progress;
+}
+
 /* Answer Markdown (rendered without raw HTML). */
 .answer {
   max-width: 72ch;

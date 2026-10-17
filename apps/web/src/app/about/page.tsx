@@ -3,14 +3,17 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { serverApi } from "@/lib/api/server";
 import { FINDING_KIND_TEXT, humanize } from "@/lib/format";
-import { Card, ErrorState, ExtLink, Facts, PageHeader, SkeletonBlock, StatTile, tableClass, tdClass, thClass } from "@/components/ui";
+import { SHORTCUT_GROUPS } from "@/lib/shortcuts";
+import { Keys } from "@/components/Shortcuts";
+import { Card, ErrorState, ExtLink, Facts, PageHeader, SkeletonBlock, StatTile, cx, tableClass, tdClass, thClass } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "What a KEP is, what KEP Brain reads, how the graph is built, how answers are produced and checked, the five audit checks, scope, licences and privacy.",
+    "What a KEP is, what KEP Brain reads, how the graph is built, how answers are produced and checked, the five audit checks, scope, licences, privacy, terms, accessibility and keyboard shortcuts.",
 };
 
+const REPO = "https://github.com/akshat-lakhera/kep-brain";
 const ENH = "https://github.com/kubernetes/enhancements";
 const PROCESS_DOC = `${ENH}/blob/master/keps/sig-architecture/0000-kep-process/README.md`;
 
@@ -41,16 +44,6 @@ const NODES: [string, string][] = [
   ["Decision", "derived from status, stage and milestone changes, PRR approvals and replacement declarations, linked to deciders and evidence"],
   ["Finding", "one per disagreement between two records, with both sides, a suggested fix and a lifecycle"],
   ["Release, FeatureGate, Label", "the targets a KEP points at"],
-];
-
-const SHORTCUTS: [string, string][] = [
-  ["/", "Focus the question box"],
-  ["Enter", "Send the question"],
-  ["Shift+Enter", "New line in the question"],
-  ["Escape", "Cancel a running question"],
-  ["Ctrl+K", "Focus KEP search"],
-  ["Enter or click on a finding row", "Expand the finding"],
-  ["d on a focused finding row", "Draft the fix"],
 ];
 
 export default function AboutPage() {
@@ -278,11 +271,14 @@ export default function AboutPage() {
           </ul>
         </Card>
 
-        <Card title="Licences and privacy" id="licences">
+        <Card title="Licences" id="licences">
           <ul className="max-w-[80ch] list-disc space-y-2 pl-5 text-fg-secondary">
             <li>
-              <strong className="text-fg">Code: MIT.</strong> KEP Brain itself is open source under the MIT licence; see the
-              LICENSE file in its repository.
+              <strong className="text-fg">Code: MIT.</strong> KEP Brain itself is open source under the MIT licence; see the{" "}
+              <ExtLink href={`${REPO}/blob/main/LICENSE`} quiet={false}>
+                LICENSE file
+              </ExtLink>{" "}
+              in its repository. It is provided as is, without warranty of any kind.
             </li>
             <li>
               <strong className="text-fg">Data: Apache-2.0.</strong> KEP texts, metadata and issues are written by The
@@ -290,36 +286,119 @@ export default function AboutPage() {
               <ExtLink href={`${ENH}/blob/master/LICENSE`} quiet={false}>
                 Apache License 2.0
               </ExtLink>
-              . KEP Brain reads them in place and links back to them.
+              . KEP Brain reads them in place and links back to them; it changes nothing upstream.
             </li>
-            <li>Only public GitHub logins are stored for people; e-mail addresses are never ingested.</li>
             <li>
-              The browser stores three things: the theme choice, an anonymous memory id and whether the evidence chain keeps
-              several branches open. Your questions are never shown to other visitors.
+              <strong className="text-fg">Fonts and icons.</strong> Inter and JetBrains Mono are used under the SIL Open Font
+              License 1.1 and served from this site, not from a font network. Icons are Lucide, under the ISC licence. The
+              mark and the screenshots are the project&apos;s own.
+            </li>
+            <li>
+              Kubernetes is a trademark of The Linux Foundation. KEP Brain is an independent open-source project by one
+              developer and is not affiliated with, or endorsed by, the Kubernetes project, the CNCF or FalkorDB.
+            </li>
+          </ul>
+        </Card>
+
+        <Card title="Privacy and your data" id="privacy">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3 text-fg-secondary">
+              <p>
+                <strong className="text-fg">No account, no cookies, no tracking.</strong> KEP Brain sets no cookies and
+                loads no analytics, advertising or other third-party script, so there is no consent banner because there is
+                nothing to consent to. Pages make requests only to this site&apos;s own API.
+              </p>
+              <p>
+                <strong className="text-fg">What your browser keeps.</strong> Three values in local storage: your theme
+                choice, an anonymous memory id generated in your browser, and whether the evidence chain keeps several
+                branches open. None of them identifies you; clearing site data removes all three.
+              </p>
+              <p>
+                <strong className="text-fg">What leaves your browser.</strong> The text of a question is sent to the API with
+                your memory id. The API sends the question and the graph rows it read to the model provider named in the
+                footer to compose the answer; that provider&apos;s own terms govern what it retains.
+              </p>
+            </div>
+            <div className="space-y-3 text-fg-secondary">
+              <p>
+                <strong className="text-fg">What the server keeps.</strong> Only what the <Link href="/memory" className="quiet-link">Memory</Link>{" "}
+                page shows you: per memory id, each answered question, a 300-character answer summary, the record keys it
+                cited, the KEP, SIG and release names found in the question, the sequence of tools used, and timestamps.
+                This is kept in a graph of its own, so no other visitor can read it, and the API does not write question
+                text to its logs.
+              </p>
+              <p>
+                <strong className="text-fg">Deleting your data.</strong> &ldquo;Forget everything&rdquo; on the Memory page
+                deletes that whole graph at once, and &ldquo;New identity&rdquo; starts a fresh id; the API also deletes
+                single facts and playbooks. There is nothing else to request, because nothing else about you is stored.
+              </p>
+              <p>
+                <strong className="text-fg">People in the graph.</strong> The graph holds public GitHub logins and the public
+                roles they hold in kubernetes/enhancements (author, approver, reviewer, chair). E-mail addresses are never
+                ingested. The service is free, has no paid tier and sends no e-mail. It is not directed at children and
+                collects no personal data beyond the questions you choose to type.
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Accessibility" id="accessibility">
+          <ul className="max-w-[80ch] list-disc space-y-2 pl-5 text-fg-secondary">
+            <li>
+              <strong className="text-fg">Keyboard.</strong> Every action is reachable without a mouse: a skip link, roving
+              focus in the tabs, ARIA comboboxes for both searches, focusable finding rows, and the shortcuts below. The
+              focus ring is visible in both themes.
+            </li>
+            <li>
+              <strong className="text-fg">Contrast.</strong> Every text colour in the palette was measured against each
+              surface it is used on; the lowest ratio is 4.75:1 in the light theme and 5.53:1 in the dark theme, above the
+              WCAG AA minimum of 4.5:1. Chart fills carry text labels and legends, so colour is never the only cue.
+            </li>
+            <li>
+              <strong className="text-fg">Structure.</strong> One heading per section, tables with captions and column
+              headers, decorative icons hidden from screen readers, live regions for search and answer status, and a page
+              title and description on every route.
+            </li>
+            <li>
+              Found something that does not work with your assistive technology? Open an issue in the{" "}
+              <ExtLink href={`${REPO}/issues`} quiet={false}>
+                repository
+              </ExtLink>
+              .
             </li>
           </ul>
         </Card>
 
         <Card title="Keyboard shortcuts" id="shortcuts">
-          <table className={tableClass}>
-            <caption className="sr-only">Keyboard shortcuts</caption>
-            <thead>
-              <tr>
-                <th className={thClass}>Key</th>
-                <th className={thClass}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SHORTCUTS.map(([k, a]) => (
-                <tr key={k}>
-                  <td className={tdClass}>
-                    <kbd className="rounded-sm border border-border bg-surface-subtle px-1 font-mono text-xs">{k}</kbd>
-                  </td>
-                  <td className={tdClass}>{a}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <p className="mb-4 max-w-[80ch] text-fg-secondary">
+            Press <kbd>?</kbd> on any page for this list. Single-letter shortcuts pause while you type in a field.
+          </p>
+          <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+            {SHORTCUT_GROUPS.map((g) => (
+              <table key={g.title} className={tableClass}>
+                <caption className="pb-1 text-left">
+                  <span className="eyebrow">{g.title}</span>
+                  {g.where ? <span className="ml-2 text-xs text-fg-muted">{g.where}</span> : null}
+                </caption>
+                <thead className="sr-only">
+                  <tr>
+                    <th className={thClass}>Key</th>
+                    <th className={thClass}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.items.map((it) => (
+                    <tr key={it.action}>
+                      <td className={cx(tdClass, "w-36 whitespace-nowrap")}>
+                        <Keys keys={it.keys} />
+                      </td>
+                      <td className={tdClass}>{it.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ))}
+          </div>
         </Card>
       </div>
     </>

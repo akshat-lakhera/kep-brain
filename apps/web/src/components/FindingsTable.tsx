@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { PagerBar, usePaging } from "@/components/PagedTable";
+import { routes } from "@/lib/routes";
 import { SortHeader } from "@/components/SortHeader";
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure, ApiResult } from "@/lib/api/core";
@@ -83,6 +85,10 @@ export function FindingsTable({
   tones?: Record<string, number | null>;
 }) {
   const base = useId();
+  const router = useRouter();
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  // After a keyboard page change the focus moves to the first (or last) row of the new page.
+  const focusAfterPage = useRef<"first" | "last" | null>(null);
   const [open, setOpen] = useState<Set<string>>(() => new Set(selected ? [selected] : []));
   const [details, setDetails] = useState<Record<string, Detail>>({});
   const [decisions, setDecisions] = useState<Record<string, Decisions>>({});
@@ -101,6 +107,43 @@ export function FindingsTable({
     if (idx >= 0) paging.setPage(Math.floor(idx / paging.size) + 1);
   }
   const pageRows = sorted.slice(paging.start, paging.end);
+
+  useEffect(() => {
+    const want = focusAfterPage.current;
+    if (!want) return;
+    focusAfterPage.current = null;
+    const rows = tbodyRef.current?.querySelectorAll<HTMLTableRowElement>("tr[tabindex]");
+    if (rows?.length) rows[want === "first" ? 0 : rows.length - 1].focus();
+  }, [paging.page]);
+
+  /** j/k move between finding rows; ] and [ change the page and land on its first or last row. */
+  function rowKeys(e: React.KeyboardEvent<HTMLTableRowElement>): boolean {
+    const rows = tbodyRef.current ? Array.from(tbodyRef.current.querySelectorAll<HTMLTableRowElement>("tr[tabindex]")) : [];
+    const at = rows.indexOf(e.currentTarget);
+    if (e.key === "j" || e.key === "k") {
+      const next = rows[at + (e.key === "j" ? 1 : -1)];
+      if (next) next.focus();
+      else if (e.key === "j" && paging.page < paging.pages) {
+        focusAfterPage.current = "first";
+        paging.setPage(paging.page + 1);
+      } else if (e.key === "k" && paging.page > 1) {
+        focusAfterPage.current = "last";
+        paging.setPage(paging.page - 1);
+      }
+      return true;
+    }
+    if (e.key === "]" && paging.page < paging.pages) {
+      focusAfterPage.current = "first";
+      paging.setPage(paging.page + 1);
+      return true;
+    }
+    if (e.key === "[" && paging.page > 1) {
+      focusAfterPage.current = "first";
+      paging.setPage(paging.page - 1);
+      return true;
+    }
+    return false;
+  }
 
   // Results are stored from the callbacks only; a missing entry renders as loading.
   const fetchFor = (f: Finding, withEvidence: boolean, withDecisions: boolean) => {
@@ -168,7 +211,8 @@ export function FindingsTable({
             {items.length.toLocaleString("en-US")} finding{pluralS(items.length)}
           </h3>
           <p className="text-xs text-fg-muted">
-            Click or Enter expands a row · d drafts a fix for the focused row · nothing on this page posts to GitHub
+            <kbd>Enter</kbd> or click expands a row · <kbd>j</kbd> <kbd>k</kbd> move · <kbd>o</kbd> opens the KEP ·{" "}
+            <kbd>d</kbd> drafts a fix · <kbd>[</kbd> <kbd>]</kbd> change page · nothing on this page posts to GitHub
           </p>
         </div>
         <div className="px-4 pt-3">
@@ -192,7 +236,7 @@ export function FindingsTable({
                 <SortHead sort={sort} onSort={setSort} k="state">State</SortHead>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tbodyRef}>
               {pageRows.map((f, i) => {
                 const n = kepNum(f);
                 const expanded = open.has(f.key);
@@ -210,12 +254,18 @@ export function FindingsTable({
                     }}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
+                      if (e.altKey || e.ctrlKey || e.metaKey) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         toggle(f);
                       } else if (e.key === "d") {
                         e.preventDefault();
                         setDraft({ finding: f, opener: e.currentTarget });
+                      } else if (e.key === "o" && n !== null) {
+                        e.preventDefault();
+                        router.push(routes.kepPath(n, f.kep_path));
+                      } else if (rowKeys(e)) {
+                        e.preventDefault();
                       }
                     }}
                     className={cx("cursor-pointer hover:bg-surface-subtle", selected === f.key && "bg-accent-subtle", expanded && "bg-surface-subtle")}

@@ -10,6 +10,7 @@ import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, Ke
 import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, pluralS, shortSha } from "@/lib/format";
 import { fieldsOf } from "@/lib/schema";
 import { EvidenceChain } from "@/components/EvidenceChain";
+import { KeyLinks } from "@/components/KeyLinks";
 import { Tabs } from "@/components/Tabs";
 import { ToolResultView } from "@/components/ToolResultView";
 import { PersonLink, SigLink } from "@/components/ui";
@@ -190,8 +191,16 @@ function Ambiguous({ number, candidates }: { number: string; candidates: KepCard
 function Header({ k }: { k: KepDetail }) {
   const n = k.number ?? numberFromPath(k.key);
   const ask = `Trace the decisions on KEP-${n}: who decided each stage change, and is the metadata current?`;
+  const askHref = `/ask?q=${encodeURIComponent(ask)}` as Route;
   return (
     <header className="border-b border-border pb-6">
+      <KeyLinks
+        links={[
+          { key: "o", href: k.url },
+          { key: "y", href: k.source_url },
+          { key: "a", href: askHref },
+        ]}
+      />
       <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         {n !== null ? <span className="eyebrow !text-fg-secondary">KEP-{n}</span> : null}
         <span className="font-mono text-xs text-fg-muted">{k.key}</span>
@@ -213,11 +222,18 @@ function Header({ k }: { k: KepDetail }) {
         ) : null}
       </div>
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
-        <ExtLink href={k.url}>KEP on GitHub</ExtLink>
-        <ExtLink href={k.source_url}>kep.yaml</ExtLink>
-        <Link href={`/ask?q=${encodeURIComponent(ask)}` as Route} className="quiet-link">
-          Ask about this KEP
-        </Link>
+        <span className="inline-flex items-center gap-1.5">
+          <ExtLink href={k.url}>KEP on GitHub</ExtLink> <kbd aria-hidden="true">o</kbd>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <ExtLink href={k.source_url}>kep.yaml</ExtLink> <kbd aria-hidden="true">y</kbd>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Link href={askHref} className="quiet-link">
+            Ask about this KEP
+          </Link>{" "}
+          <kbd aria-hidden="true">a</kbd>
+        </span>
       </div>
       {k.summary ? (
         k.summary.length > 360 ? (
