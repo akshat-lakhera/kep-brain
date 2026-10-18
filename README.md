@@ -346,6 +346,8 @@ AI coding assistants were used under human review; see [docs/AI_USAGE.md](docs/A
 
 MIT. See [LICENSE](LICENSE).
 
+The 404 page shows a third-party GIF loaded from Tenor at view time; it is not in this repository and not covered by its licence.
+
 ## Acknowledgments
 
 - [FalkorDB](https://www.falkordb.com/) for the graph database and its graph algorithms.
