@@ -86,7 +86,7 @@ export function fixLabel(key: string): string {
 export const ABSTAIN_REASON_TEXT: Record<string, string> = {
   no_evidence: "the graph holds nothing relevant to the question",
   out_of_scope: "the question is not about KEPs, SIGs or people in this graph, nor about KEP Brain itself",
-  unsupported_claims: "the draft answer made a claim no returned record backs",
+  unsupported_claims: "the draft answer cited a record that was not returned, or cited none",
   budget_exhausted: "the answering budget ran out before an answer was checked",
   graph_unavailable: "the graph database did not answer",
 };

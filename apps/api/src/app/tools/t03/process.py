@@ -21,8 +21,8 @@ from app.tools.base import Run, Tool, ToolContext, ToolParams, ToolResult
 EXCERPT_CHARS = 900
 ROWS = 8
 
-# The full-text index ANDs every word and keeps stopwords, so a question such as "what is a KEP" must become
-# an OR of its content words ("kep*") or it matches nothing.
+# The full-text index ANDs every word and keeps stopwords, so a question such as "explain me what kep is"
+# matches nothing until it becomes an OR of its content words ("kep*").
 _FILLER = frozenset(
     (
         "a", "an", "and", "are", "be", "can", "could", "do", "does", "explain", "for", "from", "how", "i", "in",

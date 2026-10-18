@@ -1,4 +1,4 @@
-# Hand-check record for audit findings (docs/design/05-ui-brief.md section 4.3.1).
+# Hand-check record for audit findings.
 #
 # A person opens a finding on /audit, compares both sides against their source URLs,
 # and records the result here, one entry per finding. The file is committed by a human;

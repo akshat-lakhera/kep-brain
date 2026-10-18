@@ -129,7 +129,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
       <Feature
         id="ask"
         eyebrow="Ask"
-        title="Every sentence cites a record in the graph."
+        title="Answers cite the records they stand on."
         link={{ href: "/ask" as Route, label: "Ask a question" }}
         image={
           <Screenshot
@@ -142,7 +142,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
         }
       >
         Ask why a KEP is designed the way it is, who approved it, or what changed since a release. The answer shows the path it
-        walked through the graph, and a validator drops any claim that no returned record supports.
+        walked through the graph, and a validator rejects it if a citation is not a record it read, or if it cites nothing.
       </Feature>
 
       <Feature
@@ -197,8 +197,8 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
             same graph with a different filter.
           </Step>
           <Step icon={ShieldCheck} title="Answers with sources, or none">
-            Questions run over read-only graph tools. A validator checks that every claim cites a record read in that request,
-            or the answer becomes an abstention.
+            Questions run over read-only graph tools. A validator checks every citation against the records read in that request;
+            a bad citation, or none at all, and the answer becomes an abstention.
           </Step>
         </ol>
       </Section>
@@ -209,8 +209,8 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
           <Capability title="validity intervals">State edges carry valid-from and valid-to, so history is a filter, not a copy.</Capability>
           <Capability title="MERGE sync">Every ingest run is idempotent: re-running it changes nothing that has not changed.</Capability>
           <Capability title="read-only queries">Each tool runs a parameterised read-only query under a timeout; no tool writes.</Capability>
-          <Capability title="PageRank">Ranks decisions by how the records around them connect, to weigh what matters in an area.</Capability>
-          <Capability title="shortest paths">The evidence chain behind an answer is the shortest path between the records it cites.</Capability>
+          <Capability title="PageRank">Scores each person from the decisions that name them, to rank who carries weight in an area.</Capability>
+          <Capability title="shortest paths">How a KEP reaches a person or a SIG, up to four hops, in the agent&apos;s tools and on KEP pages.</Capability>
           <Capability title="full-text search">KEPs, people and SIGs are found through a full-text index, in the search box and the tools.</Capability>
         </ul>
       </Section>
@@ -219,7 +219,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
       <Section id="honest" eyebrow="By design" title="Built to be checked.">
         <ul className="grid gap-x-10 gap-y-5 text-md text-fg-secondary md:grid-cols-2">
           <li className="border-l-2 border-accent pl-5">
-            Every claim cites a record returned for that question; otherwise the answer is an abstention.
+            Every citation must be a record returned for that question, and an answer needs one; otherwise it is an abstention.
           </li>
           <li className="border-l-2 border-accent pl-5">GitHub is read-only: fixes are drafted for a human to paste.</li>
           <li className="border-l-2 border-accent pl-5">

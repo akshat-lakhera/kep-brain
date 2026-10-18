@@ -1,8 +1,8 @@
-# Eval questions transcribed from docs/design/04-eval-set.md section 5.
-# 'unknown' marks a field the design doc does not give. Source prefixes: E enhancements@pin, C community sigs.yaml,
+# Eval questions for KEP Brain.
+# 'unknown' marks a field the original eval-set notes did not give. Source prefixes: E enhancements@pin, C community sigs.yaml,
 # K kubernetes/kubernetes OWNERS, R recon cache. expected_evidence keys come from the paths and PR/issue numbers in Sources.
 version: 1
-source: docs/design/04-eval-set.md section 5
+source: docs/design/04-eval-set.md section 5 (removed from the tree in fa131f5; see docs/README.md)
 pin: 8659e382efab7340d70de52432ee8f3d9979b797
 questions:
 - id: OWN-01

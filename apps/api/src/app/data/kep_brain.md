@@ -16,7 +16,7 @@ A question goes to a language model that may only call read-only graph tools. Ev
 ## When KEP Brain abstains
 <!-- readme: how-it-works -->
 
-KEP Brain abstains instead of guessing. The abstention reasons are no_evidence (the graph holds nothing relevant), out_of_scope (not about KEPs, the KEP process, the loaded SIGs or KEP Brain itself), unsupported_claims (the draft answer made a claim no returned record backs), budget_exhausted (the answering budget ran out before an answer was checked) and graph_unavailable (the graph database did not answer).
+KEP Brain abstains instead of guessing. The abstention reasons are no_evidence (the graph holds nothing relevant), out_of_scope (not about KEPs, the KEP process, the loaded SIGs or KEP Brain itself), unsupported_claims (the draft answer cited a record that was not returned, or cited none), budget_exhausted (the answering budget ran out before an answer was checked) and graph_unavailable (the graph database did not answer).
 
 ## What the audit does
 <!-- readme: what-it-does -->

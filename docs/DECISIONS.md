@@ -12,8 +12,8 @@
 - Date: 2026-10-15
 - Status: accepted
 - Context: the agent needs a hosted model reachable through a single key.
-- Decision: one provider adapter, `openai_compatible`, pointed at Groq's OpenAI-compatible endpoint (`https://api.groq.com/openai/v1`, models `openai/gpt-oss-120b` and cheap tier `openai/gpt-oss-20b`, fallback `qwen/qwen3.8-27b`). The key is `OPENAI_API_KEY`. The free tier is rate-limited, so the client paces requests (`LLM_REQUESTS_PER_MINUTE`), honours Retry-After (up to `LLM_MAX_RETRIES`), and falls back to a second model. Without a key `/v1/ask` answers 503 (`llm_not_configured`).
-- Consequence: any OpenAI-compatible endpoint works by changing the base URL, key and model names. Answer quality is measured on the eval set rather than assumed.
+- Decision: one provider adapter, `openai_compatible`, pointed at a hosted OpenAI-compatible endpoint. The base URL and the primary, cheap and fallback models are settings (`OPENAI_BASE_URL`, `LLM_MODEL`, `LLM_MODEL_CHEAP`, `LLM_FALLBACK_MODELS`; defaults in `.env.example`). The key is `OPENAI_API_KEY`. The hosted tier is rate-limited, so the client paces requests (`LLM_REQUESTS_PER_MINUTE`), honours Retry-After (up to `LLM_MAX_RETRIES`), and falls back to a second model. Without a key `/v1/ask` answers 503 (`llm_not_configured`).
+- Consequence: any OpenAI-compatible endpoint works by changing the base URL, key and model names. An eval harness and a 64-question set are included (`python -m app.eval`); the only recorded run (15 October) is a one-question smoke run, so answer quality has not yet been measured at scale.
 
 ## ADR-0003 Single ACL mode for development
 

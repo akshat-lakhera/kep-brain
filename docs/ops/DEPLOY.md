@@ -28,13 +28,13 @@ cp .env.example .env
 Edit `.env`:
 
 - `FALKORDB_PASSWORD`, `ADMIN_TOKEN`, `MCP_TOKEN`: long random values, for example `openssl rand -hex 32`. Compose refuses to start without `FALKORDB_PASSWORD` and `MCP_TOKEN`.
-- `OPENAI_API_KEY`: key for the endpoint in `OPENAI_BASE_URL` (Groq by default). Without it `/v1/ask` returns 503.
+- `OPENAI_API_KEY`: key for the OpenAI-compatible endpoint in `OPENAI_BASE_URL`. Without it `/v1/ask` returns 503.
 - `GITHUB_TOKEN`: required. `sync-owners` and `sync-tickets` read the GitHub API and `worker all` stops with an error without it (the image has no `gh` CLI). A classic token with no scopes, or a fine-grained read-only token, is enough.
 - `ENHANCEMENTS_PIN_SHA`, `COMMUNITY_PIN_SHA`, `OWNERS_PIN_SHA`: leave empty. The worker clones the public repositories on its first run and fetches them on every sync, so the graph follows the upstream default branches. Set them only for a reproducible snapshot.
 - `PUBLIC_HOST=<dns name>`: used by the prod override and Caddy. Compose reads it from `.env` in the project directory.
 - `REPO_CACHE_HOST`: leave unset on the VM (a named volume is used).
 
-The prod override sets `ENV=prod`, `CORS_ORIGINS=https://${PUBLIC_HOST}` and `PUBLIC_BASE_URL=https://${PUBLIC_HOST}`, so these values in `.env` are ignored by the api. `FALKORDB_HOST` and `FALKORDB_PORT` are set by compose.
+The prod override sets `ENV=prod` for the api and the worker (so the worker reads GitHub fresh on every sync instead of replaying its disk cache of responses, as `dev` and `test` do), and `CORS_ORIGINS=https://${PUBLIC_HOST}` and `PUBLIC_BASE_URL=https://${PUBLIC_HOST}` for the api, so these values in `.env` are ignored. Keep `GITHUB_CACHE` at `auto` (or `off`); `record` or `replay` in `.env` would bring the cache back. `FALKORDB_HOST` and `FALKORDB_PORT` are set by compose.
 
 Shorthand used below:
 
@@ -51,7 +51,7 @@ The worker needs a populated graph before the api has anything to serve. This st
 $COMPOSE run --rm worker all
 ```
 
-The data lives in the `kep-brain_falkordb-data` volume. The `worker` service itself later re-runs the pipeline every 1440 minutes.
+The data lives in the `kep-brain_falkordb-data` volume. The `worker` service runs the pipeline once when it starts, then again 1440 minutes after each run finishes. After each successful sync it also runs one coordination tick (triage open findings, draft stale-issue updates, verify the drafts) when `FINDINGS_AGENT_ENABLED` is true and `OPENAI_API_KEY` is set; LLM spend stays within `FINDINGS_AGENT_DAILY_USD` per day, and a failed tick is logged without stopping the schedule.
 
 ## 5. Start
 
@@ -89,7 +89,7 @@ $COMPOSE up -d --force-recreate api worker mcp
 
 `env_file` is read at container creation, so a plain restart does not pick up the change. Revoke the old key at the provider after `/v1/meta` and an `/v1/ask` call succeed.
 
-## 8. Reload the graph without downtime
+## 8. Reload the graph (blue-green swap)
 
 The scheduled worker upserts into the live `kep` graph. For a full reload (new `SIGS`, a bumped `INGEST_VERSION`, a suspect graph) load next to it and swap:
 
@@ -99,7 +99,7 @@ $COMPOSE run --rm -v "$PWD/scripts:/scripts:ro" --entrypoint python api /scripts
 $COMPOSE run --rm -v "$PWD/scripts:/scripts:ro" --entrypoint python api /scripts/graph_swap.py
 ```
 
-The script is not part of the image, so it is mounted into a one-off `api` container, which has the FalkorDB client and the same `FALKORDB_*` variables as the API. `scripts/graph_swap.py` copies the live graph to `kep_old` (`GRAPH.COPY`), replaces `kep` with `kep_fresh` and clears the answer cache. Check the counts in `/v1/meta`, then delete `kep_old` when satisfied.
+The script is not part of the image, so it is mounted into a one-off `api` container, which has the FalkorDB client and the same `FALKORDB_*` variables as the API. `scripts/graph_swap.py` copies the live graph to `kep_old` (`GRAPH.COPY`), replaces `kep` with `kep_fresh` and clears the answer cache. Between the `GRAPH.DELETE kep` and the copy, reads answer empty for a moment. Check the counts in `/v1/meta`, then delete `kep_old` when satisfied.
 
 ## 9. Update
 
@@ -107,6 +107,8 @@ The script is not part of the image, so it is mounted into a one-off `api` conta
 git pull
 $COMPOSE up -d --build
 ```
+
+This recreates changed services; a recreated worker starts a sync at once. When that run has finished (`last_run.finished_at_iso` in `/v1/sync/status` is after the update), the `sync-tickets` step should show `cache_hits` 0.
 
 ## Measured cold start
 

@@ -58,6 +58,11 @@ services:
     environment:
       PUBLIC_BASE_URL: https://${PUBLIC_HOST}
 
+  worker:
+    environment:
+      # Production syncs read GitHub fresh on every run; dev and test replay a disk cache of GitHub responses.
+      ENV: prod
+
 volumes:
   caddy-data:
   caddy-config:

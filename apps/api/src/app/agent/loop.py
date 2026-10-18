@@ -300,7 +300,7 @@ class Agent:
         for ev in evidence:
             await emit("citation", {"evidence_id": ev.evidence_id, "source_type": ev.label, "title": ev.title,
                                     "locator": ev.key, "url": ev.url})  # fmt: skip
-        await emit("status", {"phase": "checking", "label": "Checking every claim against the graph"})
+        await emit("status", {"phase": "checking", "label": "Checking every citation against the graph"})
         for c in hit["citations"]:
             await emit("citation", {"index": c["index"], "evidence_id": c["evidence_id"], "source_type": c["label"],
                                     "title": c["title"], "locator": c["key"], "url": c["url"]})  # fmt: skip
@@ -408,7 +408,7 @@ class Agent:
         recalled: list[str] | None = None,
         personal: bool = False,
     ) -> dict[str, Any]:
-        await emit("status", {"phase": "checking", "label": "Checking every claim against the graph"})
+        await emit("status", {"phase": "checking", "label": "Checking every citation against the graph"})
         if abstain:
             v = Validated("", [], True, abstain)
         elif final is None:

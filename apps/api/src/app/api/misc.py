@@ -17,7 +17,7 @@ from app.errors import AppError
 from app.eval.questions import judge_questions, latest_summary, load_questions, public_question
 from app.ingest.common import iso
 from app.memory.store import valid_memory_id
-from app.schema.labels import NODE_LABELS, VALID_TO_OPEN
+from app.schema.labels import ACTIVE_FINDING_STATES, NODE_LABELS, VALID_TO_OPEN
 from app.settings import Settings
 from app.tools.base import Projector, ToolContext
 from app.tools.registry import get_tool, llm_tools
@@ -29,7 +29,8 @@ META_COUNTS = {
     "nodes": "MATCH (n) RETURN count(n)",
     "edges": "MATCH ()-[r]->() RETURN count(r)",
     "keps": "MATCH (n:KEP) RETURN count(n)",
-    "findings": "MATCH (n:Finding) RETURN count(n)",
+    # Open findings only: a finding resolved upstream stays in the graph as history but is no longer a disagreement.
+    "findings": f"MATCH (n:Finding) WHERE n.state IN {list(ACTIVE_FINDING_STATES)!r} RETURN count(n)",
     "people": "MATCH (n:Person) RETURN count(n)",
 }
 

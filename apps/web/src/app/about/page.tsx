@@ -257,7 +257,7 @@ export default function AboutPage() {
             <li>
               Abstention reasons: <span className="font-mono">no_evidence</span> (the graph holds nothing relevant),{" "}
               <span className="font-mono">out_of_scope</span> (not about KEPs, the process, the loaded SIGs or KEP Brain itself),{" "}
-              <span className="font-mono">unsupported_claims</span> (the model wrote something the records do not back),{" "}
+              <span className="font-mono">unsupported_claims</span> (a citation did not match the records returned, or there was none),{" "}
               <span className="font-mono">budget_exhausted</span> (the answering budget ran out before an answer was checked),{" "}
               <span className="font-mono">graph_unavailable</span> (the graph database did not answer).
             </li>

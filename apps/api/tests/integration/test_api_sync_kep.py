@@ -39,7 +39,8 @@ def test_sync_status(client: TestClient) -> None:
     assert all(re.fullmatch(r"[0-9a-f]{40}", body["pinned"][k]) for k in ("enhancements_sha", "community_sha"))
     assert body["tickets_as_of"]
     meta = client.get("/v1/meta").json()["graph"]
-    assert body["counts_by_label"]["KEP"] == meta["keps"] and body["counts_by_label"]["Finding"] == meta["findings"]
+    # meta counts open findings only; resolved ones stay in the graph as history.
+    assert body["counts_by_label"]["KEP"] == meta["keps"] and body["counts_by_label"]["Finding"] >= meta["findings"]
     run = body["last_run"]
     assert run is None or (isinstance(run["ok"], bool) and isinstance(run["steps"], dict))
     assert set(body) == {"pinned", "tickets_as_of", "last_run", "counts_by_label", "worker_last_seen_iso",

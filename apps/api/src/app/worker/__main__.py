@@ -2,6 +2,7 @@
 
 Commands: schema-apply, sync-docs, sync-history, sync-owners, sync-tickets, derive, all, stats, schedule.
 Every run gets a ULID `sync_run_id` stamped on the nodes and edges it writes.
+`schedule` repeats `all` and, after each good sync, runs one agent coordination tick (see `coordinate`).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Any
 import structlog
 from ulid import ULID
 
+from app.agent.provider import llm_configured
 from app.db.batch import BatchWriter
 from app.db.falkordb import GRAPH_KEP, WRITE_TIMEOUT_MS, FalkorPool, Role
 from app.ingest.common import COMMUNITY_REPO
@@ -164,6 +166,28 @@ class Worker:
         return result
 
 
+def coordinate_after_sync(settings: Settings, sync_run_id: str) -> None:
+    """One coordination tick after a good sync, when the findings agent is on and an LLM key is set.
+
+    The tick enforces the daily USD cap itself; a failure here is logged and never stops the scheduler.
+    """
+    if not settings.findings_agent_enabled or not llm_configured(settings):
+        return
+    try:
+        from app.worker.coordinate import run_coordination_tick
+
+        summary = run_coordination_tick(settings)
+        log.info(
+            "scheduled_coordination_done",
+            sync_run_id=sync_run_id,
+            enqueued=summary.get("enqueued"),
+            processed=summary.get("processed"),
+            stopped=summary.get("stopped"),
+        )
+    except Exception:  # noqa: BLE001 - an agent failure must not stop the scheduler or skip the heartbeat
+        log.exception("coordination_tick_failed", sync_run_id=sync_run_id)
+
+
 COMMANDS = (
     "schema-apply", "sync-docs", "sync-history", "sync-owners", "sync-tickets", "derive", "all", "stats", "schedule",
     "freshness", "coordinate",
@@ -175,7 +199,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("--graph", default=GRAPH_KEP, help="target graph (default: kep)")
     parser.add_argument("--force", action="store_true", help="re-read sources even when their commits are unchanged")
-    parser.add_argument("--interval-minutes", type=int, default=15, help="schedule: minutes between full runs")
+    parser.add_argument(
+        "--interval-minutes",
+        type=int,
+        default=15,
+        help="schedule: minutes between full runs (each followed by a coordination tick)",
+    )
     parser.add_argument("--limit", type=int, default=None, help="freshness: maximum findings to triage")
     args = parser.parse_args(argv)
     settings = get_settings()
@@ -196,11 +225,15 @@ def main(argv: list[str] | None = None) -> int:
         interval_s = args.interval_minutes * 60
         while True:
             worker = Worker(settings, args.graph, args.force)
+            synced = False
             try:
                 heartbeat(worker.pool, None)
                 worker.recorded_all()
+                synced = True
             except Exception:  # noqa: BLE001 - keep the scheduler alive; the failure is logged and recorded
                 log.exception("scheduled_run_failed", sync_run_id=worker.run_id)
+            if synced:
+                coordinate_after_sync(settings, worker.run_id)
             try:
                 heartbeat(worker.pool, int(time.time()) + interval_s)
             except Exception:  # noqa: BLE001 - a missed heartbeat must not stop the scheduler

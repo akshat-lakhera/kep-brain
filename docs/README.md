@@ -7,5 +7,6 @@
 | [DECISIONS.md](DECISIONS.md) | Decision log |
 | [AI_USAGE.md](AI_USAGE.md) | How AI coding assistants were used and what was checked by hand |
 | [screenshots/](screenshots/) | Product screenshots used in the README |
+| Design notes (`docs/design/`, cited in code comments as `01 §` to `06 §`) | Removed from the tree on 18 October in commit `fa131f5`; the last version is in git history (`git show fa131f5^:docs/design/03-graph-model.md`) |
 
-The question set and the recorded evaluation runs are in [../evals/](../evals/). The production compose override and Caddy configuration are in [../deploy/](../deploy/).
+The question set, the audit hand-check record, load-test results and one incomplete smoke run (1 question, too few to measure answer quality) are in [../evals/](../evals/). The production compose override and Caddy configuration are in [../deploy/](../deploy/).

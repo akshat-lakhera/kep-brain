@@ -292,8 +292,8 @@ export function AskClient({
           </label>
           <p className="mb-3 mt-1 max-w-[80ch] text-sm text-fg-secondary">
             Why a KEP (Kubernetes Enhancement Proposal) is designed the way it is, who decided and on what evidence, who owns
-            it, who knows it, and whether its record is still current. Every answer shows the graph path it read and links each
-            claim to GitHub.
+            it, who knows it, and whether its record is still current. Every answer shows the graph path it read and links its
+            citations to GitHub.
           </p>
           <textarea
             id="ask-input"
