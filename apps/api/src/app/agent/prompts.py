@@ -21,6 +21,11 @@ Routes: status/metadata current -> find_contradictions + get_kep, then report ev
 Who owns / who is responsible -> get_kep: name the owning SIG, the authors, the approvers and the PRR approvers. \
 What changed since a release -> whats_changed (since=v1.NN). What a KEP is, what a status, stage or kep.yaml field \
 means, how the KEP process or PRR works -> explain_process(topic); these are in scope. \
+Questions about KEP Brain itself (what it is, what it can do or answer, how it works, how it handles data, privacy, \
+licence; "kep brain", "kp brain", "this tool" and "you" name the product) are IN scope: call \
+explain_process(topic="KEP Brain" plus the asked words) or find_entities(kinds=[Section]) BEFORE deciding, then \
+answer from the KEP Brain document sections and cite them. Read obvious typos as KEP or KEP Brain (kp, kpe, \
+kep-brain, kepbrain). \
 Replaces / what became of -> kep_relations \
 (mode=lineage). When/by whom/which PR -> trace_decision with kinds (e.g. [status_transition]); reversals -> \
 status_history. Person to KEP -> path_between, who_approves. Feature gate -> find_entities(kinds=[FeatureGate,KEP]).
@@ -36,8 +41,8 @@ then explain with citations:
 no exact match and name the nearest entity. Never present it as the answer.
 - a match='historical' feature gate is declared by no current kep.yaml: say which KEP formerly declared it and \
 when (formerly_declared_by), and which gate that KEP declares now.
-- not about Kubernetes KEPs, the KEP process or the three SIGs (another project, a general software question): \
-out_of_scope. No relevant rows: no_evidence.
+- not about Kubernetes KEPs, the KEP process, the three SIGs or KEP Brain itself (another project such as Helm, a \
+general software question): out_of_scope. No relevant rows: no_evidence.
 """
 WRITE_NOW = "Tool budget reached. Write the answer now as Markdown text with [[evidence_id]] citations."
 

@@ -39,7 +39,7 @@ class DraftStaleDocIssue(Tool):
     description = (
         "Draft (never post) an issue asking to fix a KEP's stale or contradictory metadata, from a Finding key "
         "(fnd:<kind>:<KEP path>). The draft lists both disagreeing sides and every evidence record with its URL "
-        "and the suggested fix. A human must review and confirm before anything is posted."
+        "and the possible fix, marked unverified. A human must review and confirm before anything is posted."
     )
     Params = DraftStaleDocIssueParams
     on_mcp = False
@@ -54,7 +54,8 @@ class DraftStaleDocIssue(Tool):
         f, kep = row["finding"], row["kep"]
         number = kep.get("number")
         name = f"KEP-{number}" if number is not None else kep["key"]
-        title = f"{name}: kep.yaml metadata disagrees with its sources ({f.get('kind', '').replace('_', ' ')})"
+        kind = f.get("kind", "").replace("_", " ")
+        title = f"{name}: kep.yaml and tracking issue disagree ({kind}); please confirm which record is current"
         evidence = [kep, *row.get("tracking_issue", []), *row.get("kep_yaml", [])]
         evidence += [e["node"] for e in row.get("evidence", [])]
         seen: set[str] = set()
@@ -70,7 +71,7 @@ class DraftStaleDocIssue(Tool):
                 f"- **{f.get('a_label', 'Side A')}**: {f.get('a_value', '')} ({f.get('a_url', '')})",
                 f"- **{f.get('b_label', 'Side B')}**: {f.get('b_value', '')} ({f.get('b_url', '')})",
                 "",
-                f"Suggested fix: {f.get('suggested_fix', 'review the metadata')}",
+                f"Possible fix (unverified): {f.get('suggested_fix', 'review the metadata')}",
                 "",
                 "Evidence:",
                 *lines,

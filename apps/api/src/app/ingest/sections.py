@@ -163,6 +163,31 @@ def split_sections(markdown: str) -> list[ParsedSection]:
     return sections
 
 
+def doc_sections(markdown: str, fallback_title: str) -> tuple[str, list[ParsedSection]]:
+    """Title and sections of a stand-alone document (a process or product README, not a KEP).
+
+    The definition lives under the `#` title, before the first `##`; `split_sections` keeps only `##` sections and
+    a table of contents says nothing, so the opening text becomes section 0 (kind `summary`) and the table of
+    contents is dropped. Orders are renumbered over what is kept.
+    """
+    heads = headings(markdown)
+    h1 = next((h for h in heads if h.level == 1), None)
+    title = h1.text if h1 else fallback_title
+    parsed = [s for s in split_sections(markdown) if s.heading.strip().lower() != "table of contents"]
+    if h1:
+        lines = markdown.splitlines()
+        first = next((h.line for h in heads if h.level <= 2 and h.line > h1.line), len(lines))
+        intro = scrub("\n".join(lines[h1.line + 1 : first]).strip())
+        if intro:
+            parsed.insert(
+                0, ParsedSection(anchor=h1.anchor, heading=h1.text, level=1, order=0, text=intro, kind="summary")
+            )
+    return title, [
+        ParsedSection(anchor=s.anchor, heading=s.heading, level=s.level, order=i, text=s.text, kind=s.kind)
+        for i, s in enumerate(parsed)
+    ]
+
+
 def summary_text(sections: list[ParsedSection]) -> str | None:
     for s in sections:
         if s.kind == "summary" and s.level == 2 and s.text:

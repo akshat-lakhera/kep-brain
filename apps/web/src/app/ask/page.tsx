@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { Route } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AskClient } from "@/components/AskClient";
@@ -11,6 +12,7 @@ import { serverApi } from "@/lib/api/server";
 export const metadata: Metadata = {
   title: "Ask",
   description: "Ask why a Kubernetes KEP is designed the way it is, who decided and on what evidence, who owns and knows it, and whether its record is current.",
+  alternates: { canonical: "/ask" },
 };
 
 export default function AskPage() {
@@ -56,8 +58,10 @@ async function Home() {
     />
   );
 
+  // The ask box comes first; what the graph holds follows it as one quiet strip, then the places to start.
   const idle = (
     <div className="space-y-6">
+      {meta.ok ? <InstrumentStrip meta={meta.data} /> : <ErrorState error={meta.error} what="Graph status" />}
       <EntryPoints
         changes={changes}
         sigs={sigs}
@@ -78,7 +82,7 @@ async function Home() {
         <pre className="mt-2 overflow-x-auto rounded-sm bg-surface p-3 font-mono text-xs">docker compose run --rm worker all</pre>
         <p className="mt-2">
           The first run clones the public Kubernetes repositories and takes a while. Progress is visible under{" "}
-          <Link href="/audit?tab=sync" className="quiet-link">
+          <Link href={"/audit#sync" as Route} className="quiet-link">
             Audit → Sync
           </Link>
           .
@@ -87,10 +91,5 @@ async function Home() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {meta.ok ? <InstrumentStrip meta={meta.data} /> : <ErrorState error={meta.error} what="Graph status" />}
-      <AskClient meta={meta.ok ? meta.data : null} findings={findings.ok ? findings.data.items : []} idle={idle} />
-    </div>
-  );
+  return <AskClient meta={meta.ok ? meta.data : null} findings={findings.ok ? findings.data.items : []} idle={idle} />;
 }

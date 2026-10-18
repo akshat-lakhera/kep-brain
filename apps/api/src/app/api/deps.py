@@ -66,14 +66,26 @@ def _seconds_to_utc_midnight(now: datetime) -> int:
 class RateLimiter:
     """Sliding-window limit per client address (single api replica)."""
 
+    # Addresses whose window has emptied are dropped every this many checks, so the table stays bounded.
+    SWEEP_EVERY = 1000
+
     def __init__(self, window_s: float = 600.0) -> None:
         self.window_s = window_s
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._lock = Lock()
+        self._checks = 0
+
+    def _sweep(self, now: float) -> None:
+        stale = [k for k, hits in self._hits.items() if not hits or now - hits[-1] > self.window_s]
+        for k in stale:
+            del self._hits[k]
 
     def check(self, key: str, limit: int) -> None:
         now = time.monotonic()
         with self._lock:
+            self._checks += 1
+            if self._checks % self.SWEEP_EVERY == 0:
+                self._sweep(now)
             hits = self._hits[key]
             while hits and now - hits[0] > self.window_s:
                 hits.popleft()
@@ -107,3 +119,5 @@ class AskLimiter(RateLimiter):
 
 
 ASK_LIMITER = AskLimiter()
+# Direct tool calls (`POST /v1/tools/{name}`) run graph queries without the LLM; bounded per address all the same.
+TOOLS_LIMITER = RateLimiter()

@@ -9,6 +9,7 @@ import type {
   FindingsResponse,
   ItemList,
   KepDetail,
+  KepList,
   Meta,
   StatusChangeOut,
   SyncStatus,
@@ -30,6 +31,7 @@ async function get<T>(path: string): Promise<ApiResult<T>> {
 
 export const serverApi = {
   meta: () => get<Meta>(paths.meta()),
+  keps: (p: Parameters<typeof paths.keps>[0]) => get<KepList>(paths.keps(p)),
   kep: (num: number | string, path?: string) => get<KepDetail>(paths.kep(num, path)),
   kepHistory: (num: number | string, path?: string) => get<ItemList<StatusChangeOut>>(paths.kepHistory(num, path)),
   kepDecisions: (num: number | string, path?: string) => get<ItemList<DecisionOut>>(paths.kepDecisions(num, path)),

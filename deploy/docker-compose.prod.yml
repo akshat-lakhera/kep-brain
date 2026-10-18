@@ -6,6 +6,13 @@ name: kep-brain
 services:
   caddy:
     image: caddy:2.8.4-alpine
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST:?set PUBLIC_HOST to the public DNS name}
     ports:
@@ -20,6 +27,12 @@ services:
         condition: service_healthy
       web:
         condition: service_healthy
+    healthcheck:
+      # The admin API listens on localhost:2019 inside the container; it answers once the config is loaded.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks: [edge]
     restart: unless-stopped
 
@@ -36,9 +49,14 @@ services:
 
   mcp:
     ports: !reset []
+    environment:
+      # Host and Origin allow-list of the MCP transport: Caddy forwards /mcp with the public Host header.
+      PUBLIC_BASE_URL: https://${PUBLIC_HOST}
 
   web:
     ports: !reset []
+    environment:
+      PUBLIC_BASE_URL: https://${PUBLIC_HOST}
 
 volumes:
   caddy-data:

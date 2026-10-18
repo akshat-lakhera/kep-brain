@@ -38,7 +38,8 @@ export type Paging = ReturnType<typeof usePaging>;
  */
 export function PagerBar({ paging, note }: { paging: Paging; note?: ReactNode }) {
   const { rows, page, pages, start, end, total, setRows, setPage } = paging;
-  const link = "quiet-link disabled:text-fg-muted disabled:no-underline";
+  // 24 px high targets (WCAG 2.5.8) in a 12 px toolbar.
+  const link = "quiet-link inline-flex min-h-6 items-center px-1 disabled:text-fg-muted disabled:no-underline";
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-fg-muted">
       <span>{note}</span>

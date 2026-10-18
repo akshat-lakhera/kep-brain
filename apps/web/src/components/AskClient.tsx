@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Ban, Copy, Link2, SquareArrowOutUpRight } from "lucide-react";
 import { clientApi } from "@/lib/api/client";
@@ -21,12 +21,13 @@ import type {
   SseStatus,
   SseToolCall,
 } from "@/lib/api/types";
-import { isoUtc, ms, numberFromPath, plural, shortSha } from "@/lib/format";
+import { ABSTAIN_REASON_TEXT, isoUtc, ms, numberFromPath, plural, shortSha } from "@/lib/format";
 import { mergeGraph } from "@/lib/graph";
 import { kindLabel } from "@/lib/kinds";
 import { AnswerMarkdown } from "./AnswerMarkdown";
 import { EvidenceChain } from "./EvidenceChain";
 import { Tabs } from "./Tabs";
+import { useToast } from "./Toast";
 import { Chip, ErrorState, ExtLink, Notice, cx, tableClass, tdClass, thClass } from "./ui";
 
 const MIN = 3;
@@ -152,13 +153,13 @@ export function AskClient({
   idle: ReactNode;
 }) {
   const params = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
   const initialQ = params.get("q") ?? "";
   const [text, setText] = useState(initialQ);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [now, setNow] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  const { toast } = useToast();
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastAsked = useRef<string | null>(null);
@@ -175,7 +176,8 @@ export function AskClient({
       const started = Date.now();
       setNow(started);
       setPhase({ kind: "live", live: emptyLive(q, "stream") });
-      if (params.get("q") !== q) router.replace(`${pathname}?q=${encodeURIComponent(q)}` as Route, { scroll: false });
+      // A shallow URL update for sharing and reload: no server round trip, the page's data is already here.
+      if (params.get("q") !== q) window.history.replaceState(null, "", `${pathname}?q=${encodeURIComponent(q)}`);
       const hardStop = setTimeout(() => ctrl.abort("timeout"), ABORT_AFTER_MS);
 
       const update = (f: (live: Live) => Live) =>
@@ -217,7 +219,7 @@ export function AskClient({
         setPhase({ kind: "error", live: emptyLive(q, "fallback"), error: res.error });
       }
     },
-    [params, pathname, router],
+    [params, pathname],
   );
 
   // Run the question from ?q= (shared links and links from other pages).
@@ -260,11 +262,12 @@ export function AskClient({
       : d.evidence.map((c) => `- ${c.source_type} ${c.title ?? c.locator} ${c.url ?? ""}`);
     const value =
       kind === "link"
-        ? `${window.location.origin}/?q=${encodeURIComponent(d.question)}`
+        ? `${window.location.origin}/ask?q=${encodeURIComponent(d.question)}`
         : `${d.answer}\n\nSources:\n${sources.join("\n")}`;
     try {
       await navigator.clipboard.writeText(value);
       setCopied(kind);
+      toast(kind === "link" ? "Link copied" : "Answer copied with its sources");
       setTimeout(() => setCopied(null), 2000);
     } catch {
       setCopied(null);
@@ -284,10 +287,10 @@ export function AskClient({
         aria-busy={loading}
       >
         <div className="p-4">
-          <label htmlFor="ask-input" className="block text-md font-semibold">
+          <label htmlFor="ask-input" className="display block text-xl">
             Ask the decision record
           </label>
-          <p className="mb-2 text-sm text-fg-secondary">
+          <p className="mb-3 mt-1 max-w-[80ch] text-sm text-fg-secondary">
             Why a KEP (Kubernetes Enhancement Proposal) is designed the way it is, who decided and on what evidence, who owns
             it, who knows it, and whether its record is still current. Every answer shows the graph path it read and links each
             claim to GitHub.
@@ -296,7 +299,7 @@ export function AskClient({
             id="ask-input"
             ref={inputRef}
             value={text}
-            rows={2}
+            rows={3}
             maxLength={MAX + 200}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -314,25 +317,19 @@ export function AskClient({
           />
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p id="ask-help" className="text-xs text-fg-muted">
-              <kbd>Enter</kbd> sends · <kbd>Shift Enter</kbd> new line · <kbd>/</kbd> focuses · <kbd>Esc</kbd> cancels ·{" "}
-              <kbd>?</kbd> all shortcuts
               {len >= 900 ? (
-                <span className={cx("ml-2 tabular", tooLong && "text-danger")}>
+                <span className={cx("tabular", tooLong && "text-danger")}>
                   {len.toLocaleString("en-US")} / 1,000 characters
                 </span>
               ) : null}
             </p>
             <div className="flex gap-2">
               {loading ? (
-                <button type="button" onClick={cancel} className="h-8 rounded-sm border border-border-input px-3 text-base">
+                <button type="button" onClick={cancel} className="btn btn-secondary btn-sm">
                   Cancel
                 </button>
               ) : null}
-              <button
-                type="submit"
-                disabled={loading || paused || len < MIN || tooLong}
-                className="h-8 rounded-sm bg-accent px-4 text-base font-medium text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <button type="submit" disabled={loading || paused || len < MIN || tooLong} className="btn btn-primary btn-sm">
                 {paused ? "Answering paused" : "Ask"}
               </button>
             </div>
@@ -348,8 +345,9 @@ export function AskClient({
         </div>
       </form>
 
-      <div aria-live="polite" className="sr-only">
-        {phase.kind === "live" ? liveStatus : phase.kind === "done" ? "Answer ready" : ""}
+      {/* The one live region of the page: it changes only when the phase or the API's status label changes. */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {phase.kind === "live" ? liveStatus : phase.kind === "done" ? (phase.live.done?.abstained ? "No evidence found; the answer abstained" : "Answer ready") : ""}
       </div>
 
       {phase.kind === "idle" ? idle : null}
@@ -379,6 +377,8 @@ export function AskClient({
 
       {phase.kind === "live" || phase.kind === "done" ? (
         <AnswerView
+          // A new question starts from fresh evidence views (tab, diagram or list, opened rows), not the last answer's.
+          key={phase.live.started}
           live={phase.live}
           final={phase.kind === "done"}
           meta={meta}
@@ -417,7 +417,11 @@ function AnswerView({
   const findingsRecalled = live.memory?.findings_recalled ?? [];
   const graphKeps = new Set(live.graph.nodes.filter((n) => n.label === "KEP").map((n) => n.key));
   const touched = findings.filter((f) => graphKeps.has(f.kep_path));
-  const recalled = findingsRecalled.map((key) => findings.find((f) => f.key === key) ?? key);
+  const touchedKeys = new Set(touched.map((f) => f.key));
+  // A recalled finding that the answer also touched is shown once, as touched.
+  const recalled = [...new Set(findingsRecalled)]
+    .filter((key) => !touchedKeys.has(key))
+    .map((key) => findings.find((f) => f.key === key) ?? key);
   const exploreNode =
     live.graph.nodes.find((n) => citedKeys.has(n.key) && pageHref(n)) ?? live.graph.nodes.find((n) => pageHref(n));
   const sha = meta?.sources.enhancements_sha ?? null;
@@ -426,7 +430,8 @@ function AnswerView({
   return (
     <div className="grid gap-6 lg:grid-cols-12">
       <article className="min-w-0 lg:col-span-7" aria-label="Answer" aria-busy={!final}>
-        <p className="mb-1 text-sm text-fg-secondary" role="status">
+        {/* Not a live region: the elapsed time ticks twice a second. The phase alone is announced, from the region above. */}
+        <p className="mb-1 text-sm text-fg-secondary">
           {statusLine ??
             (done ? (
               <>
@@ -443,7 +448,7 @@ function AnswerView({
         </p>
         <h2 className="mb-3 text-md font-semibold">{live.question}</h2>
         {done?.abstained ? (
-          <div className="mb-3 rounded-md border border-border bg-surface-subtle p-4">
+          <div className="reveal mb-3 rounded-md border border-border bg-surface-subtle p-4">
             <p className="flex items-center gap-2 font-medium">
               <Ban size={16} strokeWidth={1.5} aria-hidden="true" />
               No evidence in the graph for this question
@@ -451,6 +456,7 @@ function AnswerView({
             {done.abstain_reason ? (
               <p className="mt-1 text-sm text-fg-secondary">
                 Reason <span className="ident">{done.abstain_reason}</span>
+                {ABSTAIN_REASON_TEXT[done.abstain_reason] ? `: ${ABSTAIN_REASON_TEXT[done.abstain_reason]}` : null}
               </p>
             ) : null}
             {live.toolCalls.length > 0 ? (
@@ -471,7 +477,7 @@ function AnswerView({
           </div>
         ) : null}
         {live.answer ? (
-          <div className="rounded-md border border-border bg-surface p-4">
+          <div className="reveal rounded-md border border-border bg-surface p-4">
             <AnswerMarkdown markdown={live.answer} citations={live.citations} />
           </div>
         ) : !final ? (
@@ -509,13 +515,13 @@ function AnswerView({
                 ))}
                 {touched.length > 4 ? (
                   <Link href="/audit" className="quiet-link self-center text-sm">
-                    {touched.length - 4} more findings
+                    {plural(touched.length - 4, "more finding")}
                   </Link>
                 ) : null}
                 {recalled.map((f) =>
                   typeof f === "string" ? (
                     <Chip key={f}>
-                      Used shared finding <span className="ident">{f}</span>
+                      Used shared finding <code className="ident">{f}</code>
                     </Chip>
                   ) : (
                     <Link key={f.key} href={routes.finding(f.key)} className="no-underline">
@@ -532,7 +538,7 @@ function AnswerView({
                 ) : null}
                 {live.memory && live.memory.remembered.length > 0 ? (
                   <Link href="/memory" className="no-underline">
-                    <Chip>Remembered: {live.memory.remembered.join(", ")}</Chip>
+                    <Chip>Remembered {plural(live.memory.remembered.length, "fact")}</Chip>
                   </Link>
                 ) : null}
               </div>
@@ -558,7 +564,7 @@ function AnswerView({
             </div>
             {done ? (
               <p className="mt-2 text-xs text-fg-muted">
-                Diagnostic id <span className="ident">{done.request_id}</span>
+                Request id <span className="ident">{done.request_id}</span>
               </p>
             ) : null}
           </>
@@ -601,6 +607,7 @@ function AnswerView({
 
 function Steps({ live }: { live: Live }) {
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
+  const { toast } = useToast();
   if (live.toolCalls.length === 0) {
     return <p className="text-fg-secondary">{live.done ? "No tool was called for this answer." : "No tool called yet."}</p>;
   }
@@ -608,6 +615,7 @@ function Steps({ live }: { live: Live }) {
     try {
       await navigator.clipboard.writeText(template);
       setCopiedStep(step);
+      toast("Cypher template copied");
       setTimeout(() => setCopiedStep(null), 2000);
     } catch {
       setCopiedStep(null);
@@ -669,12 +677,13 @@ function Sources({ live, final }: { live: Live; final: boolean }) {
         </thead>
         <tbody>
           {live.citations.map((c) => (
-            <tr key={c.index} id={`source-${c.index}`}>
+            <tr key={c.index} id={`source-${c.index}`} className="fade-in">
               <td className={cx(tdClass, "ident tabular")}>{c.index}</td>
               <td className={tdClass}>
-                <span className="text-xs text-fg-muted">{c.label}</span>
-                <br />
-                <ExtLink href={c.url}>{c.title ?? c.key}</ExtLink>
+                <span className="block text-xs text-fg-muted">{c.label}</span>
+                <div>
+                  <ExtLink href={c.url}>{c.title ?? c.key}</ExtLink>
+                </div>
                 <span className="block font-mono text-xs break-all text-fg-muted">{c.key}</span>
               </td>
             </tr>

@@ -92,8 +92,24 @@ def _doc_evidence(doc_key: str | None, kep_key: str, url: str) -> tuple[str, str
 
 # -- predicate 1: active_status_closed_issue -----------------------------------------------
 
+# GitHub introduced close reasons on this day and backfilled every older closure as "completed", so an older
+# "completed" says nothing about why the issue was closed.
+CLOSE_REASONS_SINCE = "2022-05-19"
+# An issue carrying one of these labels was closed by the lifecycle bot for inactivity, not by a decision.
+BOT_CLOSE_LABELS = frozenset({"lifecycle/rotten", "lifecycle/stale"})
 
-def suggested_fix_for_closed(state_reason: str | None) -> str:
+
+def closed_reason_text(state_reason: str | None, closed_on: str | None) -> str:
+    """The reason to show for a closed issue; a pre-2022-05-19 reason is a backfill, not a record."""
+    if closed_on and closed_on < CLOSE_REASONS_SINCE:
+        return "reason not recorded"
+    return state_reason or "no reason"
+
+
+def suggested_fix_for_closed(state_reason: str | None, closed_on: str | None = None, labels: Sequence[str] = ()) -> str:
+    """A fix is only suggested when the closure was a human decision with a recorded reason."""
+    if any(lab in BOT_CLOSE_LABELS for lab in labels) or (closed_on and closed_on < CLOSE_REASONS_SINCE):
+        return "review_status"
     if state_reason == "completed":
         return "set_status_implemented"
     if state_reason == "not_planned":
@@ -108,7 +124,7 @@ OPTIONAL MATCH (k)-[:HAS_DOCUMENT]->(d:Document {{kind: 'kep_yaml'}})
 OPTIONAL MATCH (k)-[:CHANGED]->(sc:StatusChange {{kind: 'metadata', field: 'status'}})
 WHERE sc.valid_to = $open
 RETURN k.key, k.number, k.status, k.source_url, k.url, d.key, d.url,
-       i.key, i.number, i.state_reason, i.closed_at_iso, i.url, sc.key, sc.source_url
+       i.key, i.number, i.state_reason, i.closed_at_iso, i.url, sc.key, sc.source_url, i.labels_current
 """
 
 
@@ -119,6 +135,7 @@ def hits_active_status_closed_issue(writer: BatchWriter) -> list[Hit]:
         a_url = yaml_url(r[6], kep)
         reason = r[9]
         closed = (r[10] or "")[:10]
+        labels = [str(x) for x in (r[14] or []) if x]
         evidence = [_doc_evidence(r[5], r[0], a_url), ("Issue", r[7], "tracking_issue", r[11])]
         if r[12]:
             evidence.append(("StatusChange", r[12], "status_change", r[13] or a_url))
@@ -130,9 +147,9 @@ def hits_active_status_closed_issue(writer: BatchWriter) -> list[Hit]:
                 a_value=str(r[2]),
                 a_url=a_url,
                 b_label=f"issue #{r[8]} state",
-                b_value=f"closed ({reason or 'no reason'})" + (f" on {closed}" if closed else ""),
+                b_value=f"closed ({closed_reason_text(reason, closed or None)})" + (f" on {closed}" if closed else ""),
                 b_url=str(r[11]),
-                suggested_fix=suggested_fix_for_closed(reason),
+                suggested_fix=suggested_fix_for_closed(reason, closed or None, labels),
                 evidence=evidence,
             )
         )
@@ -287,7 +304,7 @@ WHERE t.valid_to = $open AND k.stage IS NOT NULL AND {_KEP_OK}
 OPTIONAL MATCH (i)-[l:LABELED]->(lab:Label) WHERE l.valid_to = $open AND lab.key STARTS WITH 'stage/'
 OPTIONAL MATCH (k)-[:HAS_DOCUMENT]->(d:Document {{kind: 'kep_yaml'}})
 RETURN k.key, k.number, k.stage, k.source_url, k.url, d.key, d.url, i.key, i.number, i.url,
-       collect(DISTINCT lab.key)
+       collect(DISTINCT lab.key), d.last_commit_at, i.closed_at
 """
 
 
@@ -295,6 +312,14 @@ def stage_conflicts(kep_stage: str, stage_labels: Sequence[str]) -> bool:
     """Fires only when the closed issue carries stage labels and none of them is the kep.yaml stage."""
     stages = {lab.removeprefix("stage/") for lab in stage_labels if lab}
     return bool(stages) and kep_stage not in stages
+
+
+def stage_fix(yaml_changed_at: int | None, issue_closed_at: int | None) -> str:
+    """The label on a closed issue is frozen history: when kep.yaml changed after the close it is the newer
+    record and nothing needs fixing; otherwise kep.yaml may be the stale side."""
+    if yaml_changed_at is not None and issue_closed_at is not None and int(yaml_changed_at) > int(issue_closed_at):
+        return "none_historical_label"
+    return "update_stage"
 
 
 def hits_stage_mismatch(writer: BatchWriter) -> list[Hit]:
@@ -314,7 +339,7 @@ def hits_stage_mismatch(writer: BatchWriter) -> list[Hit]:
                 b_label=f"issue #{r[8]} stage label (closed)",
                 b_value=", ".join(labels),
                 b_url=str(r[9]),
-                suggested_fix="update_stage",
+                suggested_fix=stage_fix(r[11], r[12]),
                 evidence=[_doc_evidence(r[5], r[0], a_url), ("Issue", r[7], "tracking_issue", r[9])],
             )
         )
@@ -334,8 +359,28 @@ RETURN k.key, k.number, latest, k.source_url, k.url, d.key, d.url, i.key, i.numb
 """
 
 
+def latest_ga_minor(writer: BatchWriter) -> int | None:
+    """Minor number of the newest shipped release (`Release.is_future = false`), None on a graph without one."""
+    rows = writer.query("MATCH (r:Release) WHERE r.is_future = false RETURN max(r.minor)")
+    value = rows[0][0] if rows else None
+    return int(value) if value is not None else None
+
+
+def milestone_fix(issue_state: str | None, milestone_key: str | None, latest_ga: int | None) -> str:
+    """Which side to fix. A closed issue's milestone is frozen history (03 §7.5 treats closed-issue labels the
+    same way). An open issue milestoned to the release in development or the next one is the normal state of a
+    cycle: the release team moves the milestone before the KEP's own PR merges, so the fix is to wait."""
+    if issue_state == "closed":
+        return "none_historical_label"
+    minor = release_minor(milestone_key)
+    if latest_ga is not None and minor is not None and minor in (latest_ga + 1, latest_ga + 2):
+        return "in_flight_wait_for_freeze"
+    return "update_latest_milestone"
+
+
 def hits_milestone_mismatch(writer: BatchWriter) -> list[Hit]:
     hits = []
+    latest_ga = latest_ga_minor(writer)
     for r in writer.query(_Q_MILESTONE, {"open": VALID_TO_OPEN}):
         a_url = yaml_url(r[6], {"source_url": r[3], "url": r[4]})
         hits.append(
@@ -348,7 +393,7 @@ def hits_milestone_mismatch(writer: BatchWriter) -> list[Hit]:
                 b_label=f"issue #{r[8]} milestone",
                 b_value=f"{r[11]} (issue {r[9]})",
                 b_url=str(r[10]),
-                suggested_fix="update_latest_milestone",
+                suggested_fix=milestone_fix(r[9], r[11], latest_ga),
                 evidence=[_doc_evidence(r[5], r[0], a_url), ("Issue", r[7], "tracking_issue", r[10])],
             )
         )

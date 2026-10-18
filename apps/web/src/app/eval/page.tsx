@@ -11,6 +11,8 @@ import { Card, EmptyState, ErrorState, Facts, PageHeader, SkeletonBlock } from "
 export const metadata: Metadata = {
   title: "Eval",
   description: "The question set KEP Brain is scored against and the latest recorded run.",
+  alternates: { canonical: "/eval" },
+  robots: { index: false },
 };
 
 export default function EvalPage() {

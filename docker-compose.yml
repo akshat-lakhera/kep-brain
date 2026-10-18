@@ -3,8 +3,20 @@
 # api on 8000, web on 3000. Copy .env.example to .env and set FALKORDB_PASSWORD first.
 name: kep-brain
 
+# Shared by every service: bounded json-file logs (a long-running VM must not fill its disk) and no privilege
+# escalation through setuid binaries inside the containers.
+x-hardening: &hardening
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+  security_opt:
+    - no-new-privileges:true
+
 services:
   falkordb:
+    <<: *hardening
     image: falkordb/falkordb:v4.22.0@sha256:4ac83f55062d364dcf151692635138b0bd2e12578019a56eb86ef53d067b116b
     environment:
       FALKORDB_PASSWORD: ${FALKORDB_PASSWORD:?set FALKORDB_PASSWORD in .env}
@@ -27,6 +39,7 @@ services:
     restart: unless-stopped
 
   api:
+    <<: *hardening
     build: ./apps/api
     env_file: .env
     environment:
@@ -50,6 +63,7 @@ services:
     restart: unless-stopped
 
   worker:
+    <<: *hardening
     build: ./apps/api
     env_file: .env
     entrypoint: ["python", "-m", "app.worker"]
@@ -72,6 +86,7 @@ services:
     restart: unless-stopped
 
   mcp:
+    <<: *hardening
     build: ./apps/api
     env_file: .env
     command: ["python", "-m", "app.mcp"]
@@ -93,12 +108,14 @@ services:
     restart: unless-stopped
 
   web:
+    <<: *hardening
     build:
       context: ./apps/web
       args:
         API_INTERNAL_URL: http://api:8000
     environment:
       API_INTERNAL_URL: http://api:8000
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
     depends_on:
       api:
         condition: service_healthy

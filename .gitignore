@@ -16,3 +16,9 @@ coverage/
 snapshot/*.gz
 repo_cache/
 *.tsbuildinfo
+*.log
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3

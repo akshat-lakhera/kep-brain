@@ -57,7 +57,9 @@ async def clear_answer_cache(request: Request) -> dict[str, int]:
     token = settings_of(request).admin_token
     header = request.headers.get("authorization", "")
     supplied = header.removeprefix("Bearer ").strip() if header.startswith("Bearer ") else ""
-    if token is None or not supplied or not hmac.compare_digest(supplied, token.get_secret_value()):
+    # Bytes, not str: compare_digest raises TypeError on a non-ASCII str, which would surface as a 500.
+    expected = token.get_secret_value().encode() if token is not None else b""
+    if not expected or not supplied or not hmac.compare_digest(supplied.encode("utf-8", "replace"), expected):
         raise AppError("unauthorized")
     return {"deleted": await AnswerCache(pool_of(request)).clear()}
 

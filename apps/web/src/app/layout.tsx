@@ -1,24 +1,35 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { TopBar } from "@/components/TopBar";
-import { DataChip, Footer } from "@/components/Frame";
+import { Footer } from "@/components/Frame";
 import { Shortcuts } from "@/components/Shortcuts";
+import { ToastProvider } from "@/components/Toast";
+import { SITE_DESCRIPTION, SITE_NAME, siteBase } from "@/lib/site";
 import "./globals.css";
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
-const mono = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], display: "swap" });
+// One variable sans for display and body, one variable mono for identifiers; both served from this site.
+const sans = Geist({ variable: "--font-geist", subsets: ["latin"], display: "swap" });
+const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
 
-export const metadata: Metadata = {
-  title: { default: "KEP Brain", template: "%s - KEP Brain" },
-  description:
-    "KEP Brain answers why a Kubernetes enhancement is designed the way it is, who decided and on what evidence, who owns and knows it, and whether its record is current, and lists the decision records that disagree.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  // The base URL is the deployment's, read when a page is served rather than baked in at build time.
+  await connection();
+  return {
+    metadataBase: new URL(siteBase()),
+    title: { default: SITE_NAME, template: `%s - ${SITE_NAME}` },
+    description: SITE_DESCRIPTION,
+    // No title or description here: each page's own title and description fill og:title and og:description.
+    openGraph: { type: "website", siteName: SITE_NAME, locale: "en_US" },
+    twitter: { card: "summary_large_image" },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f8f8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0e12" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f9fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0d14" },
   ],
 };
 
@@ -27,31 +38,27 @@ const THEME_SCRIPT = `(function(){try{var c=localStorage.getItem("kep.theme");va
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${sans.variable} ${mono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="flex min-h-screen flex-col antialiased">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-sm focus:bg-surface focus:px-3 focus:py-2"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-sm focus:border focus:border-border-strong focus:bg-surface focus:px-3 focus:py-2"
         >
           Skip to content
         </a>
-        <TopBar
-          dataChip={
-            <Suspense fallback={null}>
-              <DataChip />
-            </Suspense>
-          }
-        />
-        <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 md:px-6">
-          {children}
-        </main>
-        <Suspense fallback={<footer className="border-t border-border bg-surface px-4 py-4 md:px-6" />}>
-          <Footer />
-        </Suspense>
-        <Shortcuts />
+        <ToastProvider>
+          <TopBar />
+          <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6 md:px-6">
+            {children}
+          </main>
+          <Suspense fallback={<footer className="border-t border-border bg-surface px-4 py-4 md:px-6" />}>
+            <Footer />
+          </Suspense>
+          <Shortcuts />
+        </ToastProvider>
       </body>
     </html>
   );

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
+from redis.exceptions import ResponseError
 
 from app.api.audit_check import load_verdicts, with_verdicts
 from app.api.deps import graph_of, pool_of, rows_of, variant_for
@@ -113,7 +115,7 @@ RETURN k.summary AS summary, k.sig_dir AS sig_dir, k.creation_date AS creation_d
    url: o.url}}] AS see_also,
  [(k)-[:HAS_DOCUMENT]->(:Document)-[:HAS_SECTION]->(s:Section) | {{anchor: s.anchor, heading: s.heading,
    kind: s.kind, url: s.url, order: s.order}}] AS sections,
- coalesce(k.source_url, k.url) AS source_url
+ coalesce(k.source_url, k.url) AS source_url, k.source_path AS source_path
 LIMIT 1
 """)
 
@@ -200,7 +202,10 @@ async def list_keps(
         term = fulltext_term(q) if len(q) >= FULLTEXT_MIN_CHARS else None
         if term:
             seen = {r["key"] for r in rows}
-            more = rows_of(await pool.ro_query(graph_of(request), SEARCH[variant], {**args, "term": term}))
+            try:
+                more = rows_of(await pool.ro_query(graph_of(request), SEARCH[variant], {**args, "term": term}))
+            except ResponseError:  # a term the full-text index rejects (stopwords only, syntax): prefix hits only
+                more = []
             rows = rows + [r for r in more if r["key"] not in seen]
     else:
         rows = rows_of(await pool.ro_query(graph_of(request), LIST[variant], args))
@@ -219,6 +224,20 @@ async def get_kep_detail(request: Request, number: int, path: str | None = Query
     return _detail_out(card, detail, issues, findings, sections)
 
 
+_TREE_URL = re.compile(r"^(https://github\.com/[^/]+/[^/]+)/tree/([0-9a-f]{7,40})/(.+?)/?$")
+
+
+def kep_yaml_url(source_url: Any, source_path: Any) -> Any:
+    """The kep.yaml file's URL. Graphs synced before KEP.source_url named the file hold the folder (tree) URL
+    there; rebuild the blob URL of `source_path` at the same commit so the link opens the file itself."""
+    if not isinstance(source_url, str) or not isinstance(source_path, str) or not source_path.endswith("kep.yaml"):
+        return source_url
+    m = _TREE_URL.match(source_url)
+    if m is None:
+        return source_url
+    return f"{m.group(1)}/blob/{m.group(2)}/{source_path}"
+
+
 def _detail_out(
     card: dict[str, Any],
     detail: dict[str, Any],
@@ -227,6 +246,7 @@ def _detail_out(
     sections: list[dict[str, Any]],
 ) -> dict[str, Any]:
     out = {**card, **{k: v for k, v in detail.items() if k not in ("replaces", "replaced_by", "see_also")}}
+    out["source_url"] = kep_yaml_url(out.get("source_url"), out.pop("source_path", None))
     out["tracking_issue"] = issues[0] if issues else None
     out["relations"] = {k: detail.get(k) or [] for k in ("replaces", "replaced_by", "see_also")}
     out["findings"] = findings

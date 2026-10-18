@@ -1,9 +1,12 @@
 """`explain_process`: what a KEP is and how the process works, read from the process documents in the graph.
 
 `sync-docs` stores `keps/README.md` and the KEP process KEP from kubernetes/enhancements as
-`Document {kind: 'process'}` nodes with their sections (`app.ingest.docs.PROCESS_DOCS`). This tool
-returns each document's opening section (the definition) followed by the sections that match a topic,
-so a question such as "what is a KEP" is answered from the record and cited, never from a model's memory.
+`Document {kind: 'process'}` nodes with their sections (`app.ingest.docs.PROCESS_DOCS`), and the product
+document (what KEP Brain itself is) as `Document {kind: 'product'}` (`app.ingest.product`). This tool
+returns each process document's opening section (the definition), the product document's opening when the
+topic is about KEP Brain itself, and then the sections of either kind that match the topic, so a question
+such as "what is a KEP" or "what is KEP Brain" is answered from the record and cited, never from a model's
+memory.
 """
 
 from __future__ import annotations
@@ -29,9 +32,30 @@ _FILLER = frozenset(
 )  # fmt: skip
 
 
+# Obvious misspellings of the product's name, normalised so the term matches the product document ("kp brain",
+# "kepbrain"). Each value is one or more index words.
+_ALIASES: dict[str, tuple[str, ...]] = {
+    "kp": ("kep",),
+    "kpe": ("kep",),
+    "ekp": ("kep",),
+    "kepbrain": ("kep", "brain"),
+    "kpbrain": ("kep", "brain"),
+}
+_PRODUCT_RE = re.compile(r"brain|this (?:tool|product|app|site)", re.I)
+
+
+def is_product_topic(topic: str) -> bool:
+    """True when the topic asks about KEP Brain itself rather than the KEP process."""
+    return _PRODUCT_RE.search(topic) is not None
+
+
 def topic_term(topic: str) -> str | None:
-    """`"what is a KEP"` → `"kep*"`; `"status implementable"` → `"status*|implementable*"`; only filler → None."""
+    """`"what is a KEP"` → `"kep*"`; `"status implementable"` → `"status*|implementable*"`; only filler → None.
+
+    `"what is kp brain"` → `"kep*|brain*"`: aliases in `_ALIASES` are rewritten first.
+    """
     words = [w.lower() for w in re.findall(r"[A-Za-z0-9]+", topic)]
+    words = [v for w in words for v in _ALIASES.get(w, (w,))]
     keep = [w for w in words if w not in _FILLER and len(w) >= 2]
     if not keep:
         return None
@@ -46,10 +70,18 @@ ORDER BY d.path
 LIMIT 4
 """
 
+PRODUCT_OPENING = """
+MATCH (d:Document {kind: 'product'})-[:HAS_SECTION]->(s:Section)
+WHERE s.order = 0
+RETURN d AS document, s AS section, s.text AS text, 1.0 AS score
+ORDER BY d.path
+LIMIT 2
+"""
+
 SEARCH = """
 CALL db.idx.fulltext.queryNodes('Section', $term) YIELD node AS s, score
-MATCH (d:Document {kind: 'process'})-[:HAS_SECTION]->(s)
-WHERE toLower(s.heading) <> 'table of contents'
+MATCH (d:Document)-[:HAS_SECTION]->(s)
+WHERE d.kind IN ['process', 'product'] AND toLower(s.heading) <> 'table of contents'
 RETURN d AS document, s AS section, s.text AS text, score
 ORDER BY score DESC, s.order
 LIMIT 8
@@ -70,11 +102,13 @@ class ExplainProcessParams(ToolParams):
 class ExplainProcess(Tool):
     name = "explain_process"
     description = (
-        "What a KEP is and how the KEP process works, from the process documents of kubernetes/enhancements stored in "
-        "the graph (keps/README.md and the KEP process KEP): the kep.yaml fields and what they mean, the statuses and "
-        "stages, the tracking issue, PRR, replaces and superseded-by. Returns each document's opening section plus the "
-        "sections matching the topic, as citable records. Use for 'what is a KEP', 'what does status X mean', "
-        "'how does the process work'."
+        "What a KEP is, how the KEP process works, and what KEP Brain itself is and does. Read from the documents "
+        "stored in the graph: the process documents of kubernetes/enhancements (keps/README.md and the KEP process "
+        "KEP: the kep.yaml fields and what they mean, the statuses and stages, the tracking issue, PRR, replaces and "
+        "superseded-by) and the KEP Brain product document (what it answers, how answers are produced and checked, "
+        "the audit, data sources, privacy, licence). Returns each document's opening section plus the sections "
+        "matching the topic, as citable records. Use for 'what is a KEP', 'what does status X mean', 'how does the "
+        "process work', 'what is KEP Brain'."
     )
     Params = ExplainProcessParams
 
@@ -82,6 +116,8 @@ class ExplainProcess(Tool):
         p: ExplainProcessParams = params
         run = Run(ctx)
         opening = await run.query(OPENING, {}, limit=4)
+        if is_product_topic(p.topic):
+            opening += await run.query(PRODUCT_OPENING, {}, limit=2)
         term = topic_term(p.topic)
         hits = await run.query(SEARCH, {"term": term}, limit=ROWS) if term else []
         seen = {r["section"]["key"] for r in opening}

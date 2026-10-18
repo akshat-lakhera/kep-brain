@@ -35,11 +35,10 @@ export function KepSearch() {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (e.key === "k" && (e.ctrlKey || e.metaKey) && !typing) {
+      // A modifier chord, so it works from anywhere, a text field included; the top bar is sticky, so no scrolling.
+      if (e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
         e.preventDefault();
-        boxRef.current?.querySelector("input")?.focus();
+        boxRef.current?.querySelector("input")?.focus({ preventScroll: true });
       }
     }
     document.addEventListener("mousedown", onDoc);
@@ -88,6 +87,10 @@ export function KepSearch() {
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        onBlur={(e) => {
+          // Tabbing away closes the list as a click outside does; option clicks keep focus (mousedown is prevented).
+          if (!boxRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+        }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -110,13 +113,8 @@ export function KepSearch() {
             setOpen(false);
           }
         }}
-        className="h-8 w-full rounded-sm border border-border-input bg-surface pl-8 pr-2 text-base placeholder:text-fg-muted md:pr-16"
+        className="h-8 w-full rounded-sm border border-border-input bg-surface pl-8 pr-2 text-base placeholder:text-fg-muted"
       />
-      {q === "" ? (
-        <kbd aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 md:inline-block">
-          Ctrl K
-        </kbd>
-      ) : null}
       {open && q.trim().length >= 2 ? (
         <div className="absolute right-0 z-40 mt-1 w-[min(28rem,90vw)] rounded-md border border-border bg-surface">
           {state.kind === "loading" ? (

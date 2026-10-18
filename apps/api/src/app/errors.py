@@ -91,7 +91,11 @@ def _code_for_status(status: int) -> str:
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
-        return envelope(exc.code, _request_id(request), exc.details)
+        response = envelope(exc.code, _request_id(request), exc.details)
+        retry = exc.details.get("retry_after_s")
+        if exc.status in (429, 503) and isinstance(retry, int) and retry > 0:
+            response.headers["Retry-After"] = str(retry)  # RFC 9110 delay-seconds; clients need not parse details
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:

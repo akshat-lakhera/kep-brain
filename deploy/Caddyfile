@@ -1,12 +1,17 @@
 {$PUBLIC_HOST} {
 	encode gzip
 
+	# `?` sets a header only when the upstream did not, so the api's own Referrer-Policy (no-referrer) and
+	# X-Content-Type-Options are kept instead of being sent twice; these headers apply after the upstream answers.
 	header {
+		defer
 		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		?X-Content-Type-Options "nosniff"
+		?Referrer-Policy "strict-origin-when-cross-origin"
+		?X-Frame-Options "DENY"
+		?Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		-Server
+		-Via
 	}
 
 	@api path /v1/*
@@ -15,6 +20,15 @@
 			max_size 64KB
 		}
 		reverse_proxy api:8000
+	}
+
+	# MCP (Streamable HTTP). The mcp service checks the bearer token itself and accepts PUBLIC_HOST as Host.
+	@mcp path /mcp /mcp/*
+	handle @mcp {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy mcp:8765
 	}
 
 	handle {

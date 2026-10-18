@@ -9,8 +9,9 @@ import { SortHeader } from "@/components/SortHeader";
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure, ApiResult } from "@/lib/api/core";
 import type { DecisionOut, Evidence, Finding, FindingDetail, IssueDraft, ItemList } from "@/lib/api/types";
-import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, ms, numberFromPath, pluralS } from "@/lib/format";
+import { FINDING_KIND_TEXT, fixLabel, isoDate, isoUtc, ms, numberFromPath, pluralS } from "@/lib/format";
 import { kindLabel, toneColor } from "@/lib/kinds";
+import { useToast } from "./Toast";
 import { Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, PersonLink, SigLink, TableWrap, cx, tableClass, tdClass, thClass } from "./ui";
 
 type Load<T> = { kind: "loading" } | { kind: "error"; error: ApiFailure } | { kind: "done"; data: T };
@@ -54,7 +55,7 @@ function compare(a: Finding, b: Finding, key: SortKey): number {
 function Side({ label, value, url }: { label: string; value: string | null; url: string | null }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs text-fg-muted">{label}</p>
+      <p className="text-xs font-medium text-fg-secondary">{label}</p>
       <p className="font-mono text-sm break-words">{value ?? <Dash />}</p>
       {url ? (
         <ExtLink href={url} className="text-xs">
@@ -210,10 +211,7 @@ export function FindingsTable({
           <h3 id={`${base}-t`} className="text-md font-semibold">
             {items.length.toLocaleString("en-US")} finding{pluralS(items.length)}
           </h3>
-          <p className="text-xs text-fg-muted">
-            <kbd>Enter</kbd> or click expands a row · <kbd>j</kbd> <kbd>k</kbd> move · <kbd>o</kbd> opens the KEP ·{" "}
-            <kbd>d</kbd> drafts a fix · <kbd>[</kbd> <kbd>]</kbd> change page · nothing on this page posts to GitHub
-          </p>
+          <p className="text-xs text-fg-muted">Nothing on this page posts to GitHub.</p>
         </div>
         <div className="px-4 pt-3">
           <PagerBar paging={paging} />
@@ -247,7 +245,6 @@ export function FindingsTable({
                     key={f.key}
                     id={`f-${encodeURIComponent(f.key)}`}
                     tabIndex={0}
-                    aria-expanded={expanded}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest("a, button")) return;
                       toggle(f);
@@ -305,7 +302,7 @@ export function FindingsTable({
                       <Side label={f.b_label} value={f.b_value} url={f.b_url} />
                     </td>
                     <td className={cx(tdClass, "min-w-36")}>
-                      {f.suggested_fix ? <span className="text-sm">{humanize(f.suggested_fix)}</span> : <Dash />}
+                      {f.suggested_fix ? <span className="text-sm">{fixLabel(f.suggested_fix)}</span> : <Dash />}
                     </td>
                     {anyVerdict ? (
                       <td className={tdClass}>
@@ -320,12 +317,14 @@ export function FindingsTable({
                   expanded ? (
                     <tr key={`${f.key}#panel`} id={panelId}>
                       <td colSpan={cols} className="border-b border-border bg-surface-subtle px-3 py-3">
-                        <FindingPanel
-                          finding={f}
-                          detail={details[f.key]}
-                          decisions={decisions[f.kep_path]}
-                          onDraft={(el) => setDraft({ finding: f, opener: el })}
-                        />
+                        <div className="reveal">
+                          <FindingPanel
+                            finding={f}
+                            detail={details[f.key]}
+                            decisions={decisions[f.kep_path]}
+                            onDraft={(el) => setDraft({ finding: f, opener: el })}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ) : null,
@@ -389,12 +388,12 @@ function ByRole({ d }: { d: DecisionOut }) {
   const roles = new Map<string, string[]>();
   for (const x of d.deciders) roles.set(x.role, [...(roles.get(x.role) ?? []), x.login]);
   return (
-    <ul className="mt-1 space-y-0.5 text-xs">
+    <ul className="mt-1 text-xs">
       {[...roles.entries()].map(([role, logins]) => (
-        <li key={role} className="flex flex-wrap gap-x-2">
+        <li key={role} className="flex flex-wrap items-center gap-x-2">
           <span className="w-28 shrink-0 text-fg-muted">{role.replace(/_/g, " ")}</span>
           {[...new Set(logins)].map((l) => (
-            <PersonLink key={l} login={l} />
+            <PersonLink key={l} login={l} className="inline-flex min-h-6 items-center" />
           ))}
         </li>
       ))}
@@ -510,7 +509,7 @@ function FindingPanel({
           )}
         </div>
         <div className="rounded-md border border-border bg-surface p-3">
-          <p className="eyebrow">Agent triage (advisory)</p>
+          <p className="eyebrow">Automated triage (advisory)</p>
           {finding.triage_verdict || finding.assessment ? (
             <>
               {finding.triage_verdict ? (
@@ -521,13 +520,13 @@ function FindingPanel({
               {finding.assessment ? <p className="mt-1 text-sm text-fg-secondary">{finding.assessment}</p> : null}
             </>
           ) : (
-            <p className="mt-1 text-sm text-fg-secondary">Not triaged: the freshness agent has not assessed this finding.</p>
+            <p className="mt-1 text-sm text-fg-secondary">Not triaged: automated triage has not assessed this finding.</p>
           )}
         </div>
         <div className="rounded-md border border-border bg-surface p-3">
           <p className="eyebrow">Fix</p>
           <p className="mt-1 text-sm">
-            Suggested {finding.suggested_fix ? <span className="font-medium">{humanize(finding.suggested_fix).toLowerCase()}</span> : <Dash />}
+            Suggested: {finding.suggested_fix ? <span className="font-medium">{fixLabel(finding.suggested_fix)}</span> : <Dash />}
           </p>
           <button
             type="button"
@@ -557,11 +556,13 @@ function EvidenceList({ detail }: { detail: Detail | undefined }) {
   const items: Evidence[] = detail.data.evidence;
   if (items.length === 0) return <p className="mt-1 text-sm text-fg-secondary">The finding has no EVIDENCED_BY records beyond the two sides.</p>;
   return (
-    <ul className="mt-1 space-y-1">
+    <ul className="mt-1 space-y-0.5">
       {items.map((e) => (
-        <li key={e.evidence_id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <li key={e.evidence_id} className="flex flex-wrap items-center gap-x-2 text-sm">
           <span className="w-24 shrink-0 font-mono text-xs text-fg-muted">{e.label}</span>
-          <ExtLink href={e.url}>{e.title ?? e.key}</ExtLink>
+          <ExtLink href={e.url} className="min-h-6">
+            {e.title ?? e.key}
+          </ExtLink>
         </li>
       ))}
     </ul>
@@ -579,6 +580,7 @@ function DraftFixDialog({ finding, onClose }: { finding: Finding; onClose: () =>
   const ref = useRef<HTMLDialogElement>(null);
   const [state, setState] = useState<DraftState>({ kind: "loading" });
   const [copied, setCopied] = useState<"title" | "body" | null>(null);
+  const { toast } = useToast();
   const titleId = useId();
   const n = finding.kep_number ?? numberFromPath(finding.kep_path);
 
@@ -608,6 +610,7 @@ function DraftFixDialog({ finding, onClose }: { finding: Finding; onClose: () =>
     try {
       await navigator.clipboard.writeText(value);
       setCopied(kind);
+      toast(kind === "title" ? "Issue title copied" : "Issue body copied");
       setTimeout(() => setCopied(null), 2000);
     } catch {
       setCopied(null);

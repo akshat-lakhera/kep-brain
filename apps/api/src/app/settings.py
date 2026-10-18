@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # Disk cache of GitHub GraphQL responses: auto = record in dev/test, off in prod. Delete the cache dir to refresh.
     github_cache: Literal["auto", "off", "record", "replay"] = "auto"
 
-    llm_provider: Literal["anthropic", "openai_compatible"] = "openai_compatible"
+    llm_provider: Literal["openai_compatible"] = "openai_compatible"
     llm_model: str = "openai/gpt-oss-120b"
     llm_model_cheap: str = "openai/gpt-oss-20b"
     # Tried in order when the primary model answers 429/503.
@@ -67,7 +67,6 @@ class Settings(BaseSettings):
     # Client-side pacing so a rate-limited provider (Groq free tier) is not hammered.
     llm_requests_per_minute: int = Field(default=25, ge=1)
     llm_max_retries: int = Field(default=4, ge=0)
-    anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     openai_base_url: str | None = "https://api.groq.com/openai/v1"
     llm_daily_budget_usd: float = 5.0
@@ -77,6 +76,7 @@ class Settings(BaseSettings):
 
     ask_rate_limit_per_10m: int = Field(default=30, ge=1)
     ask_daily_cap: int = Field(default=150, ge=1)
+    tools_rate_limit_per_10m: int = Field(default=300, ge=1)
     trust_proxy: bool = False
     max_body_bytes: int = Field(default=65536, ge=1024)
     admin_token: SecretStr | None = None

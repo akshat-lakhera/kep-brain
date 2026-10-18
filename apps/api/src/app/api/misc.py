@@ -10,8 +10,9 @@ from fastapi.responses import JSONResponse
 
 from app.agent.provider import llm_configured
 from app.api.changes import release_keys
-from app.api.deps import pool_of, settings_of, variant_for
+from app.api.deps import TOOLS_LIMITER, client_ip, pool_of, settings_of, variant_for
 from app.db.falkordb import GRAPH_KEP, FalkorPool
+from app.db.results import evidence_id
 from app.errors import AppError
 from app.eval.questions import judge_questions, latest_summary, load_questions, public_question
 from app.ingest.common import iso
@@ -42,7 +43,7 @@ async def source_pins(pool: FalkorPool, settings: Settings, graph: str = GRAPH_K
     enhancements_sha = settings.enhancements_pin_sha
     kep_row = await pool.ro_query(graph, "MATCH (k:KEP) RETURN k.source_url LIMIT 1")
     if kep_row.rows and kep_row.rows[0][0]:
-        found = re.search(r"/tree/([0-9a-f]{40})/", str(kep_row.rows[0][0]))
+        found = re.search(r"/(?:tree|blob)/([0-9a-f]{40})/", str(kep_row.rows[0][0]))
         if found:
             enhancements_sha = found.group(1)
     if tickets_as_of is None:
@@ -159,7 +160,9 @@ def graph_out(rows: list[list[Any]]) -> dict[str, Any]:
         d = proj.node(n)
         if not d.get("key"):
             return
-        eid = d["evidence_id"]
+        # Finding, Episode and Fact rows carry no evidence_id (they cannot be cited); the graph view still
+        # needs a stable node id, so the same label:key id is used for every node here.
+        eid = d.get("evidence_id") or evidence_id(d["label"], d["key"])
         if n.id is not None:
             ids[n.id] = eid
         nodes.setdefault(eid, {"id": eid, "label": d["label"], "key": d["key"], "title": d["title"], "url": d["url"]})
@@ -196,6 +199,7 @@ async def call_tool(
     request: Request, name: str, body: Annotated[dict[str, Any] | None, Body()] = None
 ) -> dict[str, Any]:
     tool = get_tool(name)
+    TOOLS_LIMITER.check(client_ip(request), settings_of(request).tools_rate_limit_per_10m)
     memory_id = valid_memory_id(request.headers.get("x-kep-memory-id"))
     from pydantic import ValidationError
 

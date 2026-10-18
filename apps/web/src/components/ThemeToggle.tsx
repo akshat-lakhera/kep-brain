@@ -54,7 +54,7 @@ export function ThemeToggle() {
       }}
       className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-border-input text-fg-secondary hover:text-fg"
       aria-label={`Theme: ${choice}. Switch to ${next}.`}
-      title={`Theme: ${choice} (t)`}
+      title={`Theme: ${choice}`}
       data-theme-toggle
     >
       <Icon size={16} strokeWidth={1.5} aria-hidden="true" />

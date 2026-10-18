@@ -7,6 +7,11 @@ import { GO_KEYS, SHORTCUTS_EVENT, SHORTCUT_GROUPS, isTyping } from "@/lib/short
 
 const CHORD_MS = 1500;
 
+/** "Go to a page" -> "go-to-a-page", for element ids. */
+function slug(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 /**
  * Where `/` goes: the question box on Ask, else the page's own search, else the top-bar KEP search. Only a rendered
  * field counts: after a client-side navigation the previous page can still be in the DOM, hidden.
@@ -57,7 +62,12 @@ export function Shortcuts() {
       document.documentElement.removeAttribute("data-chord");
     }
     function onKey(e: KeyboardEvent) {
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.key === "Escape") return;
+      if (e.key === "Escape") {
+        // Escape cancels a pending `g` chord; the dialog closes itself.
+        endChord();
+        return;
+      }
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
       if (isTyping(e.target)) return;
       const otherModal = document.querySelector("dialog[open]");
       if (otherModal && otherModal !== dialog) return;
@@ -83,8 +93,21 @@ export function Shortcuts() {
       if (e.key === "/") {
         const target = searchTarget();
         if (target) {
+          // Prevent first, so the slash is never typed into the field that receives focus.
           e.preventDefault();
-          target.focus();
+          const inTopBar = target.closest("header") !== null;
+          if (inTopBar) {
+            // The top bar is sticky and always on screen: focusing it must not scroll the page.
+            target.focus({ preventScroll: true });
+          } else {
+            const r = target.getBoundingClientRect();
+            const offScreen = r.bottom < 0 || r.top > window.innerHeight;
+            target.focus({ preventScroll: true });
+            if (offScreen) {
+              const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              target.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+            }
+          }
           if (target instanceof HTMLInputElement) target.select();
         }
         return;
@@ -135,8 +158,8 @@ export function Shortcuts() {
       </div>
       <div className="grid gap-x-8 gap-y-5 overflow-y-auto px-5 py-4 md:grid-cols-2">
         {SHORTCUT_GROUPS.map((g) => (
-          <section key={g.title} aria-labelledby={`sc-${g.title}`}>
-            <h3 id={`sc-${g.title}`} className="eyebrow">
+          <section key={g.title} aria-labelledby={`sc-${slug(g.title)}`}>
+            <h3 id={`sc-${slug(g.title)}`} className="eyebrow">
               {g.title}
             </h3>
             {g.where ? <p className="mt-0.5 text-xs text-fg-muted">{g.where}</p> : null}

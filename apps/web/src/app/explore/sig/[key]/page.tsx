@@ -3,10 +3,13 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { cache } from "react";
 import { apiInternalUrl } from "@/lib/api/server";
 import { exploreApi, explorePaths, exploreTemplates, isNotFound, routeServed } from "@/lib/api/explore";
 import type { SigDetail } from "@/lib/api/types-explore";
 import { FINDING_KIND_TEXT, isoDate, pluralS } from "@/lib/format";
+import { routes } from "@/lib/routes";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, PersonLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { KepTable } from "@/components/explore/KepTable";
 import { StatusBars } from "@/components/explore/StatusBars";
@@ -15,9 +18,29 @@ import { PagedTable } from "@/components/PagedTable";
 
 const KEY = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
+/** One SIG read per request, shared by the metadata and the page. */
+const loadSig = cache(async (key: string) => {
+  await connection();
+  return exploreApi(apiInternalUrl()).sig(key);
+});
+
 export async function generateMetadata(props: PageProps<"/explore/sig/[key]">): Promise<Metadata> {
   const { key } = await props.params;
-  return { title: key, description: `${key}: leadership, KEPs in scope, open findings and recent decisions.` };
+  if (!KEY.test(key)) return { title: "SIG" };
+  const canonical = routes.sig(key);
+  const res = await loadSig(key);
+  if (!res.ok) {
+    return { title: key, description: `${key}: leadership, KEPs in scope, open findings and recent decisions.`, alternates: { canonical } };
+  }
+  const s = res.data;
+  const name = s.display_name ? `SIG ${s.display_name} (${key})` : key;
+  const n = s.keps.length.toLocaleString("en-US");
+  const f = s.open_findings.toLocaleString("en-US");
+  return {
+    title: key,
+    description: `${name}: chairs and tech leads, ${n} KEP${pluralS(s.keps.length)} by status, ${f} open finding${pluralS(s.open_findings)} where its records disagree, and the people with a role on them.`,
+    alternates: { canonical },
+  };
 }
 
 // Blocking route (no Suspense above the fetch): an unknown SIG must answer with a real HTTP 404.
@@ -26,16 +49,15 @@ export const instant = false;
 export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
   const { key } = await props.params;
   if (!KEY.test(key)) notFound();
-  await connection();
   const api = exploreApi(apiInternalUrl());
-  const res = await api.sig(key);
+  const res = await loadSig(key);
   if (!res.ok) {
     const missing = isNotFound(res.error);
     const served = missing ? routeServed(await api.openapi(), exploreTemplates.sig) : true;
     if (missing && served) notFound();
     return (
       <div className="space-y-4">
-        <h1 className="display mt-1 text-2xl font-semibold">
+        <h1 className="display mt-1 text-3xl">
           <span className="font-mono">{key}</span>
         </h1>
         {missing ? (
@@ -56,9 +78,15 @@ export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
   const openFindings = s.findings.filter((f) => f.state === "open");
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Explore", href: "/explore" as Route },
+          { label: s.key, href: routes.sig(s.key) },
+        ]}
+      />
       <header className="border-b border-border pb-6">
         <p className="font-mono text-sm text-fg-muted">{s.key}</p>
-        <h1 className="display mt-1 text-2xl font-semibold">{s.display_name ?? s.key}</h1>
+        <h1 className="display mt-1 text-3xl">{s.display_name ?? s.key}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Chip>
             {s.keps.length.toLocaleString("en-US")} KEP{pluralS(s.keps.length)}
@@ -103,7 +131,7 @@ export default async function SigPage(props: PageProps<"/explore/sig/[key]">) {
           ) : (
             <ul className="columns-1 gap-4 sm:columns-2 lg:columns-1">
               {s.subprojects.map((sp) => (
-                <li key={sp.name} className="mb-1 break-inside-avoid font-mono text-sm">
+                <li key={sp.name} className="mb-1.5 break-inside-avoid font-mono text-sm">
                   {sp.url ? <ExtLink href={sp.url}>{sp.name}</ExtLink> : sp.name}
                 </li>
               ))}

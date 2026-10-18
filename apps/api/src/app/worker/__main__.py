@@ -35,7 +35,7 @@ from app.worker.runs import RunRecorder, heartbeat
 log = structlog.get_logger(__name__)
 
 # Bump when the doc or history mapping changes, so an unchanged upstream is re-read once with the new code.
-INGEST_VERSION = "3"
+INGEST_VERSION = "4"  # 4: the product document (app/data/kep_brain.md) joins sync-docs
 SYNC_MARKER_NODE = f"{COMMUNITY_REPO}:{SIGS_PATH}"  # the sigs.yaml Document carries the per-step sync markers
 
 

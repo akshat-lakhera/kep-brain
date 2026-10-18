@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
+from redis.exceptions import ResponseError
 
 from app.tools.base import Run, SigKey, Tool, ToolContext, ToolParams, ToolResult
 from app.tools.kepref import _coerce, resolve_kep, unresolved_rows
@@ -162,8 +163,11 @@ class WhoKnows(Tool):
             scope["kep"] = res.key
         elif p.topic_or_kep:
             term = fulltext_term(p.topic_or_kep) or ""
-            hits = await run.query(TERM_KEPS, {"term": term, "sig": sig}, limit=TERM_KEP_LIMIT + 1)
-            hits += await run.query(TERM_SECTIONS, {"term": term, "sig": sig}, limit=TERM_KEP_LIMIT + 1)
+            try:
+                hits = await run.query(TERM_KEPS, {"term": term, "sig": sig}, limit=TERM_KEP_LIMIT + 1)
+                hits += await run.query(TERM_SECTIONS, {"term": term, "sig": sig}, limit=TERM_KEP_LIMIT + 1)
+            except ResponseError:  # a term the full-text index rejects (stopwords only, syntax): no KEPs in scope
+                hits = []
             keys = list(dict.fromkeys(h["key"] for h in hits))
             scope["term"] = term
         else:

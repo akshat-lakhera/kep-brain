@@ -2,29 +2,31 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { serverApi } from "@/lib/api/server";
-import { FINDING_KIND_TEXT, humanize } from "@/lib/format";
+import { FINDING_KIND_TEXT, humanize, isoUtc, shortSha } from "@/lib/format";
 import { SHORTCUT_GROUPS } from "@/lib/shortcuts";
 import { Keys } from "@/components/Shortcuts";
-import { Card, ErrorState, ExtLink, Facts, PageHeader, SkeletonBlock, StatTile, cx, tableClass, tdClass, thClass } from "@/components/ui";
+import { Card, ErrorState, ExtLink, Facts, PageHeader, SkeletonBlock, StatTile, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "About",
   description:
     "What a KEP is, what KEP Brain reads, how the graph is built, how answers are produced and checked, the five audit checks, scope, licences, privacy, terms, accessibility and keyboard shortcuts.",
+  alternates: { canonical: "/about" },
 };
 
 const REPO = "https://github.com/akshat-lakhera/kep-brain";
 const ENH = "https://github.com/kubernetes/enhancements";
 const PROCESS_DOC = `${ENH}/blob/master/keps/sig-architecture/0000-kep-process/README.md`;
 
+// The process document's own definitions, quoted.
 const STATUSES: [string, string][] = [
-  ["provisional", "accepted as an idea; design not yet agreed"],
-  ["implementable", "design approved; work may start or is under way"],
-  ["implemented", "shipped; the enhancement is done"],
-  ["deferred", "parked for a later release"],
-  ["rejected", "declined"],
-  ["withdrawn", "pulled by its authors"],
-  ["replaced", "superseded by another KEP, listed in superseded-by"],
+  ["provisional", "The KEP has been proposed and is actively being defined."],
+  ["implementable", "The approvers have approved this KEP for implementation."],
+  ["implemented", "The KEP has been implemented and is no longer actively changed."],
+  ["deferred", "The KEP is proposed but not actively being worked on."],
+  ["rejected", "The approvers and authors have decided that this KEP is not moving forward."],
+  ["withdrawn", "The authors have withdrawn the KEP."],
+  ["replaced", "The KEP has been replaced by a new KEP. The superseded-by metadata value should point to the new KEP."],
 ];
 
 const KINDS = [
@@ -51,7 +53,7 @@ export default function AboutPage() {
     <>
       <PageHeader
         eyebrow="About"
-        title="What KEP Brain is, and what it is not"
+        title="What KEP Brain is"
         lead="A company brain for the Kubernetes enhancement process: every KEP, SIG, person, decision and record in one graph, read live from public GitHub, answered only with evidence."
       />
       <div className="space-y-6">
@@ -61,8 +63,8 @@ export default function AboutPage() {
               <p>
                 A <strong className="text-fg">KEP</strong> is a <strong className="text-fg">Kubernetes Enhancement Proposal</strong>: the
                 design document every significant change to Kubernetes goes through before code lands. It explains the
-                motivation and design, the criteria for alpha, beta and stable, and passes a production readiness review
-                (PRR).
+                motivation and design and the criteria for alpha, beta and stable. A KEP that changes kubernetes/kubernetes
+                (in-tree) also passes a production readiness review (PRR); older or out-of-tree KEPs may have none.
               </p>
               <p>
                 Each KEP is a folder in{" "}
@@ -71,8 +73,8 @@ export default function AboutPage() {
                 </ExtLink>{" "}
                 with a README (the proposal) and a <span className="font-mono">kep.yaml</span> (status, stage, owning SIG,
                 authors, approvers, target releases). It also has a tracking issue in the same repository, and{" "}
-                <strong className="text-fg">the issue number is the KEP number</strong>: KEP-4671 is issue #4671 and the folder
-                keps/sig-scheduling/4671-gang-scheduling.
+                <strong className="text-fg">the issue number is the KEP number</strong> since early 2019: KEP-4671 is issue #4671
+                and the folder keps/sig-scheduling/4671-gang-scheduling. A few older KEPs carry a pull request number or none.
               </p>
               <p>
                 The{" "}
@@ -85,11 +87,11 @@ export default function AboutPage() {
               </p>
             </div>
             <table className={tableClass}>
-              <caption className="sr-only">The seven kep.yaml statuses</caption>
+              <caption className="sr-only">The seven kep.yaml statuses, as the process document defines them</caption>
               <thead>
                 <tr>
                   <th className={thClass}>Status</th>
-                  <th className={thClass}>Meaning</th>
+                  <th className={thClass}>Definition</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,28 +182,33 @@ export default function AboutPage() {
               five checks below write Finding nodes; PageRank over decisions gives each person an influence score.
             </li>
             <li>
-              <strong className="text-fg">Serve.</strong> The API reads the graph with read-only queries only. The web app,
+              <strong className="text-fg">Serve.</strong> The API reads the kep graph with read-only queries only; answers
+              are cached in a separate ops graph, and your memory lives in a graph of its own. The web app,
               the answering agent and the MCP server all go through the same parameterised tool catalog. The browser talks
               only to this app&apos;s same-origin proxy.
             </li>
           </ol>
-          <table className={`${tableClass} mt-5`}>
-            <caption className="sr-only">Node labels in the graph</caption>
-            <thead>
-              <tr>
-                <th className={thClass}>Nodes</th>
-                <th className={thClass}>What they hold</th>
-              </tr>
-            </thead>
-            <tbody>
-              {NODES.map(([n, d]) => (
-                <tr key={n}>
-                  <td className={`${tdClass} font-mono text-xs whitespace-nowrap`}>{n}</td>
-                  <td className={tdClass}>{d}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-5">
+            <TableWrap label="Node labels in the graph">
+              <table className={tableClass}>
+                <caption className="sr-only">Node labels in the graph</caption>
+                <thead>
+                  <tr>
+                    <th className={thClass}>Nodes</th>
+                    <th className={thClass}>What they hold</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {NODES.map(([n, d]) => (
+                    <tr key={n}>
+                      <td className={`${tdClass} font-mono text-xs`}>{n}</td>
+                      <td className={tdClass}>{d}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
+          </div>
         </Card>
 
         <Card title="How an answer is produced, and when there is none" id="answers">
@@ -217,8 +224,10 @@ export default function AboutPage() {
             </li>
             <li>
               Abstention reasons: <span className="font-mono">no_evidence</span> (the graph holds nothing relevant),{" "}
-              <span className="font-mono">out_of_scope</span> (not about KEPs, the process or the loaded SIGs),{" "}
-              <span className="font-mono">unsupported_claims</span> (the model wrote something the records do not back).
+              <span className="font-mono">out_of_scope</span> (not about KEPs, the process, the loaded SIGs or KEP Brain itself),{" "}
+              <span className="font-mono">unsupported_claims</span> (the model wrote something the records do not back),{" "}
+              <span className="font-mono">budget_exhausted</span> (the answering budget ran out before an answer was checked),{" "}
+              <span className="font-mono">graph_unavailable</span> (the graph database did not answer).
             </li>
             <li>
               Answers are cached per question and graph version. A per-browser memory id lets the model recall your earlier
@@ -228,26 +237,28 @@ export default function AboutPage() {
         </Card>
 
         <Card title="The five checks behind the audit" id="checks">
-          <table className={tableClass}>
-            <caption className="sr-only">Finding kinds and their meaning</caption>
-            <thead>
-              <tr>
-                <th className={thClass}>Check</th>
-                <th className={thClass}>What it means</th>
-              </tr>
-            </thead>
-            <tbody>
-              {KINDS.map((k) => (
-                <tr key={k}>
-                  <td className={`${tdClass} whitespace-nowrap`}>
-                    {humanize(k)}
-                    <span className="block font-mono text-xs text-fg-muted">{k}</span>
-                  </td>
-                  <td className={tdClass}>{FINDING_KIND_TEXT[k]}</td>
+          <TableWrap label="Finding kinds">
+            <table className={tableClass}>
+              <caption className="sr-only">Finding kinds and their meaning</caption>
+              <thead>
+                <tr>
+                  <th className={thClass}>Check</th>
+                  <th className={thClass}>What it means</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {KINDS.map((k) => (
+                  <tr key={k}>
+                    <td className={tdClass}>
+                      {humanize(k)}
+                      <span className="block font-mono text-xs text-fg-muted [overflow-wrap:anywhere]">{k}</span>
+                    </td>
+                    <td className={tdClass}>{FINDING_KIND_TEXT[k]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
           <p className="mt-3 max-w-[80ch] text-sm text-fg-secondary">
             Each finding keeps both records with their source URLs, the people who set each value, a suggested fix and a
             lifecycle (open, triaged, drafted, confirmed, dismissed, resolved upstream). The audit page reports how many
@@ -263,7 +274,10 @@ export default function AboutPage() {
               loaded&rdquo; and have no KEP data behind them. Widening scope is a configuration change and a worker run.
             </li>
             <li>The data is as fresh as the last worker run; the date and commit are shown in the top bar on every page.</li>
-            <li>It never answers from outside knowledge, never writes to GitHub, and never stores e-mail addresses.</li>
+            <li>
+              Every claim cites a record in the graph. Fixes are drafted for a human to review, with read-only access to
+              GitHub. People are stored by public GitHub login only.
+            </li>
             <li>
               A long list is shown in full on the explore and audit pages; in an answer, the model sees a bounded slice and
               must say how many records are not shown.
@@ -289,7 +303,11 @@ export default function AboutPage() {
               . KEP Brain reads them in place and links back to them; it changes nothing upstream.
             </li>
             <li>
-              <strong className="text-fg">Fonts and icons.</strong> Inter and JetBrains Mono are used under the SIL Open Font
+              <strong className="text-fg">Terms.</strong> The software and this site are provided as is, without warranty of
+              any kind. The data is read from public GitHub sources published under Apache-2.0 and is shown as recorded there.
+            </li>
+            <li>
+              <strong className="text-fg">Fonts and icons.</strong> Geist and Geist Mono are used under the SIL Open Font
               License 1.1 and served from this site, not from a font network. Icons are Lucide, under the ISC licence. The
               mark and the screenshots are the project&apos;s own.
             </li>
@@ -334,7 +352,8 @@ export default function AboutPage() {
               </p>
               <p>
                 <strong className="text-fg">People in the graph.</strong> The graph holds public GitHub logins and the public
-                roles they hold in kubernetes/enhancements (author, approver, reviewer, chair). E-mail addresses are never
+                roles they hold: author, reviewer and approver from kep.yaml in kubernetes/enhancements, chair and tech lead
+                from sigs.yaml in kubernetes/community, and OWNERS roles from kubernetes/kubernetes. E-mail addresses are never
                 ingested. The service is free, has no paid tier and sends no e-mail. It is not directed at children and
                 collects no personal data beyond the questions you choose to type.
               </p>
@@ -351,8 +370,8 @@ export default function AboutPage() {
             </li>
             <li>
               <strong className="text-fg">Contrast.</strong> Every text colour in the palette was measured against each
-              surface it is used on; the lowest ratio is 4.75:1 in the light theme and 5.53:1 in the dark theme, above the
-              WCAG AA minimum of 4.5:1. Chart fills carry text labels and legends, so colour is never the only cue.
+              surface it is used on; the lowest ratio is 4.52:1 in the light theme and 4.50:1 in the dark theme, at or above
+              the WCAG AA minimum of 4.5:1. Chart fills carry text labels and legends, so colour is never the only cue.
             </li>
             <li>
               <strong className="text-fg">Structure.</strong> One heading per section, tables with captions and column
@@ -369,7 +388,7 @@ export default function AboutPage() {
           </ul>
         </Card>
 
-        <Card title="Keyboard shortcuts" id="shortcuts">
+        <Card title="Keyboard shortcuts" id="shortcut-list">
           <p className="mb-4 max-w-[80ch] text-fg-secondary">
             Press <kbd>?</kbd> on any page for this list. Single-letter shortcuts pause while you type in a field.
           </p>
@@ -412,6 +431,11 @@ async function Sources() {
   const g = m.graph;
   return (
     <div className="space-y-4">
+      <p className="max-w-[80ch] text-fg-secondary">
+        Data snapshot: issues as of{" "}
+        <span className="font-mono text-fg">{m.sources.tickets_as_of ? isoUtc(m.sources.tickets_as_of) : "not synced yet"}</span>, enhancements{" "}
+        <span className="font-mono text-fg">{m.sources.enhancements_sha ? shortSha(m.sources.enhancements_sha) : "not recorded"}</span>.
+      </p>
       <Facts
         items={[
           {

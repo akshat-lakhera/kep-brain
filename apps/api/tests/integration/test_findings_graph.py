@@ -192,7 +192,9 @@ def test_predicates_and_lifecycle(writer: BatchWriter) -> None:
     }
     found = _findings(writer)
     active = found[f"fnd:active_status_closed_issue:{keys['583']}"]
-    assert active["state"] == "open" and active["suggested_fix"] == "set_status_implemented"
+    # Closed 2019-09-09: before GitHub recorded close reasons, so the "completed" is a backfill (findings.py).
+    assert active["state"] == "open" and active["suggested_fix"] == "review_status"
+    assert active["b_value"] == "closed (reason not recorded) on 2019-09-09"
     assert active["a_value"] == "provisional" and active["b_url"].endswith("/issues/583")
     assert active["a_url"].endswith(f"{keys['583']}/kep.yaml")
     assert f"fnd:one_sided_replacement:{keys['583']}:{keys['4671']}" in found

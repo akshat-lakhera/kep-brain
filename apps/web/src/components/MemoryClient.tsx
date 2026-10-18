@@ -99,15 +99,18 @@ export function MemoryClient() {
             Forget everything
           </button>
         </div>
-        {forgetMsg ? (
-          <div className="mt-3" aria-live="polite">
-            {forgetMsg.ok ? (
-              <p className="text-sm text-success">Memory for this id deleted.</p>
-            ) : (
-              <ErrorState error={forgetMsg.error} what="Forget" />
-            )}
-          </div>
-        ) : null}
+        {/* Always mounted, so the outcome is announced when it appears. */}
+        <div aria-live="polite">
+          {forgetMsg ? (
+            <div className="mt-3">
+              {forgetMsg.ok ? (
+                <p className="text-sm text-success">Memory for this id deleted.</p>
+              ) : (
+                <ErrorState error={forgetMsg.error} what="Forget" />
+              )}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <Tabs
@@ -148,15 +151,25 @@ function Mine({ result, onRetry }: { result: ApiResult<MemoryMe> | null; onRetry
       </ErrorState>
     );
   }
+  const nothingYet = MINE.every(({ key }) => asRows(result.data[key]).length === 0);
   return (
     <div className="space-y-6">
+      {nothingYet ? (
+        <Notice>
+          Nothing is remembered yet. Memory fills from the questions asked in this browser: each answer on the{" "}
+          <Link href="/ask" className="prose-link">
+            Ask page
+          </Link>{" "}
+          adds an episode, the interests it reveals and the tool sequence that answered it.
+        </Notice>
+      ) : null}
       {MINE.map(({ key, title, empty }) => {
         const rows = asRows(result.data[key]);
         return (
           <section key={String(key)} aria-label={title}>
-            <h3 className="mb-2 font-semibold">
+            <h2 className="mb-2 font-semibold">
               {title} ({rows.length})
-            </h3>
+            </h2>
             {rows.length ? <RowsTable rows={rows} caption={title} maxCols={6} /> : <EmptyState title={`No ${title.toLowerCase()} yet`}>{empty}</EmptyState>}
           </section>
         );
@@ -206,15 +219,15 @@ function Queue({ result, onRetry }: { result: ApiResult<AgentsBoard> | null; onR
   return (
     <div className="space-y-6">
       <section aria-label="Agents">
-        <h3 className="mb-2 font-semibold">Agents ({agents.length})</h3>
+        <h2 className="mb-2 font-semibold">Agents ({agents.length})</h2>
         {agents.length ? <RowsTable rows={agents} caption="Agents and jobs" /> : <EmptyState title="No agent has reported in" />}
       </section>
       <section aria-label="Tasks">
-        <h3 className="mb-2 font-semibold">Tasks ({tasks.length})</h3>
+        <h2 className="mb-2 font-semibold">Tasks ({tasks.length})</h2>
         {tasks.length ? <RowsTable rows={tasks} caption="Tasks" /> : <EmptyState title="No tasks queued" />}
       </section>
       <section aria-label="Handoffs in the last hour">
-        <h3 className="mb-2 font-semibold">Handoffs in the last hour ({handoffs.length})</h3>
+        <h2 className="mb-2 font-semibold">Handoffs in the last hour ({handoffs.length})</h2>
         {handoffs.length ? <RowsTable rows={handoffs} caption="Handoffs in the last hour" /> : <EmptyState title="No handoffs in the last hour" />}
       </section>
     </div>

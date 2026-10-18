@@ -24,8 +24,8 @@ export function PageHeader({
   return (
     <header className="mb-8 border-b border-border pb-6">
       {eyebrow ? <p className="eyebrow mb-2">{eyebrow}</p> : null}
-      <h1 className="display text-2xl font-semibold">{title}</h1>
-      {lead ? <p className="mt-3 max-w-[70ch] text-md text-fg-secondary">{lead}</p> : null}
+      <h1 className="display text-3xl">{title}</h1>
+      {lead ? <p className="mt-3 max-w-[70ch] text-lead text-fg-secondary">{lead}</p> : null}
       {children}
     </header>
   );
@@ -45,10 +45,14 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section id={id} className={cx("rounded-md border border-border bg-surface", className)} aria-labelledby={id && title ? `${id}-title` : undefined}>
+    <section
+      id={id}
+      className={cx("rounded-md border border-border bg-surface transition-colors hover:border-border-strong", className)}
+      aria-labelledby={id && title ? `${id}-title` : undefined}
+    >
       {title ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-          <h2 id={id ? `${id}-title` : undefined} className="text-md font-semibold">
+          <h2 id={id ? `${id}-title` : undefined} className="display text-lg">
             {title}
           </h2>
           {actions}
@@ -120,10 +124,10 @@ type Tone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 const toneClass: Record<Tone, string> = {
   neutral: "bg-surface-subtle text-fg-secondary border-border",
-  accent: "bg-accent-subtle text-accent border-transparent",
-  success: "bg-success-subtle text-success border-transparent",
-  warning: "bg-warning-subtle text-warning border-transparent",
-  danger: "bg-danger-subtle text-danger border-transparent",
+  accent: "bg-accent-subtle text-accent border-accent/35",
+  success: "bg-success-subtle text-success border-success/35",
+  warning: "bg-warning-subtle text-warning border-warning/35",
+  danger: "bg-danger-subtle text-danger border-danger/35",
 };
 
 const toneIcon: Record<Exclude<Tone, "neutral">, typeof XCircle> = {
@@ -175,15 +179,15 @@ const ERROR_COPY: Record<string, { title: string; hint: string }> = {
   not_found: { title: "Not in the graph", hint: "Nothing with that reference is loaded." },
   provider_unavailable: {
     title: "Answering is paused",
-    hint: "The language-model provider is unavailable. Audit, Explore and Eval still work.",
+    hint: "The language-model provider is unavailable. Audit and Explore still work.",
   },
-  provider_error: { title: "The language model failed", hint: "Try again. Audit, Explore and Eval still work." },
+  provider_error: { title: "The language model failed", hint: "Try again. Audit and Explore still work." },
   provider_rate_limited: {
     title: "The language model is rate limited",
-    hint: "The provider refused the request after waiting the time it asked for. Try again in a minute; Audit, Explore and Eval still work.",
+    hint: "The provider refused the request after waiting the time it asked for. Try again in a minute; Audit and Explore still work.",
   },
-  budget_exhausted: { title: "Today's question budget is used up", hint: "Tools, Audit, Explore and Eval still work." },
-  llm_not_configured: { title: "No language model is configured", hint: "Audit, Explore and Eval work without one." },
+  budget_exhausted: { title: "Today's question budget is used up", hint: "Tools, Audit and Explore still work." },
+  llm_not_configured: { title: "No language model is configured", hint: "Audit and Explore work without one." },
   tool_not_found: { title: "Tool not available", hint: "The API does not expose this tool." },
   validation_error: { title: "The API rejected the parameters", hint: "The request did not match the tool's schema." },
   graph_unavailable: { title: "The graph is unavailable", hint: "FalkorDB did not answer. Try again in a moment." },
@@ -191,7 +195,7 @@ const ERROR_COPY: Record<string, { title: string; hint: string }> = {
   rate_limited: { title: "Too many requests", hint: "Too many questions from this address; wait a few minutes." },
   capacity_reached: {
     title: "Today's answering budget is used up",
-    hint: "Today's answering budget for this deployment is used up. Audit, Explore and Eval still work.",
+    hint: "Today's answering budget for this deployment is used up. Audit and Explore still work.",
   },
   question_too_long: { title: "Question too long", hint: "Questions are limited to 1,000 characters." },
   forbidden: { title: "Not allowed", hint: "This action is not available on the public deployment." },
@@ -231,7 +235,7 @@ export function ErrorState({ error, what, children }: { error: ApiFailure; what?
         Code <span className="font-mono">{error.code}</span>
         {error.requestId ? (
           <>
-            {" "}· Diagnostic id <span className="font-mono">{error.requestId}</span>
+            {" "}· Request id <span className="font-mono">{error.requestId}</span>
           </>
         ) : null}
       </p>
@@ -274,7 +278,7 @@ export function StatTile({ label, value, note }: { label: string; value: ReactNo
   return (
     <div className="rounded-md border border-border bg-surface p-4">
       <p className="eyebrow">{label}</p>
-      <p className="display mt-2 text-2xl font-semibold tabular">{value}</p>
+      <p className="mt-2 text-2xl font-semibold tabular tracking-tight">{value}</p>
       {note ? <p className="mt-1 text-xs text-fg-muted">{note}</p> : null}
     </div>
   );
@@ -305,8 +309,8 @@ export function Facts({ items }: { items: { label: string; value: ReactNode }[] 
 }
 
 // Tables are set Swiss-style: hairline rules, no filled header, small tracked capitals for column names,
-// tabular figures where numbers are compared.
-export const tableClass = "w-full border-collapse text-sm";
+// tabular figures where numbers are compared, rows that lift to the subtle surface on hover.
+export const tableClass = "data-table w-full border-collapse text-sm";
 export const thClass =
   "border-b border-border-strong px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-fg-muted whitespace-nowrap";
 export const tdClass = "border-b border-border px-3 py-2 align-top";
@@ -314,7 +318,8 @@ export const tdClass = "border-b border-border px-3 py-2 align-top";
 /** Horizontally scrollable, keyboard-reachable region around a wide table. */
 export function TableWrap({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <div className="relative overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
+    // Named apart from the section around it, so the two landmarks stay distinguishable.
+    <div className="relative overflow-x-auto" role="region" aria-label={`${label} (table)`} tabIndex={0}>
       {children}
     </div>
   );

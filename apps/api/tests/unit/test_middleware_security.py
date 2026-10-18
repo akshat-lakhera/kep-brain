@@ -83,3 +83,26 @@ def test_unsupported_method_is_405_not_500() -> None:
     r = c.put("/v1/keps")
     assert r.status_code == 405
     assert r.json()["error"]["code"] == "method_not_allowed"
+
+
+def test_rate_limited_errors_carry_retry_after() -> None:
+    app = FastAPI()
+    install_error_handlers(app)
+
+    @app.get("/limited")
+    async def limited() -> None:
+        raise AppError("rate_limited", {"retry_after_s": 42})
+
+    r = TestClient(app).get("/limited")
+    assert r.status_code == 429 and r.headers["retry-after"] == "42"
+    assert r.json()["error"]["details"]["retry_after_s"] == 42
+
+
+def test_rate_limiter_drops_idle_addresses(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = iter([0.0, 1.0, 100.0])
+    monkeypatch.setattr(deps.time, "monotonic", lambda: next(clock))
+    limiter = deps.RateLimiter(window_s=10.0)
+    limiter.SWEEP_EVERY = 3
+    for i in range(3):
+        limiter.check(f"10.0.0.{i}", 5)
+    assert list(limiter._hits) == ["10.0.0.2"]

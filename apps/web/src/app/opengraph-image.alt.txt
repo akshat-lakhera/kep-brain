@@ -1,0 +1,1 @@
+KEP Brain, the decision record of Kubernetes: who decided, on what evidence, and what has gone stale. One graph of the Kubernetes Enhancement Proposals, their tracking issues and pull requests; every answer cites its records and every disagreement between records is listed.

@@ -4,63 +4,81 @@
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Semantic colour tokens (05 §3.1). Raw hex values appear only here.
-   Grade: cool graphite surfaces with a single teal accent; status colours stay conventional. */
+   Grade: a developer tool, dark first. Deep blue-black surfaces, hairline borders at low alpha, one cobalt accent for
+   actions and highlights; status colours stay conventional. Every text token measures at least 4.5:1 on every surface
+   (scratchpad/contrast.py reads this file). */
 :root {
-  --c-bg: #f7f8f8;
+  --c-bg: #f8f9fb;
   --c-surface: #ffffff;
-  --c-surface-subtle: #f0f3f3;
-  --c-border: #d7dddd;
-  --c-border-strong: #b4bfbf;
-  --c-border-input: #76858a;
-  --c-text-primary: #121a1c;
-  --c-text-secondary: #566468;
-  --c-text-muted: #5f6e73;
-  --c-accent: #0f766e;
-  --c-accent-hover: #0b5d57;
-  --c-accent-subtle: #dff4f0;
+  --c-surface-subtle: #f1f3f7;
+  --c-border: #e3e7ee;
+  --c-border-strong: #c9d0db;
+  --c-border-input: #aeb7c5;
+  --c-text-primary: #0e1320;
+  --c-text-secondary: #4b5565;
+  --c-text-muted: #666f82;
+  --c-accent: #2e5cd9;
+  --c-accent-hover: #244cb8;
+  --c-accent-subtle: rgba(46, 92, 217, 0.1);
   --c-on-accent: #ffffff;
-  --c-success: #167330;
-  --c-success-subtle: #e8f5ec;
-  --c-warning: #875a00;
-  --c-warning-subtle: #fff4cc;
-  --c-danger: #c62828;
-  --c-danger-subtle: #fdecec;
-  --c-scrim: rgba(21, 25, 31, 0.45);
-  /* Categorical series (dataviz reference palette, slots 2-6; slot 1 blue is the accent and stays reserved). */
+  --c-success: #197447;
+  --c-success-subtle: rgba(25, 116, 71, 0.1);
+  --c-warning: #945800;
+  --c-warning-subtle: rgba(148, 88, 0, 0.1);
+  --c-danger: #b3261e;
+  --c-danger-subtle: rgba(179, 38, 30, 0.08);
+  --c-info: #2b59a8;
+  --c-info-subtle: rgba(43, 89, 168, 0.1);
+  --c-scrim: rgba(14, 19, 32, 0.5);
+  --c-glow: rgba(47, 95, 224, 0.14);
+  /* Screenshot frame drop shadow: soft on light surfaces, deep on dark ones. */
+  --frame-shadow: 0 20px 50px rgba(15, 20, 32, 0.12);
+  /* Categorical series (dataviz reference palette, slots 2-8 as series 1-7; slot 1 is the accent and stays reserved;
+     series 8 is a lighter step of the blue ramp, used for documents in graph drawings). */
   --c-series-1: #eb6834;
   --c-series-2: #1baf7a;
   --c-series-3: #eda100;
   --c-series-4: #e87ba4;
   --c-series-5: #008300;
+  --c-series-6: #6250d6;
+  --c-series-7: #e34948;
+  --c-series-8: #6da7ec;
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --c-bg: #0a0e12;
-  --c-surface: #11161b;
-  --c-surface-subtle: #171d23;
-  --c-border: #222a31;
-  --c-border-strong: #334049;
-  --c-border-input: #69777f;
-  --c-text-primary: #e9eef1;
-  --c-text-secondary: #a7b3ba;
-  --c-text-muted: #88959d;
-  --c-accent: #5eead4;
-  --c-accent-hover: #99f6e4;
-  --c-accent-subtle: #0f2a28;
-  --c-on-accent: #04201c;
-  --c-success: #3fb950;
-  --c-success-subtle: #12261a;
-  --c-warning: #d29922;
-  --c-warning-subtle: #2a2210;
-  --c-danger: #f0716a;
-  --c-danger-subtle: #331a1a;
-  --c-scrim: rgba(0, 0, 0, 0.6);
+  --c-bg: #0a0d14;
+  --c-surface: #10141d;
+  --c-surface-subtle: #161b26;
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-border-strong: rgba(255, 255, 255, 0.16);
+  --c-border-input: rgba(255, 255, 255, 0.22);
+  --c-text-primary: #f2f5f9;
+  --c-text-secondary: #aab3c2;
+  --c-text-muted: #7f8a9b;
+  --c-accent: #5c8dff;
+  --c-accent-hover: #7aa2ff;
+  --c-accent-subtle: rgba(92, 141, 255, 0.14);
+  --c-on-accent: #071024;
+  --c-success: #4cc38a;
+  --c-success-subtle: rgba(76, 195, 138, 0.14);
+  --c-warning: #f2b84b;
+  --c-warning-subtle: rgba(242, 184, 75, 0.14);
+  --c-danger: #f26b6b;
+  --c-danger-subtle: rgba(242, 107, 107, 0.14);
+  --c-info: #6cb6ff;
+  --c-info-subtle: rgba(108, 182, 255, 0.14);
+  --c-scrim: rgba(0, 0, 0, 0.65);
+  --c-glow: rgba(91, 140, 255, 0.22);
+  --frame-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
   --c-series-1: #d95926;
   --c-series-2: #199e70;
   --c-series-3: #c98500;
   --c-series-4: #d55181;
   --c-series-5: #008300;
+  --c-series-6: #9085e9;
+  --c-series-7: #e66767;
+  --c-series-8: #86b6ef;
   color-scheme: dark;
 }
 
@@ -84,51 +102,72 @@
   --color-warning-subtle: var(--c-warning-subtle);
   --color-danger: var(--c-danger);
   --color-danger-subtle: var(--c-danger-subtle);
+  --color-info: var(--c-info);
+  --color-info-subtle: var(--c-info-subtle);
   --color-scrim: var(--c-scrim);
+  --color-glow: var(--c-glow);
   --color-series-1: var(--c-series-1);
   --color-series-2: var(--c-series-2);
   --color-series-3: var(--c-series-3);
   --color-series-4: var(--c-series-4);
   --color-series-5: var(--c-series-5);
+  --color-series-6: var(--c-series-6);
+  --color-series-7: var(--c-series-7);
+  --color-series-8: var(--c-series-8);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* One geometric sans for display and body, one mono for identifiers. */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 
-  /* Type scale (05 §3.2) */
+  /* Radii: 8px on inputs and chips (sm), 12px on cards (md). */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+
+  /* Type scale (05 §3.2): body 15/22, lead 17/26, small 13, eyebrow 12; h3 18, h2 30, h1 34 on phones and 48/52 on desktop. */
   --text-xs: 12px;
   --text-xs--line-height: 16px;
   --text-sm: 13px;
   --text-sm--line-height: 18px;
-  --text-base: 14px;
-  --text-base--line-height: 20px;
+  --text-base: 15px;
+  --text-base--line-height: 22px;
   --text-md: 16px;
   --text-md--line-height: 24px;
-  --text-lg: 20px;
-  --text-lg--line-height: 28px;
-  --text-xl: 24px;
-  --text-xl--line-height: 32px;
+  --text-lead: 17px;
+  --text-lead--line-height: 26px;
+  --text-lg: 18px;
+  --text-lg--line-height: 26px;
+  --text-xl: 22px;
+  --text-xl--line-height: 28px;
   --text-2xl: 30px;
   --text-2xl--line-height: 36px;
+  --text-3xl: 34px;
+  --text-3xl--line-height: 40px;
+  --text-4xl: 48px;
+  --text-4xl--line-height: 52px;
 }
 
 html {
   background: var(--c-bg);
+  /* The top bar stays in view, so anchored sections stop below it. */
+  scroll-padding-top: 3.5rem;
 }
 
 body {
   background: var(--c-bg);
   color: var(--c-text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 15px;
+  line-height: 22px;
   /* Wide content scrolls inside its own wrapper (tables, tab lists, code); the page itself never pans sideways. */
   overflow-x: clip;
 }
 
-/* Visible focus on every focusable element: 2px accent outline, 2px offset. */
+/* Visible focus on every focusable element: 2px accent ring outside, with a soft glow. */
 :focus-visible {
   outline: 2px solid var(--c-accent);
   outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--c-glow);
 }
 
 .tabular {
@@ -154,28 +193,88 @@ body {
   color: var(--c-accent);
   text-decoration: none;
 }
+/* Inside running text a link also carries a quiet underline, so colour is never the only cue (WCAG 1.4.1). */
+:where(p, li, caption, figcaption) .quiet-link:not(.no-underline),
+footer .w-full > a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 3px;
+}
 .quiet-link:hover,
 .quiet-link:focus-visible {
   color: var(--c-accent-hover);
   text-decoration: underline;
+  text-decoration-color: currentColor;
   text-underline-offset: 2px;
 }
 
-/* Keyboard keys in help text and the shortcuts dialog. */
-kbd {
-  display: inline-block;
-  min-width: 1.5rem;
-  padding: 0.1rem 0.4rem;
-  border: 1px solid var(--c-border-strong);
-  border-bottom-width: 2px;
-  border-radius: 0.25rem;
-  background: var(--c-surface-subtle);
-  color: var(--c-text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  text-align: center;
+/* Buttons: one filled primary per view (a two-stop vertical fill), outlined secondaries everywhere else. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 10px;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-decoration: none;
   white-space: nowrap;
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    filter 120ms ease-out;
+}
+.btn-sm {
+  height: 36px;
+  padding: 0 0.875rem;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.btn-primary {
+  background: linear-gradient(180deg, var(--c-accent-hover), var(--c-accent));
+  color: var(--c-on-accent);
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+.btn-primary:disabled {
+  filter: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  border: 1px solid var(--c-border-strong);
+  color: var(--c-text-primary);
+  background: transparent;
+}
+.btn-secondary:hover {
+  border-color: var(--c-border-input);
+  background: var(--c-surface-subtle);
+}
+
+/* Keyboard keys in help text and the shortcuts dialog. In the base layer so utilities such as `hidden` still win. */
+@layer base {
+  kbd {
+    display: inline-block;
+    min-width: 1.5rem;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--c-border-strong);
+    border-bottom-width: 2px;
+    border-radius: 0.25rem;
+    background: var(--c-surface-subtle);
+    color: var(--c-text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    text-align: center;
+    white-space: nowrap;
+  }
 }
 
 /* While a `g` chord is pending, the pointer hints that the next key goes somewhere. */
@@ -223,7 +322,7 @@ kbd {
 .answer pre {
   background: var(--c-surface-subtle);
   border: 1px solid var(--c-border);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 12px;
   overflow-x: auto;
   margin: 0 0 12px;
@@ -247,10 +346,43 @@ kbd {
   background: var(--c-surface-subtle);
 }
 .answer blockquote {
-  border-left: 2px solid var(--c-border-strong);
+  border-left: 2px solid var(--c-accent);
   padding-left: 12px;
   color: var(--c-text-secondary);
   margin: 0 0 12px;
+}
+
+/* One-shot reveal for content that arrives after a wait or a click: an answer, an opened panel, a cited source.
+   Blocks rise a few pixels; table rows only fade, since transforms on rows are unreliable. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.reveal {
+  animation: reveal 220ms ease-out both;
+}
+.fade-in {
+  animation: fade-in 220ms ease-out both;
+}
+
+/* The target of an in-page link that opened a tab (a cited source): tinted for a moment so the eye lands on it. */
+[data-revealed],
+tr[data-revealed] > td {
+  background-color: var(--c-accent-subtle);
 }
 
 /* Static loading bars: no shimmer (05 §3.5). */
@@ -268,10 +400,13 @@ kbd {
   }
 }
 
-/* Editorial type: a display title is tighter than running text; an eyebrow is the small label above it. */
+/* Display type: titles are set in the same sans as the body, heavier and tighter; an eyebrow is the small tracked
+   label above them, plain and muted or as a pill. Counts stay tabular. */
 .display {
+  font-family: var(--font-display);
+  font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -279,7 +414,80 @@ kbd {
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--c-text-muted);
+}
+.eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--c-accent-subtle);
+  color: var(--c-accent);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A hairline at low alpha along the bottom edge: the top bar and title strips. */
+.hairline {
+  box-shadow: inset 0 -1px 0 var(--c-border);
+}
+
+/* Screenshot frames: a strong hairline, an inset highlight on the top edge and a deep drop shadow. The hero frame also
+   sits on a soft radial glow, the one decorative gradient in the system. */
+.frame {
+  border-radius: 14px;
+  border: 1px solid var(--c-border-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    var(--frame-shadow);
+}
+.frame-glow {
+  position: relative;
+  /* Its own stacking context, so the glow paints above the page background and below the frame. */
+  isolation: isolate;
+}
+.frame-glow::before {
+  content: "";
+  position: absolute;
+  inset: -16% -10%;
+  background: radial-gradient(ellipse at center, var(--c-glow) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Graph drawings: nodes are links, edges name their relation on hover. No motion, so reduced-motion needs nothing. */
+.graph-node {
+  cursor: pointer;
+  outline: none;
+}
+.graph-node:hover circle:last-of-type,
+.graph-node:focus-visible circle:last-of-type {
+  stroke: var(--c-accent);
+  stroke-width: 2.5;
+}
+.graph-edge:hover line:first-of-type {
+  stroke: var(--c-accent);
+  stroke-width: 2;
+}
+/* While a node is hovered or focused: its relations and neighbours keep their colour, everything else dims. */
+.graph-node.is-far,
+.graph-edge.is-far,
+.graph-label.is-far {
+  opacity: 0.3;
+}
+.graph-edge.is-near line:first-of-type {
+  stroke: var(--c-accent);
+  stroke-opacity: 1;
+}
+
+/* Data tables: hairline rules, muted small capitals for column names, rows that lift on hover. */
+.data-table tbody > tr:hover > td {
+  background: var(--c-surface-subtle);
 }

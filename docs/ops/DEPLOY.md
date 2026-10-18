@@ -29,7 +29,7 @@ Edit `.env`:
 
 - `FALKORDB_PASSWORD`, `ADMIN_TOKEN`, `MCP_TOKEN`: long random values, for example `openssl rand -hex 32`. Compose refuses to start without `FALKORDB_PASSWORD` and `MCP_TOKEN`.
 - `OPENAI_API_KEY`: key for the endpoint in `OPENAI_BASE_URL` (Groq by default). Without it `/v1/ask` returns 503.
-- `GITHUB_TOKEN`: read-only token for the ticket sync.
+- `GITHUB_TOKEN`: required. `sync-owners` and `sync-tickets` read the GitHub API and `worker all` stops with an error without it (the image has no `gh` CLI). A classic token with no scopes, or a fine-grained read-only token, is enough.
 - `ENHANCEMENTS_PIN_SHA`, `COMMUNITY_PIN_SHA`, `OWNERS_PIN_SHA`: leave empty. The worker clones the public repositories on its first run and fetches them on every sync, so the graph follows the upstream default branches. Set them only for a reproducible snapshot.
 - `PUBLIC_HOST=<dns name>`: used by the prod override and Caddy. Compose reads it from `.env` in the project directory.
 - `REPO_CACHE_HOST`: leave unset on the VM (a named volume is used).
@@ -74,16 +74,34 @@ curl -fsS -X POST https://$PUBLIC_HOST/v1/ask -H 'content-type: application/json
 
 The last request needs a working LLM key (`question` is 3 to 1000 characters; the API docs page is disabled when `ENV=prod`). Set `PUBLIC_HOST` in the shell first (`export PUBLIC_HOST=<dns name>`). Confirm nothing else is public: ports 3000, 3001, 6380, 8000 and 8765 must be closed from outside (`nmap -p 3000,3001,6380,8000,8765 $PUBLIC_HOST`), and on the VM `ss -ltn` shows listeners only on 22, 80 and 443.
 
+MCP is reached only through Caddy, which proxies `/mcp` to the `mcp` service (`deploy/Caddyfile`); the service itself publishes no port. A request without the bearer token must be rejected:
+
+```
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST https://$PUBLIC_HOST/mcp -H 'content-type: application/json' -d '{}'   # 401
+```
+
 ## 7. Rotate the LLM key
 
 ```
-nano .env                       # replace OPENAI_API_KEY (or ANTHROPIC_API_KEY)
+nano .env                       # replace OPENAI_API_KEY
 $COMPOSE up -d --force-recreate api worker mcp
 ```
 
 `env_file` is read at container creation, so a plain restart does not pick up the change. Revoke the old key at the provider after `/v1/meta` and an `/v1/ask` call succeed.
 
-## 8. Update
+## 8. Reload the graph without downtime
+
+The scheduled worker upserts into the live `kep` graph. For a full reload (new `SIGS`, a bumped `INGEST_VERSION`, a suspect graph) load next to it and swap:
+
+```
+$COMPOSE run --rm worker all --graph kep_fresh
+$COMPOSE run --rm -v "$PWD/scripts:/scripts:ro" --entrypoint python api /scripts/graph_swap.py --dry-run
+$COMPOSE run --rm -v "$PWD/scripts:/scripts:ro" --entrypoint python api /scripts/graph_swap.py
+```
+
+The script is not part of the image, so it is mounted into a one-off `api` container, which has the FalkorDB client and the same `FALKORDB_*` variables as the API. `scripts/graph_swap.py` copies the live graph to `kep_old` (`GRAPH.COPY`), replaces `kep` with `kep_fresh` and clears the answer cache. Check the counts in `/v1/meta`, then delete `kep_old` when satisfied.
+
+## 9. Update
 
 ```
 git pull

@@ -1,8 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { Route } from "next";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { clientApi } from "@/lib/api/client";
 import type { ApiFailure } from "@/lib/api/core";
 import type { ToolResult, ToolSpec } from "@/lib/api/types";
@@ -22,13 +21,13 @@ const control = "h-8 w-full rounded-sm border border-border-input bg-surface px-
 /** Tool console: the list from GET /v1/tools on the left, a form built from params_schema and the result on the right. */
 export function ToolsClient({ tools }: { tools: ToolSpec[] }) {
   const params = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
   const wanted = params.get("tool");
   const selected = tools.find((t) => t.name === wanted) ?? tools[0];
 
   function select(name: string) {
-    router.replace(`${pathname}?tool=${encodeURIComponent(name)}` as Route, { scroll: false });
+    // A shallow URL update: useSearchParams follows it without a server round trip that would refetch the tool list.
+    window.history.replaceState(null, "", `${pathname}?tool=${encodeURIComponent(name)}`);
   }
 
   return (
@@ -59,7 +58,7 @@ export function ToolsClient({ tools }: { tools: ToolSpec[] }) {
                   )}
                 >
                   <span className={cx("font-mono text-sm", active && "font-medium")}>{t.name}</span>
-                  <span className="mt-0.5 line-clamp-2 block text-xs text-fg-muted">{t.description}</span>
+                  <span className={cx("mt-0.5 line-clamp-2 block text-xs", active ? "text-fg-secondary" : "text-fg-muted")}>{t.description}</span>
                 </button>
               </li>
             );
@@ -83,7 +82,8 @@ function ToolPanel({ tool }: { tool: ToolSpec }) {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  function set(name: string, v: FieldValue) {
+  // Stable, so a keystroke in one field re-renders that field only (FieldControl is memoised).
+  const set = useCallback((name: string, v: FieldValue) => {
     setValues((prev) => ({ ...prev, [name]: v }));
     setErrors((prev) => {
       if (!(name in prev)) return prev;
@@ -91,7 +91,7 @@ function ToolPanel({ tool }: { tool: ToolSpec }) {
       delete next[name];
       return next;
     });
-  }
+  }, []);
 
   async function submit() {
     const built = buildParams(fields, values);
@@ -139,7 +139,7 @@ function ToolPanel({ tool }: { tool: ToolSpec }) {
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 {fields.map((f) => (
-                  <FieldControl key={f.name} id={`${base}-${f.name}`} field={f} value={values[f.name]} error={errors[f.name]} onChange={(v) => set(f.name, v)} />
+                  <FieldControl key={f.name} id={`${base}-${f.name}`} field={f} value={values[f.name]} error={errors[f.name]} onChange={set} />
                 ))}
               </div>
             </>
@@ -168,13 +168,22 @@ function ToolPanel({ tool }: { tool: ToolSpec }) {
         </form>
       </section>
 
-      <section aria-label="Result" aria-live="polite">
+      {/* A short announcement of the outcome; the result itself is not a live region, it can be thousands of rows. */}
+      <p aria-live="polite" aria-atomic="true" className="sr-only">
+        {run.kind === "loading"
+          ? `Running ${tool.name}`
+          : run.kind === "done"
+            ? `${tool.name} returned ${run.result.rows.length.toLocaleString("en-US")} row${pluralS(run.result.rows.length)}`
+            : run.kind === "error"
+              ? `${tool.name} failed`
+              : ""}
+      </p>
+      <section aria-label="Result">
         {run.kind === "idle" ? (
           <EmptyState title="Not run yet">The rows, evidence links, traversed paths and the Cypher template appear here after Run.</EmptyState>
         ) : null}
         {run.kind === "loading" ? (
-          <div role="status" className="space-y-2">
-            <span className="sr-only">Running {tool.name}</span>
+          <div className="space-y-2" aria-hidden="true">
             <div className="skeleton h-4 w-8/12" />
             <div className="skeleton h-40 w-full" />
           </div>
@@ -214,19 +223,20 @@ function ValidationDetails({ details }: { details: Record<string, unknown> | nul
   );
 }
 
-function FieldControl({
+const FieldControl = memo(function FieldControl({
   id,
   field: f,
   value,
   error,
-  onChange,
+  onChange: onFieldChange,
 }: {
   id: string;
   field: Field;
   value: FieldValue | undefined;
   error: string | undefined;
-  onChange: (v: FieldValue) => void;
+  onChange: (name: string, v: FieldValue) => void;
 }) {
+  const onChange = (v: FieldValue) => onFieldChange(f.name, v);
   const text = typeof value === "string" ? value : "";
   const list = Array.isArray(value) ? value : [];
   const describe = [f.description ? `${id}-d` : null, error ? `${id}-e` : null].filter(Boolean).join(" ") || undefined;
@@ -358,4 +368,4 @@ function FieldControl({
       ) : null}
     </div>
   );
-}
+});

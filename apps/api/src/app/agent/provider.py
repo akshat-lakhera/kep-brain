@@ -2,8 +2,7 @@
 
 The agent loop speaks one internal format (OpenAI chat messages with tool
 calls). `openai_compatible` sends it to an OpenAI-compatible endpoint (Groq by
-default, key `OPENAI_API_KEY`); `anthropic` translates it to the Messages API
-and is available only when `ANTHROPIC_API_KEY` is set and the SDK is installed.
+default, key `OPENAI_API_KEY`).
 
 Rate limits: one process-wide bucket paces requests (`LLM_REQUESTS_PER_MINUTE`)
 and a per-model tokens-per-minute ledger (`TokenLimiter`) learns each model's
@@ -101,8 +100,6 @@ def resolve_openai_key(settings: Settings) -> str | None:
 
 
 def llm_configured(settings: Settings) -> bool:
-    if settings.llm_provider == "anthropic":
-        return settings.anthropic_api_key is not None
     return resolve_openai_key(settings) is not None
 
 
@@ -276,6 +273,9 @@ def classify(exc: Exception, retries_done: int, max_retries: int) -> Attempt:
         if retries_done < max_retries:
             return Attempt("retry", wait, "provider_rate_limited")
         return Attempt("next_model", 0.0, "provider_rate_limited")
+    if isinstance(exc, openai.APITimeoutError):
+        # The call already waited the full LLM_TIMEOUT_SECONDS; another attempt on the same model would double it.
+        return Attempt("next_model", 0.0, "provider_error")
     if isinstance(exc, openai.InternalServerError | openai.APIConnectionError):
         if retries_done < min(max_retries, len(SERVER_ERROR_BACKOFF_S)):
             return Attempt("retry", SERVER_ERROR_BACKOFF_S[retries_done], "provider_error")
@@ -523,90 +523,6 @@ class OpenAICompatibleProvider:
         )
 
 
-class AnthropicProvider:
-    """Messages API adapter; the internal OpenAI-shaped history is translated per call."""
-
-    name = "anthropic"
-
-    def __init__(self, settings: Settings, model: str | None = None) -> None:
-        if settings.anthropic_api_key is None:
-            raise AppError("llm_not_configured")
-        try:
-            import anthropic
-        except ImportError as exc:
-            raise AppError("llm_not_configured", {"reason": "anthropic SDK not installed"}) from exc
-        self.model = model or settings.llm_model
-        self._anthropic = anthropic
-        self._client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key.get_secret_value(), timeout=settings.llm_timeout_seconds
-        )
-
-    @staticmethod
-    def _translate(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
-        system_parts: list[str] = []
-        out: list[dict[str, Any]] = []
-        for m in messages:
-            role = m["role"]
-            if role == "system":
-                system_parts.append(m["content"])
-            elif role == "user":
-                out.append({"role": "user", "content": m["content"]})
-            elif role == "assistant":
-                blocks: list[dict[str, Any]] = []
-                if m.get("content"):
-                    blocks.append({"type": "text", "text": m["content"]})
-                for c in m.get("tool_calls", []):
-                    blocks.append({"type": "tool_use", "id": c["id"], "name": c["function"]["name"],
-                                   "input": _parse_args(c["function"]["arguments"])})  # fmt: skip
-                out.append({"role": "assistant", "content": blocks or [{"type": "text", "text": ""}]})
-            elif role == "tool":
-                block = {"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}
-                if out and out[-1]["role"] == "user" and isinstance(out[-1]["content"], list):
-                    out[-1]["content"].append(block)
-                else:
-                    out.append({"role": "user", "content": [block]})
-        return "\n\n".join(system_parts), out
-
-    async def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Turn:
-        anthropic = self._anthropic
-        system, msgs = self._translate(messages)
-        atools = [
-            {"name": t["function"]["name"], "description": t["function"]["description"],
-             "input_schema": t["function"]["parameters"]}
-            for t in tools
-        ]  # fmt: skip
-        try:
-            resp = await self._client.messages.create(
-                model=self.model, max_tokens=4096, system=system, messages=msgs, tools=atools
-            )
-        except anthropic.RateLimitError as exc:
-            raise AppError("provider_rate_limited") from exc
-        except anthropic.APIError as exc:
-            log.warning("provider_error", error=str(exc)[:300])
-            raise AppError("provider_error") from exc
-        text = "".join(b.text for b in resp.content if b.type == "text")
-        calls = [
-            ToolCall(id=b.id, name=b.name, arguments=dict(b.input), raw_arguments=json.dumps(b.input))
-            for b in resp.content
-            if b.type == "tool_use"
-        ]
-        raw: dict[str, Any] = {"role": "assistant", "content": text}
-        if calls:
-            raw["tool_calls"] = [
-                {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.raw_arguments}}
-                for c in calls
-            ]
-        return Turn(
-            text=text,
-            tool_calls=calls,
-            input_tokens=resp.usage.input_tokens,
-            output_tokens=resp.usage.output_tokens,
-            raw_message=raw,
-        )
-
-
 def make_provider(settings: Settings, max_wait_s: float = MAX_WAIT_S) -> Provider:
     """`max_wait_s`: how long a call may wait for a model's quota (interactive asks fail fast; batch runs wait)."""
-    if settings.llm_provider == "anthropic":
-        return AnthropicProvider(settings)
     return OpenAICompatibleProvider(settings, max_wait_s=max_wait_s)

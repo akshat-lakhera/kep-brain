@@ -1,33 +1,9 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { serverApi } from "@/lib/api/server";
-import { shortSha } from "@/lib/format";
+import { isoUtc, shortSha } from "@/lib/format";
+import { REPO_URL } from "@/lib/site";
 import { ShortcutsHint } from "./Shortcuts";
-
-/** "Data as of" chip: the ingested enhancements commit and the ticket snapshot time, from /v1/meta. */
-export async function DataChip() {
-  const meta = await serverApi.meta();
-  if (!meta.ok) {
-    return (
-      <span className="inline-flex h-7 items-center rounded-sm border border-danger/40 bg-danger-subtle px-2 text-xs text-danger">
-        API unreachable
-      </span>
-    );
-  }
-  const sha = meta.data.sources.enhancements_sha;
-  const asOf = meta.data.sources.tickets_as_of;
-  return (
-    <Link
-      href={"/audit#sync" as Route}
-      className="hidden h-7 items-center gap-1 rounded-sm border border-border bg-surface-subtle px-2 text-xs text-fg-secondary hover:border-border-strong sm:inline-flex"
-      title={`kubernetes/enhancements at ${sha ?? "unknown"}${asOf ? `; tickets as of ${asOf}` : ""}`}
-    >
-      <span className="hidden sm:inline">Data as of</span>
-      {asOf ? <span className="font-mono">{asOf.slice(0, 10)}</span> : null}
-      {sha ? <span className={asOf ? "hidden font-mono md:inline" : "font-mono"}>{asOf ? "· " : ""}{shortSha(sha)}</span> : null}
-    </Link>
-  );
-}
 
 export async function Footer() {
   const meta = await serverApi.meta();
@@ -47,6 +23,11 @@ export async function Footer() {
                 {meta.data.llm.configured ? `${meta.data.llm.provider ?? ""} ${meta.data.llm.model ?? ""}`.trim() : "not configured"}
               </span>
             </span>
+            {meta.data.sources.tickets_as_of ? (
+              <span>
+                Issues as of <span className="font-mono">{isoUtc(meta.data.sources.tickets_as_of)}</span>
+              </span>
+            ) : null}
             {meta.data.sources.enhancements_sha ? (
               <span>
                 kubernetes/enhancements <span className="font-mono">{shortSha(meta.data.sources.enhancements_sha)}</span>
@@ -63,8 +44,8 @@ export async function Footer() {
           <Link href="/tools" className="quiet-link">
             Tools
           </Link>
-          <Link href="/eval" className="quiet-link">
-            Eval
+          <Link href="/memory" className="quiet-link">
+            Memory
           </Link>
           <Link href={"/about#privacy" as Route} className="quiet-link">
             Privacy
@@ -72,7 +53,11 @@ export async function Footer() {
           <ShortcutsHint />
         </span>
         <span className="w-full">
-          Code: MIT licence · Data: Kubernetes Enhancement Proposals and issues, © The Kubernetes Authors, Apache-2.0.
+          Code:{" "}
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="quiet-link">
+            MIT licence, source on GitHub
+          </a>{" "}
+          · Data: Kubernetes Enhancement Proposals and issues, © The Kubernetes Authors, Apache-2.0.
         </span>
       </div>
     </footer>

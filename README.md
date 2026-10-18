@@ -1,6 +1,6 @@
 # KEP Brain
 
-A company brain for the Kubernetes enhancement process. It loads KEPs, SIG rosters, tracking issues and pull request history from public GitHub into one FalkorDB graph, works out who decided what and on which evidence, flags records that contradict each other, and answers questions with citations or abstains.
+Every significant change to Kubernetes goes through a KEP, a Kubernetes Enhancement Proposal: a design document with a metadata file and a tracking issue, owned by a SIG. KEP Brain is a company brain for that process. It loads KEPs, SIG rosters, tracking issues and pull request history from public GitHub into one FalkorDB graph, works out who decided what and on which evidence, flags records that contradict each other, and answers questions with citations or abstains.
 
 [![CI](https://github.com/akshat-lakhera/kep-brain/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/akshat-lakhera/kep-brain/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -8,7 +8,7 @@ A company brain for the Kubernetes enhancement process. It loads KEPs, SIG roste
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](apps/web/package.json)
 [![FalkorDB 4.22](https://img.shields.io/badge/FalkorDB-4.22-FF66B3)](docker-compose.yml)
 
-![Home page: graph stats bar and the ask box](docs/screenshots/home.png)
+![Landing page: the headline, two calls to action and the live graph counts beside a framed screenshot of an answer with its evidence diagram](docs/screenshots/home.png)
 
 ## Table of contents
 
@@ -34,7 +34,7 @@ A company brain for the Kubernetes enhancement process. It loads KEPs, SIG roste
 
 Every significant change to Kubernetes goes through a KEP, a Kubernetes Enhancement Proposal. A KEP is a folder in [kubernetes/enhancements](https://github.com/kubernetes/enhancements) with the proposal text and a `kep.yaml` metadata file, plus a tracking issue in the same repository; the issue number is the KEP number. The [KEP process](https://github.com/kubernetes/enhancements/blob/master/keps/sig-architecture/0000-kep-process/README.md) makes `kep.yaml` the record of a KEP's state: `status` is required, must be one of seven values, and the metadata is "critical to clearly communicate the status of a KEP" and "used to support tooling around filtering and display". The same document pairs `replaces` with `superseded-by` on the other KEP and with the `replaced` status.
 
-Nothing enforces that. The state of a KEP is written in several places by different people at different times: `kep.yaml` in a pull request, the tracking issue's state, labels and milestone by the release team, and the replacement declarations in two KEPs. They drift apart, and the drift is invisible to anyone reading one record. On the three SIGs loaded here, 59 of 238 KEPs' records disagree. Forty of them are KEPs whose `kep.yaml` still says `implementable` or `provisional` while their tracking issue was closed as completed, some as far back as 2021. Anyone who filters KEPs by status, as the process says the metadata is for, gets a wrong answer for those.
+Nothing enforces that. The state of a KEP is written in several places by different people at different times: `kep.yaml` in a pull request, the tracking issue's state, labels and milestone by the release team, and the replacement declarations in two KEPs. They drift apart, and the drift is invisible to anyone reading one record. On the three SIGs loaded here, 59 pairs of records disagree, across 50 of the 238 KEPs. Forty of those KEPs have a `kep.yaml` that still says `implementable` or `provisional` while their tracking issue is closed, some as far back as 2019. Anyone who filters KEPs by status, as the process says the metadata is for, gets a wrong answer for those.
 
 The questions behind that drift are the questions anyone joining a SIG, running a release or reviewing a proposal asks and cannot answer from one file: who decided this KEP's current state and on what evidence, who approved it, who actually knows this area, what replaced what, what changed since the last release, and which records are stale.
 
@@ -47,22 +47,22 @@ A KEP's state lives in several places at once: the `kep.yaml` file, the tracking
 - **Live ingest from public GitHub.** The worker clones `kubernetes/enhancements` and `kubernetes/community`, reads OWNERS files from `kubernetes/kubernetes` through the GitHub API, and fetches tracking issues, timelines, pull requests and review threads. Every run upserts into the same FalkorDB graph, so re-running is safe.
 - **Who decided what, from which evidence.** Every `kep.yaml` revision is diffed field by field. Each status, stage or milestone change becomes a `StatusChange` linked to its commit and pull request. From these, the worker derives `Decision` nodes and attaches the people who approved them and the records that prove it.
 - **Contradiction audit.** Five predicates compare a KEP's `kep.yaml` with its tracking issue and its replacement declarations. Each hit is a `Finding` that carries both sides with their public URLs and a lifecycle (`open`, `resolved_upstream`, human verdicts). The audit page can draft an issue body from the evidence. Nothing is ever posted to GitHub.
-- **Answers with citations, or abstention.** `POST /v1/ask` runs an agent over a read-only tool catalog. A deterministic validator checks that every claim cites a record returned in that request. If it cannot, the answer is replaced by an abstention. Every citation is a graph node with a public GitHub URL.
-- **Explore pages.** Search KEPs, open a KEP with its facts, status history, decisions and lineage graph, and browse SIGs and people.
+- **Answers with citations, or abstention.** `POST /v1/ask` runs an agent over a read-only tool catalog. A deterministic validator checks that every claim cites a record returned in that request. If it cannot, the answer is replaced by an abstention. Every citation is a graph node with a public GitHub URL. The Ask page puts the question box first and shows each answer's evidence chain as a force-directed diagram, coloured by node label with the cited nodes ringed, or as a list. Questions about the KEP process and about KEP Brain itself are in scope: both are answered from document sections stored in the graph and cited like any other record.
+- **Explore pages.** Search KEPs, open a KEP with its facts, status history, decisions and lineage (drawn with the same diagram), and browse SIGs and people. The Tools page calls any catalog tool directly and draws the records it returned.
 - **Per-browser memory.** An anonymous memory id (header `X-Kep-Memory-Id`) selects a small per-user graph that can be inspected and deleted as a unit.
-- **MCP server.** The same read-only tools are exposed over Streamable HTTP behind a bearer token, so other agents can query the graph.
+- **MCP server.** The same read-only tools are exposed over Streamable HTTP behind a bearer token, so other agents can query the graph (`/mcp` on the local port in development and through Caddy in the production deploy).
 
-On 2026-10-17 the running instance reported 238 KEPs, 705 people and 59 findings across 50 KEPs in 39,492 nodes and 127,494 edges, for `sig-node`, `sig-scheduling` and `sig-apps` (`GET /v1/meta`, `GET /v1/findings`; ticket data as of 2026-10-14).
+On 2026-10-17 the running instance reported 238 KEPs, 674 people and 59 findings across 50 KEPs in 39,397 nodes and 127,115 edges, for `sig-node`, `sig-scheduling` and `sig-apps` (`GET /v1/meta`, `GET /v1/findings`; ticket data as of 2026-10-15).
 
 ## Screenshots
 
-| Home | Explore |
+| Landing | Explore |
 |---|---|
-| ![Home page with the stats bar and ask box](docs/screenshots/home.png) | ![Explore page with SIG cards](docs/screenshots/explore.png) |
+| ![Landing page: hero text and live graph counts beside a screenshot of an answer with its evidence diagram](docs/screenshots/home.png) | ![Explore page: SIG cards with the loaded SIGs first, and the release dropdown for recent changes](docs/screenshots/explore.png) |
 
 | KEP detail | Audit |
 |---|---|
-| ![KEP-4671 page with its decisions table](docs/screenshots/kep.png) | ![Audit page with the findings table and by-kind and by-SIG bars](docs/screenshots/audit.png) |
+| ![KEP-4671 page on its Decisions tab: each decision with its date, deciders and evidence links](docs/screenshots/kep.png) | ![Audit page with the findings table and by-kind and by-SIG bars](docs/screenshots/audit.png) |
 
 ## How it works
 
@@ -102,10 +102,10 @@ flowchart LR
     H --> WEB
 ```
 
-1. **Ingest.** `sync-docs` reads every `kep.yaml`, KEP README and PRR file from the enhancements clone and replays each revision so that state edges get `valid_from` and `valid_to` from commit dates. `sync-history` diffs `kep.yaml` revisions into `StatusChange` nodes and maps commits to the pull requests that merged them. `sync-owners` loads OWNERS files and aliases. `sync-tickets` loads tracking issues, their label and milestone timelines, and the pull requests and review discussion behind status changes.
+1. **Ingest.** `sync-docs` reads every `kep.yaml`, KEP README and PRR file from the enhancements clone and replays each revision so that state edges get `valid_from` and `valid_to` from commit dates. It also stores the two KEP process documents and the product document shipped with the API (`apps/api/src/app/data/kep_brain.md`, `ingest/product.py`) as `Document` nodes with one `Section` per heading, so "what is a KEP" and "what is KEP Brain" are answered from cited sections. `sync-history` diffs `kep.yaml` revisions into `StatusChange` nodes and maps commits to the pull requests that merged them. `sync-owners` loads OWNERS files and aliases. `sync-tickets` loads tracking issues, their label and milestone timelines, and the pull requests and review discussion behind status changes.
 2. **Graph.** Everything lands in one FalkorDB graph named `kep`. Node and relationship names come from an allow-list (`apps/api/src/app/schema/labels.py`), and `schema-apply` creates the indexes and `UNIQUE` and `MANDATORY` constraints.
 3. **Derive.** `derive` turns metadata changes into `Decision` nodes (`status_transition`, `withdrawal`, `stage_graduation`, `milestone_retarget`), adds PRR approval and replacement decisions, links each to the people who decided it (`DECIDED_BY`) and the evidence (`EVIDENCED_BY`), evaluates the five contradiction predicates into `Finding` nodes, and stores PageRank on `Person` nodes.
-4. **Serve.** The API reads the graph with `GRAPH.RO_QUERY` only. The web app, the answering agent and the MCP server all go through the same parameterised tool catalog.
+4. **Serve.** The API reads the `kep` graph with `GRAPH.RO_QUERY` only; its writes go to other graphs: `POST /v1/ask` stores validated answers in the `ops` graph (answer cache) and episodes in the caller's `mem:<id>` graph, and the `DELETE` memory and cache routes remove from those. The cache is keyed by question and graph version and serves every caller, with or without a memory id; a hit replays the recorded tool calls, evidence graph and citations instead of calling the model. The web app, the answering agent and the MCP server all go through the same parameterised tool catalog.
 
 ### Graph data model
 
@@ -136,6 +136,8 @@ Finding kinds (`FINDING_KINDS`):
 | `stage_mismatch` | The stage in `kep.yaml` and the stage label on the issue differ |
 | `milestone_mismatch` | The milestone in `kep.yaml` and the milestone on the issue differ |
 
+The checks are rule-based, and some hits are tolerated conventions rather than mistakes, so the suggested fix on a `Finding` says so instead of prescribing a value (`ingest/findings.py`). A tracking issue closed by the lifecycle bot for inactivity, or closed before 2022-05-19 (when GitHub introduced close reasons and backfilled every older closure as `completed`), gets `review_status` rather than a status to set, and the issue side of such an older finding reads "closed (reason not recorded)". A stage label on a closed issue when `kep.yaml` changed after the close, and any milestone on a closed issue, are frozen history: `none_historical_label`. An open issue milestoned to the release in development or the one after it is the normal mid-cycle state, so the fix is `in_flight_wait_for_freeze`.
+
 ### Graph features used
 
 | Feature | Where | Why |
@@ -148,6 +150,7 @@ Finding kinds (`FINDING_KINDS`):
 | `algo.SPpaths` | `tools/t01/graph_algos.py` (`path_between`) | Shortest explainable connection between two entities. |
 | Pattern comprehensions | `api/findings.py`, `api/keps.py`, `tools/` | One query returns a KEP with its issue, owners and evidence as lists. |
 | One graph per memory id | `memory/store.py` | Per-user memory is isolated from the shared `kep` graph and deletable as a unit. |
+| `GRAPH.COPY` | `scripts/graph_swap.py` | Blue-green reload: a graph loaded as `kep_fresh` is copied in as `kep`, the previous graph is kept as `kep_old` and the answer cache is cleared. |
 
 ## Quick start
 
@@ -163,8 +166,8 @@ Edit `.env`. The variables that matter for a first run:
 
 - `FALKORDB_PASSWORD` (required): a long random password.
 - `MCP_TOKEN` (required by the `mcp` service): at least 32 random bytes.
-- `GITHUB_TOKEN`: a read-only token. Without it the tracking issue and pull request sync hits the unauthenticated GitHub rate limit.
-- `LLM_PROVIDER`, `LLM_MODEL` and the matching API key and base URL variables: needed for `POST /v1/ask`. Everything else works without them.
+- `GITHUB_TOKEN` (required by `worker all`): a read-only token; a classic token with no scopes is enough. `sync-owners` and `sync-tickets` read the GitHub API and stop with an error without it (unless the `gh` CLI is logged in, which the image does not have).
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL` and `LLM_MODEL` (any OpenAI-compatible endpoint): needed for `POST /v1/ask`. Everything else works without them.
 - `SIGS`: the SIG directories in scope. The default is `sig-node,sig-scheduling,sig-apps`.
 
 Start the stack and build the graph:
@@ -178,10 +181,10 @@ The first `all` run clones the public repositories into the worker volume and ta
 
 - Web: http://localhost:3000
 - API: http://localhost:8000 (`/health`, `/ready`, `/docs`, `/v1/meta`)
-- MCP: http://localhost:8765/mcp (bearer `MCP_TOKEN`)
+- MCP: http://localhost:8765/mcp (bearer `MCP_TOKEN`; in the production deploy Caddy serves it at `https://<PUBLIC_HOST>/mcp`)
 - FalkorDB: `127.0.0.1:6380`, browser UI at http://localhost:3001
 
-Worker commands: `schema-apply`, `sync-docs`, `sync-history`, `sync-owners`, `sync-tickets`, `derive`, `all`, `stats`, `schedule`, `freshness`, `coordinate`. Add `--force` to re-read sources whose commits are unchanged.
+Worker commands: `schema-apply`, `sync-docs`, `sync-history`, `sync-owners`, `sync-tickets`, `derive`, `all`, `stats`, `schedule`, `freshness`, `coordinate`. Add `--force` to re-read sources whose commits are unchanged. `--graph <name>` loads into another graph; `scripts/graph_swap.py` then swaps a `kep_fresh` graph in as `kep` with `GRAPH.COPY`, keeping the previous one as `kep_old`.
 
 ## Development
 
@@ -211,9 +214,12 @@ cd apps/web
 pnpm install
 pnpm dev          # http://localhost:3000, proxies /api/v1/* to API_INTERNAL_URL (default http://localhost:8000)
 pnpm lint
+pnpm exec next typegen   # generates the route types tsc needs
 pnpm exec tsc --noEmit
 pnpm build
 ```
+
+The web app uses the Geist typefaces and a light and a dark theme (the system preference by default, `t` switches). Keyboard shortcuts are listed in a dialog (`?`) and on the About page; the list lives in `src/lib/shortcuts.ts`. `src/app` also serves `sitemap.xml`, `robots.txt`, a web manifest and an Open Graph image, the landing page carries JSON-LD, and the KEP, SIG and person pages carry breadcrumbs with a matching `BreadcrumbList`.
 
 CI (`.github/workflows/ci.yml`) runs the same commands in four jobs: `api`, `integration` (with a FalkorDB service container), `web` and `compose` (`docker compose config`). A pre-commit config is included.
 
@@ -234,11 +240,14 @@ All settings are read from the environment; `.env.example` lists every one with 
 | `ENHANCEMENTS_PIN_SHA`, `COMMUNITY_PIN_SHA`, `OWNERS_PIN_SHA` | empty | Pin a reproducible snapshot; empty means the default-branch head |
 | `REPO_CACHE_DIR` | `./repo_cache` | Where the worker keeps its clones |
 | `SIGS` | `sig-node,sig-scheduling,sig-apps` | SIG directories in scope |
-| `GITHUB_TOKEN` | empty | Read-only token for the GitHub API |
-| `LLM_PROVIDER`, `LLM_MODEL`, `LLM_MODEL_CHEAP` | see `.env.example` | Provider adapter and models for the answering agent |
+| `GITHUB_TOKEN` | empty | Read-only token for the GitHub API; required by `sync-owners`, `sync-tickets` and `all` |
+| `GITHUB_CACHE` | `auto` | Disk cache of GitHub responses: `auto` (record in `dev`/`test`, off in `prod`), `off`, `record`, `replay` |
+| `LLM_FALLBACK_MODELS` | see `.env.example` | Models tried in order when the primary model answers 429/503 |
+| `LLM_MODEL`, `LLM_MODEL_CHEAP`, `LLM_FALLBACK_MODELS` | see `.env.example` | Models for the answering agent (OpenAI-compatible endpoint) |
 | `LLM_DAILY_BUDGET_USD`, `LLM_REQUESTS_PER_MINUTE`, `LLM_MAX_RETRIES`, `LLM_TIMEOUT_SECONDS` | `5`, `25`, `4`, `60` | Spend and pacing limits |
-| `FINDINGS_AGENT_ENABLED`, `FINDINGS_AGENT_DAILY_USD` | `true`, `1` | The freshness agent that triages findings |
+| `FINDINGS_AGENT_ENABLED`, `FINDINGS_AGENT_DAILY_USD` | `true`, `1` | Switch and daily spend cap for the manual `python -m app.worker freshness` command, which triages findings with the LLM; nothing schedules it |
 | `ASK_RATE_LIMIT_PER_10M`, `ASK_DAILY_CAP` | `30`, `150` | Per-client and global limits on `POST /v1/ask` |
+| `TOOLS_RATE_LIMIT_PER_10M` | `300` | Per-client limit on `POST /v1/tools/{name}`; 429 answers carry `Retry-After` |
 | `TRUST_PROXY` | `false` | Honour `X-Forwarded-For` only behind a trusted proxy |
 | `MAX_BODY_BYTES` | `65536` | Request body limit |
 | `ADMIN_TOKEN` | empty | Protects admin endpoints such as `DELETE /v1/answers/cache` |
@@ -254,6 +263,7 @@ apps/
     src/app/
       agent/           answering loop, provider adapter, claim validator, answer cache
       api/             /v1 routes
+      data/            kep_brain.md, the product document ingested by sync-docs
       db/              FalkorDB pool, batch writer
       eval/            question set loader
       ingest/          sigs, docs, history, owners, tickets, discussion, findings, derive
@@ -264,20 +274,23 @@ apps/
       worker/          CLI (python -m app.worker), scheduler, freshness, coordinate
     tests/
   web/                 Next.js 16 app (pnpm)
-    src/app/           pages: /, /explore, /explore/kep/[number], /explore/sig/[key],
-                       /explore/person/[login], /audit, /tools, /memory, /eval, /about
-    src/components/    UI
-    src/lib/           API client, formatting
+    src/app/           pages: /, /ask, /explore, /explore/kep/[number], /explore/sig/[key],
+                       /explore/person/[login], /audit, /tools, /memory, /eval, /about;
+                       sitemap, robots, manifest and Open Graph image
+    src/components/    UI, including the evidence chain and its graph drawing
+    src/lib/           API client, formatting, routes, keyboard shortcuts
+    public/shots/      product screenshots shown on the landing page
 deploy/                production compose override and Caddy config
-docs/                  DECISIONS.md (ADRs), AI_USAGE.md, design/, engineering/, ops/, product/
+docs/                  README.md (index), DECISIONS.md, AI_USAGE.md, ops/DEPLOY.md, screenshots/
 evals/                 question set and hand-check records read by the API
+scripts/               graph_swap.py, the blue-green graph swap
 docker-compose.yml     falkordb, api, worker, mcp, web
 .github/               CI workflow, issue and PR templates, dependabot
 ```
 
 ## API overview
 
-All routes are under `/v1` and read the graph only. Interactive docs are at `/docs` when the API is running.
+All routes are under `/v1`. Every route reads the `kep` graph only; `POST /v1/ask` additionally writes the answer cache (`ops` graph) and the caller's memory graph, and the `DELETE` routes below write to those two. Interactive docs are at `/docs` when the API is running.
 
 | Method and path | Purpose |
 |---|---|
@@ -297,13 +310,13 @@ All routes are under `/v1` and read the graph only. Interactive docs are at `/do
 | `POST /v1/ask`, `POST /v1/ask/stream` | Cited answer or abstention; the stream variant uses server-sent events |
 | `DELETE /v1/answers/cache` | Clear the answer cache (needs `ADMIN_TOKEN`) |
 | `GET /v1/memory/me`, `DELETE /v1/memory/me`, `DELETE /v1/memory/me/facts/{key}`, `DELETE /v1/memory/me/playbooks/{key}` | Per-browser memory, selected by `X-Kep-Memory-Id` |
-| `GET /v1/agents/board` | Coordination board for the background agents |
+| `GET /v1/agents/board` | Board written by the manual `worker coordinate` and `worker freshness` commands |
 | `GET /v1/sync/status` | Last worker run, step by step |
 | `GET /v1/eval/questions`, `GET /v1/eval/latest` | The question set and the latest recorded run |
 
 `GET /health` and `GET /ready` sit outside `/v1`.
 
-The MCP server (`python -m app.mcp`) serves the same tool catalog, minus memory recall and the draft action, plus `get_graph_schema`. Every result is flagged `untrusted_content: true` because graph text comes from public GitHub content.
+The MCP server (`python -m app.mcp`) serves the same tool catalog, minus memory recall and the draft action, plus `get_graph_schema`. Every result is flagged `untrusted_content: true` because graph text comes from public GitHub content. In development it listens on `127.0.0.1:8765`; in the production deploy only Caddy is public and proxies `/mcp` to it (`deploy/Caddyfile`).
 
 ## Status
 
@@ -322,6 +335,8 @@ Issues and pull requests are welcome. The project has a single maintainer, so sm
 2. Run the checks listed in [Development](#development) before opening a pull request. The pull request template lists them.
 3. Any fact shown to users must come from the graph with a source URL.
 4. Record new design decisions as an ADR in `docs/DECISIONS.md`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## AI assistance
 

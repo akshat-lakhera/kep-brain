@@ -13,7 +13,7 @@ export default function PageError({ error, reset }: { error: Error & { digest?: 
       <h1 className="text-xl font-semibold">This page could not be shown</h1>
       <p className="text-fg-secondary">
         Something failed while building the page. The graph and the API may be fine; try again, and if it keeps failing
-        the request id below helps find the cause in the logs.
+        the digest below helps find the cause in the server logs.
       </p>
       {error.digest ? (
         <p className="font-mono text-xs text-fg-muted">digest {error.digest}</p>

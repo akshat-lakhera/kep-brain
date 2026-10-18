@@ -1,176 +1,245 @@
-import type { Route } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
-import { ArrowDown, ArrowRight } from "lucide-react";
+import { ArrowRight, Download, GitBranch, ShieldCheck } from "lucide-react";
 import { serverApi } from "@/lib/api/server";
 import type { FindingsSummary, Meta } from "@/lib/api/types";
+import { REPO_URL, SITE_DESCRIPTION, SITE_NAME, siteBase } from "@/lib/site";
 import { cx } from "@/components/ui";
+import { CountUp } from "@/components/CountUp";
+import { JsonLd } from "@/components/JsonLd";
+import { Mark } from "@/components/Mark";
+import { Screenshot } from "@/components/Screenshot";
+import askAnswer from "../../public/shots/ask-answer.png";
+import askChain from "../../public/shots/ask-chain.png";
+import kepDecisions from "../../public/shots/kep-decisions.png";
+import auditDraft from "../../public/shots/audit-draft.png";
 
-/** The product's front door: the mark, one sentence, one button. Everything below the fold explains it. */
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+/** The product's front door: what it is, the product itself in pictures, and how it earns its answers. */
 export default function LandingPage() {
   // The hero needs no data; the live numbers stream in behind it so the route can be prerendered.
   return (
-    <Suspense fallback={<Landing graph={null} sigs={[]} summary={null} />}>
-      <LiveLanding />
-    </Suspense>
+    <>
+      <Suspense fallback={<Landing graph={null} summary={null} />}>
+        <LiveLanding />
+      </Suspense>
+      <Suspense fallback={null}>
+        <SiteJsonLd />
+      </Suspense>
+    </>
+  );
+}
+
+/** What the site is, for crawlers. Read at request time so the URLs carry the deployment's base URL. */
+async function SiteJsonLd() {
+  await connection();
+  const url = siteBase();
+  return (
+    <>
+      <JsonLd data={{ "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url, description: SITE_DESCRIPTION }} />
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: SITE_NAME,
+          url,
+          description: SITE_DESCRIPTION,
+          applicationCategory: "DeveloperApplication",
+          operatingSystem: "Web",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+          license: "https://opensource.org/licenses/MIT",
+          sameAs: REPO_URL,
+        }}
+      />
+    </>
   );
 }
 
 async function LiveLanding() {
   const [meta, findings] = await Promise.all([serverApi.meta(), serverApi.findings({})]);
-  return (
-    <Landing
-      graph={meta.ok ? meta.data.graph : null}
-      sigs={meta.ok ? meta.data.sigs : []}
-      summary={findings.ok ? findings.data.summary : null}
-    />
-  );
+  return <Landing graph={meta.ok ? meta.data.graph : null} summary={findings.ok ? findings.data.summary : null} />;
 }
 
-function Landing({ graph, sigs, summary }: { graph: Meta["graph"] | null; sigs: string[]; summary: FindingsSummary | null }) {
+const IMAGE_SIZES = "(min-width: 1024px) 58vw, (min-width: 768px) 60vw, 100vw";
+
+function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: FindingsSummary | null }) {
   const fmt = (n: number) => n.toLocaleString("en-US");
 
   return (
     <div className="-mx-4 -my-6 md:-mx-6">
-      <section className="relative flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center px-6 text-center">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--c-accent-subtle),_transparent_60%)]"
-        />
-        <Mark className="h-20 w-20 md:h-24 md:w-24" />
-        <h1 className="display mt-8 text-[40px] font-semibold md:text-[64px]">KEP Brain</h1>
-        <p className="mt-5 max-w-[34ch] text-md text-fg-secondary md:text-lg">
-          The decision record of Kubernetes in one graph: who decided, on what evidence, and where the records disagree.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href={"/ask" as Route}
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-accent px-5 text-md font-medium text-on-accent hover:bg-accent-hover"
-          >
-            Open KEP Brain
-            <ArrowRight aria-hidden="true" size={16} strokeWidth={2} />
-          </Link>
-          <Link
-            href="/audit"
-            className="inline-flex h-11 items-center rounded-md border border-border-strong px-5 text-md font-medium hover:bg-surface"
-          >
-            See the audit
-          </Link>
-        </div>
-        {graph ? (
-          <p className="eyebrow mt-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            <span>{fmt(graph.keps)} KEPs</span>
-            <Dot />
-            <span>{fmt(graph.people)} people</span>
-            <Dot />
-            <span>{fmt(graph.findings)} records that disagree</span>
-            {sigs.length ? (
-              <>
-                <Dot />
-                <span className="font-mono normal-case tracking-normal">{sigs.join(" · ")}</span>
-              </>
+      {/* 1. Hero */}
+      <section className="overflow-x-clip px-4 pb-16 pt-12 md:px-6 md:pb-24 md:pt-20">
+        <div className="mx-auto grid max-w-[1200px] items-center gap-10 lg:grid-cols-12 lg:gap-12">
+          <div className="lg:col-span-5">
+            <p>
+              <span className="eyebrow-pill">The decision record of Kubernetes</span>
+            </p>
+            <h1 className="display mt-5 text-3xl text-fg md:text-4xl">Who decided, on what evidence, and what has gone stale.</h1>
+            <p className="mt-5 max-w-[46ch] text-lead text-fg-secondary">
+              KEP Brain reads the Kubernetes Enhancement Proposals, their tracking issues and pull requests into one graph, keeps
+              the history of every state, and answers only from records it can cite.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link href={"/ask" as Route} className="btn btn-primary">
+                Open KEP Brain
+                <ArrowRight aria-hidden="true" size={16} strokeWidth={2} />
+              </Link>
+              <Link href="/audit" className="btn btn-secondary">
+                See the audit
+              </Link>
+            </div>
+            {graph ? (
+              <dl className="mt-10 grid grid-cols-3 gap-4 border-t border-border pt-5">
+                <Count value={graph.keps} label="KEPs" />
+                <Count value={graph.people} label="people" />
+                <Count value={graph.findings} label="records that disagree" href="/audit" />
+              </dl>
             ) : null}
-          </p>
-        ) : null}
-        <a
-          href="#problem"
-          className="absolute bottom-6 inline-flex flex-col items-center gap-1 text-xs text-fg-muted hover:text-fg"
-          aria-label="Read how it works"
-        >
-          <span>What it does</span>
-          <ArrowDown aria-hidden="true" size={14} strokeWidth={1.5} />
-        </a>
+          </div>
+          <div className="lg:col-span-7">
+            <Screenshot
+              src={askAnswer}
+              alt="The Ask page in the dark theme: an answer explaining what a Kubernetes Enhancement Proposal is, with five numbered citations, beside its evidence chain of 11 nodes and 8 relations drawn as a diagram: the two KEP process documents and their sections, each node labelled, the five cited sections ringed, with a Diagram or List toggle above and a legend below."
+              path="/ask"
+              hero
+              sizes={IMAGE_SIZES}
+            />
+          </div>
+        </div>
       </section>
 
-      <Section id="problem" eyebrow="The problem" title="A KEP's state is written in four places. Nothing keeps them in step.">
-        <div className="grid gap-8 md:grid-cols-2">
-          <p className="text-md text-fg-secondary">
-            Every significant change to Kubernetes goes through a KEP, a Kubernetes Enhancement Proposal. Its state lives in the
-            kep.yaml file, in the tracking issue&apos;s state, labels and milestone, in the pull requests that changed it, and in the
-            KEPs it replaces or is replaced by. Different people write those records at different times.
-          </p>
-          <p className="text-md text-fg-secondary">
-            They drift apart, and the drift is invisible to anyone reading one record. A proposal can say implementable for
-            years after its issue was closed as completed. Anyone who filters KEPs by status, as the process says the metadata
-            is for, gets a wrong answer for those.
-            {summary ? (
-              <>
-                {" "}
-                In the SIGs loaded here, <strong className="text-fg">{fmt(summary.total)}</strong> records disagree across{" "}
-                <strong className="text-fg">{fmt(summary.flagged_keps)}</strong> KEPs right now.
-              </>
-            ) : null}
-          </p>
-        </div>
-      </Section>
+      {/* 2. Source strip */}
+      <section className="border-y border-border bg-surface/60 px-4 py-4 md:px-6">
+        <p className="mx-auto max-w-[1200px] text-center text-sm text-fg-muted">
+          Reads live from <span className="ident text-fg-secondary">kubernetes/enhancements</span>,{" "}
+          <span className="ident text-fg-secondary">kubernetes/community</span> and the{" "}
+          <span className="ident text-fg-secondary">OWNERS</span> files; nothing ships pre-populated.
+        </p>
+      </section>
 
+      {/* 3. Product sections */}
+      <Feature
+        id="ask"
+        eyebrow="Ask"
+        title="Every sentence cites a record in the graph."
+        link={{ href: "/ask" as Route, label: "Ask a question" }}
+        image={
+          <Screenshot
+            src={askChain}
+            alt="An answer to what the status implementable means for a KEP, with one citation, beside its evidence chain of seven nodes and five relations drawn as a diagram: the Kubernetes Enhancement Proposals document linked to its sections, the cited KEP Workflow section ringed."
+            path="/ask"
+            sizes={IMAGE_SIZES}
+          />
+        }
+      >
+        Ask why a KEP is designed the way it is, who approved it, or what changed since a release. The answer shows the path it
+        walked through the graph, and a validator drops any claim that no returned record supports.
+      </Feature>
+
+      <Feature
+        id="kep"
+        eyebrow="KEP page"
+        title="Who decided each state, with the commit and pull request."
+        link={{ href: "/explore" as Route, label: "Browse the KEPs" }}
+        flip
+        image={
+          <Screenshot
+            src={kepDecisions}
+            alt="The Decisions tab of KEP-268: two decisions, each with the date, the decision text, the deciders by role, and the evidence links to the commit, status change, pull request and comment on GitHub."
+            path="/explore/kep/268"
+            sizes={IMAGE_SIZES}
+          />
+        }
+      >
+        Each KEP page lists its facts, status history, people and lineage. Decisions are derived from the kep.yaml history and
+        the tracking issue, and each one names who decided, in which commit and pull request.
+      </Feature>
+
+      <Feature
+        id="audit"
+        eyebrow="Audit"
+        title="Both records, their sources, and a drafted fix. Nothing is posted."
+        link={{ href: "/audit", label: "See the audit" }}
+        image={
+          <Screenshot
+            src={auditDraft}
+            alt="The Audit page with a finding expanded and the Draft a fix dialog open: the issue title and Markdown body composed from the evidence, copy buttons, and a notice that nothing is posted."
+            path="/audit"
+            sizes={IMAGE_SIZES}
+          />
+        }
+      >
+        Five predicates compare kep.yaml, the tracking issue and the replacement declarations pairwise and write each
+        disagreement as a finding. Expand one for both sides linked to GitHub, who set each value, and an issue text composed
+        from the evidence for a human to paste.
+      </Feature>
+
+      {/* 4. How it works */}
       <Section id="how" eyebrow="How it works" title="Read everything live, keep the history, answer only from evidence.">
-        <ol className="grid gap-6 md:grid-cols-3">
-          <Step n="01" title="Ingest from public GitHub">
-            The worker clones kubernetes/enhancements and kubernetes/community, reads OWNERS files and fetches tracking issues,
-            timelines, pull requests and review threads. Nothing ships pre-populated.
+        <ol className="grid gap-4 md:grid-cols-3">
+          <Step icon={Download} title="Ingest from public GitHub">
+            Clones kubernetes/enhancements and kubernetes/community, reads the OWNERS files, and fetches tracking issues,
+            timelines, pull requests and review threads.
           </Step>
-          <Step n="02" title="One graph that remembers">
-            Everything lands in a FalkorDB graph. Each state edge carries the interval it was valid for, so &ldquo;current&rdquo; and
-            &ldquo;as of release X&rdquo; are the same graph with a different filter. Decisions are derived from the kep.yaml history
-            and linked to the people who made them.
+          <Step icon={GitBranch} title="One graph that remembers">
+            Every state edge carries the interval it was valid for, so &ldquo;current&rdquo; and &ldquo;as of a release&rdquo; are the
+            same graph with a different filter.
           </Step>
-          <Step n="03" title="Answers with sources, or none">
-            Five predicates compare the records pairwise and write each disagreement as a finding with both sides and a suggested
-            fix. Questions run over read-only graph tools; a validator checks every claim cites a record returned in that request,
-            or the answer is replaced by an abstention.
+          <Step icon={ShieldCheck} title="Answers with sources, or none">
+            Questions run over read-only graph tools. A validator checks that every claim cites a record read in that request,
+            or the answer becomes an abstention.
           </Step>
         </ol>
       </Section>
 
-      <Section id="use" eyebrow="What you can do" title="Four ways in.">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Door href={"/ask" as Route} title="Ask">
-            Why a KEP is designed the way it is, who approved it, who knows an area, what changed since a release. Every answer
-            shows the graph path it read.
-          </Door>
-          <Door href={"/explore" as Route} title="Explore">
-            KEPs with their facts, status history, decisions and lineage; SIGs with their leadership; people with what they own
-            and decide on.
-          </Door>
-          <Door href="/audit" title="Audit">
-            Every record that disagrees, both sides linked to GitHub, who set each value, and a drafted fix. Nothing is ever posted.
-          </Door>
-          <Door href="/tools" title="Tools">
-            The read-only graph tools behind every answer, callable directly, and the same catalog over MCP for other agents.
-          </Door>
-        </div>
+      {/* 5. One graph */}
+      <Section id="graph" eyebrow="The graph" title="One FalkorDB graph does all of it.">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Capability title="validity intervals">State edges carry valid-from and valid-to, so history is a filter, not a copy.</Capability>
+          <Capability title="MERGE sync">Every ingest run is idempotent: re-running it changes nothing that has not changed.</Capability>
+          <Capability title="read-only queries">Each tool runs a parameterised read-only query under a timeout; no tool writes.</Capability>
+          <Capability title="PageRank">Ranks decisions by how the records around them connect, to weigh what matters in an area.</Capability>
+          <Capability title="shortest paths">The evidence chain behind an answer is the shortest path between the records it cites.</Capability>
+          <Capability title="full-text search">KEPs, people and SIGs are found through a full-text index, in the search box and the tools.</Capability>
+        </ul>
       </Section>
 
-      <Section id="honest" eyebrow="Honest by design" title="What it will not do.">
-        <ul className="grid gap-4 text-md text-fg-secondary md:grid-cols-2">
-          <li className="border-l-2 border-accent pl-4">It never answers from outside knowledge. No cited record, no claim.</li>
-          <li className="border-l-2 border-accent pl-4">It never writes to GitHub. Fixes are drafted for a human to paste.</li>
-          <li className="border-l-2 border-accent pl-4">
-            It stores only public GitHub logins. E-mail addresses in the sources are never read into the graph.
+      {/* 6. By design */}
+      <Section id="honest" eyebrow="By design" title="Built to be checked.">
+        <ul className="grid gap-x-10 gap-y-5 text-md text-fg-secondary md:grid-cols-2">
+          <li className="border-l-2 border-accent pl-5">
+            Every claim cites a record returned for that question; otherwise the answer is an abstention.
           </li>
-          <li className="border-l-2 border-accent pl-4">
-            It shows its own uncertainty.
+          <li className="border-l-2 border-accent pl-5">GitHub is read-only: fixes are drafted for a human to paste.</li>
+          <li className="border-l-2 border-accent pl-5">
+            People are stored by public GitHub login only; e-mail addresses in the sources are never read into the graph.
+          </li>
+          <li className="border-l-2 border-accent pl-5">
+            Uncertainty is shown:
             {summary && summary.hand_checked != null ? (
               <>
                 {" "}
-                Today {fmt(summary.hand_checked)} of {fmt(summary.total)} findings are hand-checked, and the audit page says so.
+                today {fmt(summary.hand_checked)} of {fmt(summary.total)} findings are hand-checked, and the audit page says so.
               </>
             ) : (
-              <> The audit page reports how many findings have been hand-checked.</>
+              <> the audit page reports how many findings have been hand-checked.</>
             )}
           </li>
         </ul>
       </Section>
 
-      <section className="border-t border-border px-6 py-20 text-center">
-        <Mark className="mx-auto h-10 w-10" />
-        <h2 className="display mt-6 text-xl font-semibold md:text-2xl">Start with a question.</h2>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href={"/ask" as Route}
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-accent px-5 text-md font-medium text-on-accent hover:bg-accent-hover"
-          >
+      {/* 7. Final call */}
+      <section className="border-t border-border px-4 py-20 text-center md:px-6 md:py-24">
+        <Mark className="mx-auto h-12 w-12" />
+        <h2 className="display mt-6 text-2xl md:text-3xl">Start with a question.</h2>
+        <p className="mx-auto mt-3 max-w-[40ch] text-lead text-fg-secondary">
+          Or open a KEP and read who decided each state, and when the record last agreed with itself.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link href={"/ask" as Route} className="btn btn-primary">
             Open KEP Brain
             <ArrowRight aria-hidden="true" size={16} strokeWidth={2} />
           </Link>
@@ -183,63 +252,87 @@ function Landing({ graph, sigs, summary }: { graph: Meta["graph"] | null; sigs: 
   );
 }
 
+/** One live count under the hero: the number ticks up once; the label is the quiet part. */
+function Count({ value, label, href }: { value: number; label: string; href?: Route }) {
+  const number = <CountUp value={value} className="tabular text-[28px] font-semibold leading-8 tracking-[-0.02em] text-fg" />;
+  return (
+    // A term comes before its definition in the markup; the number is moved above its label visually.
+    <div className="flex flex-col">
+      <dt className="mt-0.5 text-sm text-fg-muted">{label}</dt>
+      <dd className="order-first">{href ? <Link href={href} className="quiet-link no-underline hover:underline">{number}</Link> : number}</dd>
+    </div>
+  );
+}
+
+/** A product section: text on one side, a framed screenshot on the other; `flip` swaps sides on desktop. */
+function Feature({
+  id,
+  eyebrow,
+  title,
+  link,
+  image,
+  flip = false,
+  children,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  link: { href: Route; label: string };
+  image: React.ReactNode;
+  flip?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-16 border-t border-border px-4 py-16 md:px-6 md:py-20">
+      <div className="mx-auto grid max-w-[1200px] items-center gap-8 lg:grid-cols-12 lg:gap-12">
+        <div className={cx("lg:col-span-5", flip && "lg:order-2")}>
+          <p>
+            <span className="eyebrow-pill">{eyebrow}</span>
+          </p>
+          <h2 className="display mt-4 text-2xl text-fg">{title}</h2>
+          <p className="mt-4 max-w-[50ch] text-md text-fg-secondary">{children}</p>
+          <Link href={link.href} className="quiet-link mt-5 inline-flex items-center gap-1.5 text-md font-medium">
+            {link.label}
+            <ArrowRight aria-hidden="true" size={16} strokeWidth={1.75} />
+          </Link>
+        </div>
+        <div className={cx("lg:col-span-7", flip && "lg:order-1")}>{image}</div>
+      </div>
+    </section>
+  );
+}
+
 function Section({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-16 border-t border-border px-6 py-20">
-      <div className="mx-auto max-w-[1100px]">
-        <p className="eyebrow">{eyebrow}</p>
-        <h2 className="display mt-3 max-w-[26ch] text-xl font-semibold md:text-2xl">{title}</h2>
+    <section id={id} className="scroll-mt-16 border-t border-border px-4 py-16 md:px-6 md:py-20">
+      <div className="mx-auto max-w-[1200px]">
+        <p>
+          <span className="eyebrow-pill">{eyebrow}</span>
+        </p>
+        <h2 className="display mt-4 max-w-[30ch] text-2xl text-fg">{title}</h2>
         <div className="mt-10">{children}</div>
       </div>
     </section>
   );
 }
 
-function Step({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+function Step({ icon: Icon, title, children }: { icon: typeof Download; title: string; children: React.ReactNode }) {
   return (
-    <li className="rounded-md border border-border bg-surface p-5">
-      <p className="font-mono text-xs text-accent">{n}</p>
-      <h3 className="mt-2 text-md font-semibold">{title}</h3>
+    <li className="rounded-md border border-border bg-surface p-5 transition-colors hover:border-border-strong">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-subtle text-accent">
+        <Icon aria-hidden="true" size={18} strokeWidth={1.75} />
+      </span>
+      <h3 className="mt-4 text-lg font-semibold tracking-[-0.01em]">{title}</h3>
       <p className="mt-2 text-fg-secondary">{children}</p>
     </li>
   );
 }
 
-function Door({ href, title, children }: { href: Route; title: string; children: React.ReactNode }) {
+function Capability({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="group rounded-md border border-border bg-surface p-5 hover:border-border-strong">
-      <h3 className="flex items-center justify-between text-md font-semibold">
-        {title}
-        <ArrowRight aria-hidden="true" size={16} strokeWidth={1.5} className="text-fg-muted group-hover:text-accent" />
-      </h3>
-      <p className="mt-2 text-fg-secondary">{children}</p>
-    </Link>
-  );
-}
-
-function Dot() {
-  return (
-    <span aria-hidden="true" className="text-border-strong">
-      ·
-    </span>
-  );
-}
-
-/** The mark: three linked nodes, the same drawing as the favicon. */
-function Mark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 100 100" className={cx("shrink-0", className)} role="img" aria-label="KEP Brain">
-      <rect width="100" height="100" rx="22" className="fill-surface stroke-border" strokeWidth="1" />
-      <g className="stroke-accent" strokeOpacity="0.8" strokeWidth="5.5" strokeLinecap="round">
-        <line x1="30" y1="30" x2="72" y2="50" />
-        <line x1="72" y1="50" x2="30" y2="72" />
-        <line x1="30" y1="30" x2="30" y2="72" />
-      </g>
-      <g className="fill-accent">
-        <circle cx="30" cy="30" r="10" />
-        <circle cx="72" cy="50" r="13" />
-        <circle cx="30" cy="72" r="10" />
-      </g>
-    </svg>
+    <li className="rounded-md border border-border bg-surface p-5 transition-colors hover:border-border-strong">
+      <h3 className="font-mono text-sm font-medium text-accent">{title}</h3>
+      <p className="mt-2 text-sm text-fg-muted">{children}</p>
+    </li>
   );
 }

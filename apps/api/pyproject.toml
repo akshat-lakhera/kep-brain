@@ -1,7 +1,7 @@
 [project]
 name = "app"
 version = "0.1.0"
-description = "Add your description here"
+description = "KEP Brain API, worker and MCP server: graph-backed answers over Kubernetes Enhancement Proposals"
 readme = "README.md"
 authors = [
     { name = "Akshat Lakhera", email = "akshatlnct2024@gmail.com" }
@@ -53,8 +53,8 @@ mypy_path = "src"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-# Third-party clients without type information; anthropic is optional at runtime.
-module = ["falkordb", "falkordb.*", "anthropic", "anthropic.*"]
+# Third-party clients without type information.
+module = ["falkordb", "falkordb.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

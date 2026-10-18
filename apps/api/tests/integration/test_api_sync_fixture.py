@@ -65,7 +65,11 @@ def test_recorded_runs_and_heartbeat(pool: FalkorPool, client: TestClient) -> No
     body = client.get("/v1/sync/status").json()
     run = body["last_run"]
     assert run["ok"] is True and run["started_at_iso"] and run["finished_at_iso"]
-    assert {k: v["count"] for k, v in run["steps"].items()} == {"schema-apply": 42, "sync-docs": 6, "stats": 20}
+    # A step's count is what RunRecorder counts in the target graph (runs.py): created + existing index entries
+    # for schema-apply, KEP nodes for sync-docs, every node for stats. Read the graph rather than hardcode.
+    keps, nodes = (_count(pool, "MATCH (n:KEP) RETURN count(n)"), _count(pool, "MATCH (n) RETURN count(n)"))
+    assert keps > 0 and nodes > keps
+    assert {k: v["count"] for k, v in run["steps"].items()} == {"schema-apply": 42, "sync-docs": keps, "stats": nodes}
     assert all(isinstance(v["ms"], int) for v in run["steps"].values())
     assert body["next_tick_iso"] == iso(nxt) and body["worker_last_seen_iso"]
 
@@ -84,3 +88,8 @@ def test_recorded_runs_and_heartbeat(pool: FalkorPool, client: TestClient) -> No
 
 def _boom() -> dict[str, int]:
     raise RuntimeError("clone missing")
+
+
+def _count(pool: FalkorPool, query: str) -> int:
+    out = pool.run_sync(Role.READER, GRAPH, query, read_only=True, timeout_ms=2000)
+    return int(out.rows[0][0]) if out.rows else 0

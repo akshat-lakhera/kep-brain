@@ -73,12 +73,21 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
 ];
 
-/** True when the key event comes from a field that takes text, so single-letter shortcuts must not fire. */
+/** Input types that take no text: a key pressed on one of these may still be a shortcut. */
+const NON_TEXT_INPUTS = new Set(["button", "checkbox", "radio", "range", "submit", "reset", "color", "file", "image"]);
+
+/**
+ * True when the key event comes from a field that takes text (or a select, where letters pick options), so
+ * single-letter shortcuts must not fire: inputs other than buttons and toggles, textareas, selects, editable content
+ * and anything inside a textbox or combobox widget.
+ */
 export function isTyping(target: EventTarget | null): boolean {
   const t = target as HTMLElement | null;
   if (!t || !t.tagName) return false;
   const tag = t.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable;
+  if (tag === "INPUT") return !NON_TEXT_INPUTS.has((t as HTMLInputElement).type);
+  if (tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable) return true;
+  return typeof t.closest === "function" && t.closest('[role="textbox"], [role="combobox"], [contenteditable=""], [contenteditable="true"]') !== null;
 }
 
 /** Dispatched on `document` to open the shortcuts dialog from a button. */

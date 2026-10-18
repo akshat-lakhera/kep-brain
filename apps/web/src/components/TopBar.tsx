@@ -3,9 +3,10 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Suspense, useState, type ReactNode } from "react";
+import { Suspense, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { KepSearch } from "./KepSearch";
+import { Mark } from "./Mark";
 import { ThemeToggle } from "./ThemeToggle";
 import { cx } from "./ui";
 
@@ -13,7 +14,6 @@ const NAV: { href: Route; label: string }[] = [
   { href: "/ask" as Route, label: "Ask" },
   { href: "/explore" as Route, label: "Explore" },
   { href: "/audit", label: "Audit" },
-  { href: "/memory", label: "Memory" },
   { href: "/about", label: "About" },
 ];
 
@@ -58,13 +58,14 @@ function Nav({ onClick, mobile }: { onClick?: () => void; mobile?: boolean }) {
   );
 }
 
-export function TopBar({ dataChip }: { dataChip: ReactNode }) {
+export function TopBar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="border-b border-border bg-surface">
+    <header className="hairline sticky top-0 z-40 bg-bg/70 backdrop-blur-md">
       <div className="mx-auto flex h-12 max-w-[1280px] items-center gap-3 px-4 md:px-6">
-        <Link href="/" className="mr-2 shrink-0 text-md font-semibold text-fg">
+        <Link href="/" className="display mr-2 inline-flex shrink-0 items-center gap-2 text-md text-fg">
+          <Mark className="h-[22px] w-[22px]" decorative />
           KEP Brain
         </Link>
         <nav aria-label="Main" className="hidden h-12 items-stretch md:flex">
@@ -72,7 +73,6 @@ export function TopBar({ dataChip }: { dataChip: ReactNode }) {
         </nav>
         <div className="ml-auto flex min-w-0 items-center gap-2">
           <KepSearch />
-          {dataChip}
           <ThemeToggle />
           <button
             type="button"
@@ -87,7 +87,7 @@ export function TopBar({ dataChip }: { dataChip: ReactNode }) {
         </div>
       </div>
       {open ? (
-        <nav id="mobile-nav" aria-label="Main" className="flex flex-col gap-1 border-t border-border px-4 py-2 md:hidden">
+        <nav id="mobile-nav" aria-label="Main" className="flex flex-col gap-1 border-t border-border bg-bg/95 px-4 py-2 md:hidden">
           <Nav onClick={() => setOpen(false)} mobile />
         </nav>
       ) : null}

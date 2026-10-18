@@ -7,6 +7,7 @@ answer text is emitted only after the deterministic validator accepted it
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import threading
@@ -37,7 +38,7 @@ from app.errors import AppError
 from app.memory import store as memory_store
 from app.schema.labels import ACTIVE_FINDING_STATES
 from app.settings import Settings
-from app.tools.base import ToolContext, ToolResult
+from app.tools.base import NON_EVIDENCE_LABELS, ToolContext, ToolResult
 from app.tools.registry import llm_tools
 
 log = structlog.get_logger(__name__)
@@ -110,6 +111,7 @@ class AskState:
     evidence: dict[str, Evidence] = field(default_factory=dict)
     row_urls: set[str] = field(default_factory=set)
     paths: list[list[str]] = field(default_factory=list)
+    call_paths: list[list[list[str]]] = field(default_factory=list)  # the paths each tool call read, for replay
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
@@ -153,10 +155,12 @@ class Agent:
         started = time.perf_counter()
         st = AskState(request_id=request_id, question=question)
         await emit("status", {"phase": "understanding", "label": "Reading the question"})
-        if self.cache is not None and not memory_id:
+        # Cached per question and graph version, for every caller: a hit is replayed and, when the caller has a
+        # memory id, still remembered as an episode of that user's graph.
+        if self.cache is not None:
             hit = await self.cache.get(question)
             if hit is not None:
-                return await self._replay(hit, request_id, started, emit)
+                return await self._replay(hit, request_id, started, emit, memory_id=memory_id)
         if SPEND.spent() >= self.settings.llm_daily_budget_usd:
             return await self._finish(st, started, emit, None, abstain="budget_exhausted", memory_id=memory_id)
 
@@ -212,7 +216,15 @@ class Agent:
                 tools = [] if last else specs
                 fit_turn(messages, tools, self.turn_token_budget)
                 st.prompt_tokens += estimate_tokens(messages, tools)
-                turn = await provider.complete(messages, tools)
+                # The wall budget is checked between steps; this bounds one turn too, so retries and fallbacks
+                # inside the provider cannot hold the request open past the budget plus one call's timeout.
+                remaining = started + self.wall_budget_s + self.settings.llm_timeout_seconds - time.perf_counter()
+                try:
+                    async with asyncio.timeout(max(remaining, 1.0)):
+                        turn = await provider.complete(messages, tools)
+                except TimeoutError as exc:
+                    log.warning("llm_turn_deadline", request_id=request_id, step=step)
+                    raise AppError("provider_error", {"reason": "time budget exceeded"}) from exc
                 st.input_tokens += turn.input_tokens
                 st.output_tokens += turn.output_tokens
                 log.info(
@@ -238,17 +250,57 @@ class Agent:
                     messages.append({"role": "user", "content": WRITE_NOW.removeprefix("Tool budget reached. ")})
                     continue
                 for call in turn.tool_calls:
-                    content = await self._run_tool(st, call, emit)
+                    content = await self._run_tool(st, call, emit, memory_id)
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": content})
         finally:
             WAIT_LISTENER.reset(listener)
 
         return await self._finish(
-            st, started, emit, final, memory_id=memory_id, findings=findings_recalled, recalled=recalled
+            st,
+            started,
+            emit,
+            final,
+            memory_id=memory_id,
+            findings=findings_recalled,
+            recalled=recalled,
+            personal=bool(memory_text),
         )
 
-    async def _replay(self, hit: dict[str, Any], request_id: str, started: float, emit: Emit) -> dict[str, Any]:
-        """Serve a cached answer with the events of a live one."""
+    async def _replay(
+        self, hit: dict[str, Any], request_id: str, started: float, emit: Emit, memory_id: str | None = None
+    ) -> dict[str, Any]:
+        """Serve a cached answer with the events of a live one: status, the recorded tool calls (with their
+        templates), the paths each read, the evidence, the numbered citations, the checked text, memory, done.
+
+        A cached answer was written without this user's memory, so `memory.recalled` is honestly empty; the
+        question is still remembered for a caller with a memory id, as after a live answer.
+        """
+        hit["request_id"] = request_id
+        # Replay-only fields of the entry: the tool records keep their templates, `paths` lists the paths each
+        # call read. Entries written before these were recorded replay with what they have.
+        records: list[dict[str, Any]] = hit.get("tool_calls") or []
+        call_paths: list[list[list[str]]] | None = hit.pop("paths", None)
+        graph: dict[str, Any] = hit.get("graph") or {}
+        graph = {"nodes": graph.get("nodes") or [], "edges": graph.get("edges") or []}
+        hit["graph"] = graph
+        hit["tool_calls"] = [{k: v for k, v in t.items() if k != "template"} for t in records]
+        hit.setdefault("citations", [])
+        remembered = await self._remember(memory_id, hit) if hit.get("answer_markdown") else []
+        evidence = [Evidence(evidence_id=n["id"], label=n["label"], key=n["key"], title=n["title"], url=n["url"])
+                    for n in graph["nodes"]]  # fmt: skip
+        await emit("status", {"phase": "querying_graph", "label": "Querying the graph"})
+        for i, record in enumerate(records):
+            await emit("tool_call", record)
+            paths = call_paths[i] if call_paths is not None and i < len(call_paths) else []
+            if paths:
+                keys = {k for p in paths for k in p[::2]}
+                await emit("path", _graph([ev for ev in evidence if ev.key in keys], paths))
+        if call_paths is None and graph["edges"]:
+            await emit("path", graph)  # an older entry: the whole chain it read, at once
+        for ev in evidence:
+            await emit("citation", {"evidence_id": ev.evidence_id, "source_type": ev.label, "title": ev.title,
+                                    "locator": ev.key, "url": ev.url})  # fmt: skip
+        await emit("status", {"phase": "checking", "label": "Checking every claim against the graph"})
         for c in hit["citations"]:
             await emit("citation", {"index": c["index"], "evidence_id": c["evidence_id"], "source_type": c["label"],
                                     "title": c["title"], "locator": c["key"], "url": c["url"]})  # fmt: skip
@@ -257,12 +309,29 @@ class Agent:
         for i in range(0, len(text), 40):
             await emit("token", {"text": text[i : i + 40]})
         latency = round((time.perf_counter() - started) * 1000)
-        hit.update(request_id=request_id, latency_ms=latency, usage={"input_tokens": 0, "output_tokens": 0})
-        await emit("memory", {"recalled": [], "remembered": [], "findings_recalled": hit.get("findings_recalled", [])})
+        hit.update(latency_ms=latency, usage={"input_tokens": 0, "output_tokens": 0},
+                   memory={"recalled": [], "remembered": remembered})  # fmt: skip
+        await emit("memory", {"recalled": [], "remembered": remembered,
+                              "findings_recalled": hit.get("findings_recalled", [])})  # fmt: skip
         await emit("done", {"request_id": request_id, "nodes_read": len(hit["graph"]["nodes"]),
                             "sources": len(hit["citations"]), "latency_ms": latency, "abstained": False,
                             "abstain_reason": None, "cached": True, "cached_at": hit["cached_at"]})  # fmt: skip
         return hit
+
+    async def _remember(self, memory_id: str | None, payload: dict[str, Any]) -> list[str]:
+        """Store the answered question in the caller's memory graph; a failing write never loses the answer."""
+        if not memory_id:
+            return []
+        try:
+            stored = await memory_store.remember(self.pool, memory_id, payload)
+        except AppError as exc:
+            log.warning("remember_failed", error=exc.code)
+            return []
+        except Exception as exc:  # noqa: BLE001 - the answer is already validated; memory is best effort
+            log.warning("remember_failed", error=str(exc)[:200])
+            return []
+        # False: an episode with this request id is already stored (a reused X-Request-ID); nothing new was kept.
+        return [str(payload["request_id"])] if stored else []
 
     async def _known_issues(self, question: str) -> tuple[list[dict[str, Any]], list[str]]:
         numbers = sorted({int(n) for n in _KEP_NUM.findall(question)})
@@ -277,7 +346,7 @@ class Agent:
         rows = out.as_dicts()
         return rows, [r["key"] for r in rows]
 
-    async def _run_tool(self, st: AskState, call: ToolCall, emit: Emit) -> str:
+    async def _run_tool(self, st: AskState, call: ToolCall, emit: Emit, memory_id: str | None = None) -> str:
         step = len(st.tool_calls) + 1
         record: dict[str, Any] = {"step": step, "name": call.name, "params": call.arguments, "ms": 0.0,
                                   "rows": 0, "truncated": False}  # fmt: skip
@@ -292,7 +361,7 @@ class Agent:
             content = json.dumps({"error": "tool budget reached; write the answer"})
         else:
             try:
-                ctx = ToolContext(pool=self.pool)
+                ctx = ToolContext(pool=self.pool, memory_id=memory_id)  # recall_memory needs the caller's id
                 result = await tool.invoke(ctx, {k: v for k, v in call.arguments.items() if v is not None})
                 content = _tool_content(result)
             except ValidationError as exc:
@@ -315,6 +384,7 @@ class Agent:
                 st.evidence.setdefault(ev.evidence_id, ev)
             collect_row_urls(result.rows, st.row_urls)
             st.paths.extend(result.paths)
+        st.call_paths.append(list(result.paths) if result is not None else [])
         st.tool_calls.append(record)
         await emit("tool_call", record)
         if result is not None:
@@ -336,13 +406,15 @@ class Agent:
         memory_id: str | None = None,
         findings: list[str] | None = None,
         recalled: list[str] | None = None,
+        personal: bool = False,
     ) -> dict[str, Any]:
         await emit("status", {"phase": "checking", "label": "Checking every claim against the graph"})
         if abstain:
             v = Validated("", [], True, abstain)
         elif final is None:
             v = Validated("", [], True, "unsupported_claims", ["no final answer"])
-        elif not st.evidence:
+        elif not any(ev.label not in NON_EVIDENCE_LABELS for ev in st.evidence.values()):
+            # Only citable records count: Finding, Episode and Fact rows alone cannot support an answer.
             v = Validated("", [], True, final.abstain_reason or "no_evidence" if final.abstained else "no_evidence")
         else:
             v = validate(final, st.evidence, st.row_urls)
@@ -353,17 +425,13 @@ class Agent:
             v.abstain_reason = "no_evidence"
 
         remembered: list[str] = []
-        if memory_id and not v.abstained:
-            try:
-                await memory_store.remember(
-                    self.pool, memory_id,
-                    {"request_id": st.request_id, "question": st.question, "answer_markdown": v.answer_markdown,
-                     "abstained": v.abstained, "citations": [c.model_dump() for c in v.citations],
-                     "tool_calls": st.tool_calls},
-                )  # fmt: skip
-                remembered.append(st.request_id)
-            except AppError as exc:
-                log.warning("remember_failed", error=exc.code)
+        if not v.abstained:
+            remembered = await self._remember(
+                memory_id,
+                {"request_id": st.request_id, "question": st.question, "answer_markdown": v.answer_markdown,
+                 "abstained": v.abstained, "citations": [c.model_dump() for c in v.citations],
+                 "tool_calls": st.tool_calls},
+            )  # fmt: skip
 
         for c in v.citations:
             await emit("citation", {"index": c.index, "evidence_id": c.evidence_id, "source_type": c.label,
@@ -391,8 +459,14 @@ class Agent:
             "usage": {"input_tokens": st.input_tokens, "output_tokens": st.output_tokens},
             "cached": False,
         }
-        if self.cache is not None and not memory_id and not v.abstained and v.answer_markdown:
-            await self.cache.put(st.question, response)
+        # The cache is shared by every caller, so an answer planned with one user's memory (the recalled context or
+        # the recall_memory tool) is never stored for others.
+        personal = personal or any(t.get("name") == MEMORY_TOOL for t in st.tool_calls)
+        if self.cache is not None and not v.abstained and v.answer_markdown and not personal:
+            # The entry also keeps what a replay needs to emit the events of a live answer: the tool records with
+            # their templates and the paths each call read (both bounded like the live events; `graph` is capped
+            # by _graph). `_replay` strips them again before the response leaves.
+            await self.cache.put(st.question, {**response, "tool_calls": st.tool_calls, "paths": st.call_paths})
         await emit("memory", {"recalled": recalled or [], "remembered": remembered,
                               "findings_recalled": findings or []})  # fmt: skip
         await emit("done", {"request_id": st.request_id, "nodes_read": len(st.evidence),

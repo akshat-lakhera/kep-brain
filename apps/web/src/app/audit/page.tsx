@@ -34,6 +34,7 @@ import {
 export const metadata: Metadata = {
   title: "Audit",
   description: "Kubernetes KEPs whose kep.yaml, tracking issue or replacement declarations disagree, with both records, who set each value and a drafted fix.",
+  alternates: { canonical: "/audit" },
 };
 
 type Search = { kind?: string; sig?: string; state?: string; finding?: string; since?: string };
@@ -268,7 +269,7 @@ function SectionHead({ id, title, lead, children }: { id: string; title: string;
   return (
     <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 id={`${id}-h`} className="text-md font-semibold">
+        <h2 id={`${id}-h`} className="display text-xl">
           {title}
         </h2>
         <p className="max-w-[80ch] text-sm text-fg-secondary">{lead}</p>

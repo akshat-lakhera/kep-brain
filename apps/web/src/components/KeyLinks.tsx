@@ -22,8 +22,17 @@ export function KeyLinks({ links }: { links: KeyLink[] }) {
       const link = links.find((l) => l.key === e.key);
       if (!link) return;
       e.preventDefault();
-      if (/^https?:\/\//.test(link.href)) window.open(link.href, "_blank", "noopener,noreferrer");
-      else router.push(link.href as Route);
+      if (/^https?:\/\//.test(link.href)) {
+        // A click on a real anchor counts as a user-gesture navigation from a keydown; window.open does not always.
+        const a = document.createElement("a");
+        a.href = link.href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else router.push(link.href as Route);
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);

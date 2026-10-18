@@ -7,7 +7,9 @@ value, `valid_to` the commit that removed it, or the open sentinel.
 
 `build_corpus` reads everything once; `sync_docs` writes the doc layer and
 `app.ingest.history.sync_history` writes commits and status changes from the
-same corpus.
+same corpus. `sync_docs` also writes the two process documents and the product
+document shipped with the package (`app.ingest.product`), so "what is a KEP"
+and "what is KEP Brain" are answered from cited records.
 """
 
 from __future__ import annotations
@@ -42,8 +44,9 @@ from app.ingest.common import (
     tree_url,
 )
 from app.ingest.kep_yaml import MILESTONE_STAGES, KepMeta, load_yaml, parse_kep_yaml, release_minor
+from app.ingest.product import PRODUCT_DOC_KEY, product_doc_rows
 from app.ingest.repos import clone_path, ensure_repo
-from app.ingest.sections import ParsedSection, headings, scrub, split_sections, summary_text
+from app.ingest.sections import ParsedSection, doc_sections, split_sections, summary_text
 from app.ingest.sigs import OrgChart, sync_sigs
 from app.schema.labels import VALID_TO_OPEN
 from app.settings import Settings
@@ -575,7 +578,7 @@ def _kep_row(src: KepSource, corpus: Corpus) -> dict[str, Any]:
         "stub": src.stub,
         "url": tree_url(ENHANCEMENTS_REPO, sha, src.key),
         "upstream_updated_at": updated[1] if updated else corpus.sha_time,
-        "source_url": tree_url(ENHANCEMENTS_REPO, sha, src.key),
+        "source_url": blob_url(ENHANCEMENTS_REPO, sha, src.yaml_path),  # the kep.yaml file itself; `url` is the folder
         "source_repo": ENHANCEMENTS_REPO,
         "source_path": src.yaml_path,
         "source_sha": blob,
@@ -644,24 +647,8 @@ def _process_docs(
         text = git.read(sha, path)
         if not text:
             continue
-        heads = headings(text)
-        h1 = next((h for h in heads if h.level == 1), None)
-        title = h1.text if h1 else fallback_title
-        # The definition lives under the title, before the first "##"; the splitter keeps only "##" sections, and a
-        # table of contents says nothing. The opening section is what "what is a KEP" is answered from.
-        parsed = [s for s in split_sections(text) if s.heading.strip().lower() != "table of contents"]
-        if h1:
-            lines = text.splitlines()
-            first = next((h.line for h in heads if h.level <= 2 and h.line > h1.line), len(lines))
-            intro = scrub("\n".join(lines[h1.line + 1 : first]).strip())
-            if intro:
-                parsed.insert(
-                    0, ParsedSection(anchor=h1.anchor, heading=h1.text, level=1, order=0, text=intro, kind="summary")
-                )
-        parsed = [
-            ParsedSection(anchor=s.anchor, heading=s.heading, level=s.level, order=i, text=s.text, kind=s.kind)
-            for i, s in enumerate(parsed)
-        ]
+        # The opening section (the definition under the title) is what "what is a KEP" is answered from.
+        title, parsed = doc_sections(text, fallback_title)
         url = blob_url(ENHANCEMENTS_REPO, sha, path)
         key = f"{ENHANCEMENTS_REPO}:{path}"
         blob = tree[path][1]
@@ -917,6 +904,13 @@ def sync_docs(writer: BatchWriter, corpus: Corpus, settings: Settings) -> dict[s
     section_rows.extend(p_sections)
     has_section.extend(p_has)
     next_rows.extend(p_next)
+    # The product document shipped with the package (app/data/kep_brain.md): "what is KEP Brain" is answered
+    # from the record and cited like any other section.
+    k_docs, k_sections, k_has, k_next = product_doc_rows()
+    doc_rows.extend(k_docs)
+    section_rows.extend(k_sections)
+    has_section.extend(k_has)
+    next_rows.extend(k_next)
     writer.upsert_nodes("Document", doc_rows)
     writer.upsert_nodes("Section", section_rows)
     writer.upsert_edges(
@@ -924,6 +918,11 @@ def sync_docs(writer: BatchWriter, corpus: Corpus, settings: Settings) -> dict[s
     )
     writer.upsert_edges("HAS_SECTION", "Document", "Section", has_section)
     writer.upsert_edges("NEXT", "Section", "Section", next_rows)
+    # A product section dropped from the shipped file leaves no stale node behind.
+    writer.query(
+        "MATCH (d:Document {key: $k})-[:HAS_SECTION]->(s:Section) WHERE NOT s.key IN $keys DETACH DELETE s",
+        {"k": PRODUCT_DOC_KEY, "keys": [s["key"] for s in k_sections]},
+    )
 
     # Metadata state edges, replayed over history
     intervals: list[Interval] = []

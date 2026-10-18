@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from app.ingest.findings import (
     Hit,
+    closed_reason_text,
     future_targets,
+    milestone_fix,
     plan_lifecycle,
     stage_conflicts,
+    stage_fix,
     suggested_fix_for_closed,
 )
 
@@ -71,8 +74,39 @@ def test_gone_findings_resolve_except_dismissed() -> None:
 
 def test_suggested_fix_by_state_reason() -> None:
     assert suggested_fix_for_closed("completed") == "set_status_implemented"
+    assert suggested_fix_for_closed("completed", "2023-01-12") == "set_status_implemented"
     assert suggested_fix_for_closed("not_planned") == "set_status_withdrawn_or_deferred"
     assert suggested_fix_for_closed(None) == "other"
+
+
+def test_bot_and_pre_reason_closures_only_ask_for_a_review() -> None:
+    # GitHub backfilled every closure before 2022-05-19 as "completed": the reason carries no information.
+    assert suggested_fix_for_closed("completed", "2019-09-09") == "review_status"
+    assert suggested_fix_for_closed("completed", "2022-05-18") == "review_status"
+    assert suggested_fix_for_closed("completed", "2022-05-19") == "set_status_implemented"
+    # The lifecycle bot closes inactive issues; that is not a decision about the KEP.
+    assert suggested_fix_for_closed("completed", "2024-01-01", ["lifecycle/rotten", "stage/beta"]) == "review_status"
+    assert suggested_fix_for_closed("not_planned", "2024-01-01", ["lifecycle/stale"]) == "review_status"
+    assert closed_reason_text("completed", "2019-09-09") == "reason not recorded"
+    assert closed_reason_text("completed", "2023-01-12") == "completed"
+    assert closed_reason_text(None, "2023-01-12") == "no reason"
+
+
+def test_milestone_fix_by_issue_state_and_release_window() -> None:
+    # Latest shipped release v1.37: v1.38 is in development, v1.39 is next; both are normal in-flight drift.
+    assert milestone_fix("open", "v1.38", 37) == "in_flight_wait_for_freeze"
+    assert milestone_fix("open", "v1.39", 37) == "in_flight_wait_for_freeze"
+    assert milestone_fix("open", "v1.40", 37) == "update_latest_milestone"
+    assert milestone_fix("open", "v1.36", 37) == "update_latest_milestone"
+    assert milestone_fix("open", "v1.38", None) == "update_latest_milestone"  # no shipped release known
+    assert milestone_fix("closed", "v1.25", 37) == "none_historical_label"
+
+
+def test_stage_fix_prefers_the_newer_record() -> None:
+    assert stage_fix(1_700_000_000, 1_600_000_000) == "none_historical_label"  # kep.yaml changed after the close
+    assert stage_fix(1_600_000_000, 1_700_000_000) == "update_stage"
+    assert stage_fix(None, 1_700_000_000) == "update_stage"
+    assert stage_fix(1_700_000_000, None) == "update_stage"
 
 
 def test_stage_conflicts() -> None:

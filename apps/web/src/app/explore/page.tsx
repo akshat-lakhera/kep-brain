@@ -8,15 +8,18 @@ import { exploreApi, explorePaths, isNotFound } from "@/lib/api/explore";
 import type { ApiResult } from "@/lib/api/core";
 import type { ChangesResponse, Finding, FindingsResponse } from "@/lib/api/types";
 import type { SigCard } from "@/lib/api/types-explore";
-import { isoUtc, pluralS } from "@/lib/format";
+import { isoUtc, plural, pluralS } from "@/lib/format";
+import { routes } from "@/lib/routes";
 import { Card, Dash, EmptyState, ErrorState, ExtLink, KepLink, PageHeader, PersonLink, SigLink, SkeletonBlock, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { ExploreSearch } from "@/components/explore/ExploreSearch";
+import { ReleaseSelect } from "@/components/ReleaseSelect";
 import { RowsPerPage } from "@/components/explore/RowsPerPage";
 import { ROWS_DEFAULT, parseRows } from "@/lib/rows";
 
 export const metadata: Metadata = {
   title: "Explore",
   description: "Search Kubernetes KEPs by number or title, browse SIGs and the people who author, review and approve them.",
+  alternates: { canonical: "/explore" },
 };
 
 export default function ExplorePage(props: PageProps<"/explore">) {
@@ -160,34 +163,60 @@ function SigStrip({ result, loadedSigs }: { result: ApiResult<{ items: SigCard[]
   }
   const items = result.data.items;
   if (items.length === 0) return <EmptyState title="No SIG loaded">The API lists no SIG; nothing from sigs.yaml has been read yet.</EmptyState>;
+  const loaded = items.filter((s) => s.in_scope);
+  const rest = items.filter((s) => !s.in_scope);
   return (
-    <section aria-label="SIGs" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((s) => (
-        <div key={s.key} className="rounded-md border border-border bg-surface p-3">
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            <SigLink sig={s.key} className="quiet-link font-mono font-medium" />
-            {s.display_name && s.display_name !== s.key ? <span className="text-sm text-fg-secondary">{s.display_name}</span> : null}
-            {!s.in_scope ? <span className="text-xs text-fg-muted">not loaded</span> : null}
+    <section aria-label="SIGs" className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {loaded.map((s) => (
+          <SigTile key={s.key} s={s} />
+        ))}
+      </div>
+      {rest.length > 0 ? (
+        <details className="group">
+          <summary className="cursor-pointer text-sm text-fg-secondary hover:text-fg">
+            {plural(rest.length, "more SIG")} not loaded in this instance
+          </summary>
+          <p className="mt-2 text-xs text-fg-muted">
+            These SIGs come from sigs.yaml; their KEPs are not loaded, so the counts below only reflect KEPs that list them as a
+            participating SIG.
           </p>
-          <p className="mt-1 text-sm">
-            <span className="tabular">{s.keps.toLocaleString("en-US")}</span> KEPs ·{" "}
-            <span className="tabular">{s.open_findings.toLocaleString("en-US")}</span> open finding{pluralS(s.open_findings)}
-          </p>
-          <p className="mt-1 text-sm text-fg-secondary">
-            Chairs:{" "}
-            {s.chairs.length ? (
-              <span className="inline-flex flex-wrap gap-x-2">
-                {s.chairs.map((p) => (
-                  <PersonLink key={p.login} login={p.login} />
-                ))}
-              </span>
-            ) : (
-              <Dash />
-            )}
-          </p>
-        </div>
-      ))}
+          <div className="reveal mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {rest.map((s) => (
+              <SigTile key={s.key} s={s} />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </section>
+  );
+}
+
+function SigTile({ s }: { s: SigCard }) {
+  return (
+    <div className="rounded-md border border-border bg-surface p-3">
+      <p className="flex flex-wrap items-baseline gap-x-2">
+        <SigLink sig={s.key} className="quiet-link font-mono font-medium" />
+        {s.display_name && s.display_name !== s.key ? <span className="text-sm text-fg-secondary">{s.display_name}</span> : null}
+        {!s.in_scope ? <span className="text-xs text-fg-muted">not loaded</span> : null}
+      </p>
+      <p className="mt-1 text-sm">
+        <span className="tabular">{s.keps.toLocaleString("en-US")}</span> KEP{pluralS(s.keps)} ·{" "}
+        <span className="tabular">{s.open_findings.toLocaleString("en-US")}</span> open finding{pluralS(s.open_findings)}
+      </p>
+      <p className="mt-1 text-sm text-fg-secondary">
+        Chairs:{" "}
+        {s.chairs.length ? (
+          <span className="inline-flex flex-wrap gap-x-2">
+            {s.chairs.map((p) => (
+              <PersonLink key={p.login} login={p.login} />
+            ))}
+          </span>
+        ) : (
+          <Dash />
+        )}
+      </p>
+    </div>
   );
 }
 
@@ -203,13 +232,13 @@ function OpenFindings({
   since?: string;
 }) {
   if (!result.ok) return <ErrorState error={result.error} what="Findings" />;
-  const byKep = new Map<string, { number: number | null; title: string | null; sig: string | null; kinds: string[]; first: Finding }>();
+  const byKep = new Map<string, { number: number | null; title: string | null; sig: string | null; findings: Finding[] }>();
   for (const f of result.data.items) {
     const cur = byKep.get(f.kep_path);
-    if (cur) cur.kinds.push(f.kind);
-    else byKep.set(f.kep_path, { number: f.kep_number, title: f.kep_title, sig: f.owning_sig, kinds: [f.kind], first: f });
+    if (cur) cur.findings.push(f);
+    else byKep.set(f.kep_path, { number: f.kep_number, title: f.kep_title, sig: f.owning_sig, findings: [f] });
   }
-  const rows = Array.from(byKep.entries()).sort((a, b) => b[1].kinds.length - a[1].kinds.length || (a[1].number ?? 0) - (b[1].number ?? 0));
+  const rows = Array.from(byKep.entries()).sort((a, b) => b[1].findings.length - a[1].findings.length || (a[1].number ?? 0) - (b[1].number ?? 0));
   if (rows.length === 0)
     return <EmptyState title="No open findings">Every finding in the graph is closed or triaged; the detector found no open disagreement.</EmptyState>;
   const slice = paginate(rows, perPage, page);
@@ -221,8 +250,7 @@ function OpenFindings({
         <caption className="mb-1 text-left text-xs text-fg-muted">
           <span className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span>
-              {rows.length.toLocaleString("en-US")} KEPs with {result.data.items.length.toLocaleString("en-US")} open findings, most findings
-              first.{" "}
+              {plural(rows.length, "KEP")} with {plural(result.data.items.length, "open finding")}, most findings first.{" "}
               <Link href={"/audit" as Route} className="quiet-link">
                 Open the audit
               </Link>
@@ -247,14 +275,10 @@ function OpenFindings({
               <td className={tdClass}>{r.title ?? <Dash />}</td>
               <td className={tdClass}>{r.sig ? <SigLink sig={r.sig} /> : <Dash />}</td>
               <td className={tdClass}>
-                <span className="tabular">{r.kinds.length}</span>
-                {r.kinds.map((k, i) => (
-                  <Link
-                    key={`${k}-${i}`}
-                    href={`/audit?finding=${encodeURIComponent(r.first.key)}` as Route}
-                    className="quiet-link ml-2 font-mono text-xs"
-                  >
-                    {k}
+                <span className="tabular">{r.findings.length}</span>
+                {r.findings.map((f) => (
+                  <Link key={f.key} href={routes.finding(f.key)} className="quiet-link ml-2 font-mono text-xs">
+                    {f.kind}
                   </Link>
                 ))}
               </td>
@@ -316,19 +340,11 @@ function Changes({
         ) : null}
       </p>
       {d.releases.length ? (
-        <p className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-fg-secondary">Releases:</span>
-          {d.releases.map((r) => (
-            <Link
-              key={r}
-              href={exploreHref({ since: r, crows: rows === ROWS_DEFAULT ? undefined : rows }, "changes")}
-              className={cx("quiet-link rounded-sm border px-1.5 font-mono text-xs", r === d.since ? "border-accent" : "border-border")}
-              aria-current={r === d.since ? "true" : undefined}
-            >
-              {r}
-            </Link>
-          ))}
-        </p>
+        <ReleaseSelect
+          current={d.since ?? null}
+          recentHref={exploreHref({ crows: rows === ROWS_DEFAULT ? undefined : rows }, "changes")}
+          options={d.releases.map((r) => ({ release: r, href: exploreHref({ since: r, crows: rows === ROWS_DEFAULT ? undefined : rows }, "changes") }))}
+        />
       ) : null}
       {d.items.length === 0 ? (
         <EmptyState title="No change in this window">
@@ -357,7 +373,8 @@ function Changes({
                     <KepLink number={c.kep_number} /> <span className="text-sm">{c.kep_title}</span>
                     {c.owning_sig ? (
                       <span className="block text-xs">
-                        <SigLink sig={c.owning_sig} />
+                        {/* A 24 px high target (WCAG 2.5.8): it sits right under the KEP link. */}
+                        <SigLink sig={c.owning_sig} className="inline-flex min-h-6 items-center" />
                       </span>
                     ) : null}
                   </td>

@@ -3,11 +3,14 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { cache } from "react";
 import { apiInternalUrl } from "@/lib/api/server";
 import { exploreApi, explorePaths, exploreTemplates, isNotFound, routeServed } from "@/lib/api/explore";
 import type { PersonOut } from "@/lib/api/types-explore";
 import type { KepCard } from "@/lib/api/types";
 import { isoDate, isoUtc, pluralS } from "@/lib/format";
+import { routes } from "@/lib/routes";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Card, Chip, Dash, EmptyState, ErrorState, ExtLink, KepLink, SigLink, TableWrap, cx, tableClass, tdClass, thClass } from "@/components/ui";
 import { KepTable } from "@/components/explore/KepTable";
 import { Tabs } from "@/components/Tabs";
@@ -15,9 +18,31 @@ import { PagedTable } from "@/components/PagedTable";
 
 const LOGIN = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})$/;
 
+/** One person read per request, shared by the metadata and the page. */
+const loadPerson = cache(async (login: string) => {
+  await connection();
+  return exploreApi(apiInternalUrl()).person(login);
+});
+
 export async function generateMetadata(props: PageProps<"/explore/person/[login]">): Promise<Metadata> {
   const { login } = await props.params;
-  return { title: `@${login}`, description: `@${login}: SIG roles, KEPs authored, reviewed and approved, and the decisions they took part in.` };
+  if (!LOGIN.test(login)) return { title: "Person" };
+  const canonical = routes.person(login);
+  const res = await loadPerson(login);
+  if (!res.ok) {
+    return {
+      title: `@${login}`,
+      description: `@${login}: SIG roles, KEPs authored, reviewed and approved, and the decisions they took part in.`,
+      alternates: { canonical },
+    };
+  }
+  const p = res.data;
+  const roles = p.keps.authored.length + p.keps.reviews.length + p.keps.approves.length + p.keps.prr_approved.length;
+  return {
+    title: `@${p.login}`,
+    description: `@${p.login} on Kubernetes KEPs: ${roles.toLocaleString("en-US")} KEP role${pluralS(roles)} as author, reviewer, approver or PRR approver, ${p.decisions.length.toLocaleString("en-US")} decision${pluralS(p.decisions.length)}, SIG leadership roles and OWNERS entries.`,
+    alternates: { canonical },
+  };
 }
 
 // Blocking route (no Suspense above the fetch): a missing login must answer with a real HTTP 404.
@@ -26,16 +51,15 @@ export const instant = false;
 export default async function PersonPage(props: PageProps<"/explore/person/[login]">) {
   const { login } = await props.params;
   if (!LOGIN.test(login)) notFound();
-  await connection();
   const api = exploreApi(apiInternalUrl());
-  const res = await api.person(login);
+  const res = await loadPerson(login);
   if (!res.ok) {
     const missing = isNotFound(res.error);
     const served = missing ? routeServed(await api.openapi(), exploreTemplates.person) : true;
     if (missing && served) notFound();
     return (
       <div className="space-y-4">
-        <h1 className="display mt-1 text-2xl font-semibold">
+        <h1 className="display mt-1 text-3xl">
           <span className="font-mono">@{login}</span>
         </h1>
         {missing ? (
@@ -60,8 +84,14 @@ export default async function PersonPage(props: PageProps<"/explore/person/[logi
   const total = counts.authored + counts.reviews + counts.approves + counts.prr;
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Explore", href: "/explore" as Route },
+          { label: `@${p.login}`, href: routes.person(p.login) },
+        ]}
+      />
       <header className="border-b border-border pb-6">
-        <h1 className="display mt-1 text-2xl font-semibold">
+        <h1 className="display mt-1 text-3xl">
           <span className="font-mono">@{p.login}</span>
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -90,10 +120,10 @@ export default async function PersonPage(props: PageProps<"/explore/person/[logi
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <Card title="Roles" id="roles">
+        <Card title="Roles" id="roles" className="min-w-0">
           <Roles p={p} />
         </Card>
-        <Card title="Who knows this area" id="connected">
+        <Card title="Who knows this area" id="connected" className="min-w-0">
           <Connectivity p={p} />
         </Card>
       </div>

@@ -8,10 +8,13 @@ import { pageHref } from "@/lib/routes";
 import { clientApi } from "@/lib/api/client";
 import { badgeFor, mergeGraph } from "@/lib/graph";
 import { CONTAINER_LABELS, CONTAINER_RELS, RANKS, phraseFor, rankFor, type Dir } from "@/lib/relations";
+import { GraphView } from "./GraphView";
 import { ExtLink, cx } from "./ui";
 
 const CAP = 5;
 const KEEP_OPEN_KEY = "kep-brain.chain.keep-open";
+/** Above this many nodes the drawing is a hairball; the list opens by default instead. */
+const DIAGRAM_MAX_NODES = 120;
 
 interface Indexed {
   nodes: Map<string, GraphNode>;
@@ -231,6 +234,11 @@ export function EvidenceChain({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<Set<string>>(new Set());
   const keepOpen = useSyncExternalStore(subscribeKeepOpen, readKeepOpen, () => false);
+  // The reader's choice, or null for the default: the diagram when the graph has relations and is small enough to read.
+  // Derived here rather than stored, so a graph that arrives after the first render (an answer streaming in) still
+  // opens as a diagram.
+  const [chosenView, setView] = useState<"diagram" | "list" | null>(null);
+  const view: "diagram" | "list" = chosenView ?? (graph.edges.length > 0 && graph.nodes.length < DIAGRAM_MAX_NODES ? "diagram" : "list");
   // When the seed graph changes (an answer streaming in), re-open along the new cited path.
   const [seedUsed, setSeedUsed] = useState(seed);
   if (seedUsed !== seed) {
@@ -315,7 +323,7 @@ export function EvidenceChain({
             type="button"
             aria-expanded={isOpen}
             onClick={() => toggleNode(path, parentPath, node)}
-            className={cx("inline-flex items-center gap-1 rounded-sm px-1 font-mono text-sm hover:bg-surface-subtle", marked && "bg-accent-subtle text-accent", isRoot && "font-semibold")}
+            className={cx("inline-flex min-h-6 items-center gap-1 rounded-sm px-1 font-mono text-sm hover:bg-surface-subtle", marked && "bg-accent-subtle text-accent", isRoot && "font-semibold")}
             title={isOpen ? "Fold" : "Open"}
           >
             {isOpen ? <ChevronDown aria-hidden="true" size={14} strokeWidth={1.5} /> : <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />}
@@ -324,16 +332,16 @@ export function EvidenceChain({
           <span className="text-xs text-fg-muted">{node.label}</span>
           {node.title && node.title !== badgeFor(node) ? <span className="min-w-0 truncate text-sm" title={node.title}>{node.title}</span> : null}
           {cites.map((n) => (
-            <a key={n} href={`#source-${n}`} className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-sm bg-accent-subtle px-1 font-mono text-xs text-accent" aria-label={`Source ${n}`}>
+            <a key={n} href={`#source-${n}`} className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm bg-accent-subtle px-1 font-mono text-xs text-accent" aria-label={`Source ${n}`}>
               {n}
             </a>
           ))}
           {href ? (
-            <Link href={href} className="quiet-link text-xs">
+            <Link href={href} className="quiet-link inline-flex min-h-6 items-center text-xs">
               open page
             </Link>
           ) : node.url ? (
-            <ExtLink href={node.url} label={`${badgeFor(node)} source`}>
+            <ExtLink href={node.url} label={`${badgeFor(node)} source`} className="min-h-6">
               <span className="text-xs">source</span>
             </ExtLink>
           ) : null}
@@ -355,7 +363,7 @@ export function EvidenceChain({
       );
     }
     return (
-      <ul className="border-l border-border pl-3">
+      <ul className="reveal border-l border-border pl-3">
         {groups.map((grp) => {
           const gkey = `${path}#${grp.key}`;
           const open = openGroups.has(gkey);
@@ -368,7 +376,7 @@ export function EvidenceChain({
                 {grp.phrase} <span className="tabular text-fg-muted">({grp.count})</span>
               </button>
               {open ? (
-                <ul className="ml-1">
+                <ul className="reveal ml-1">
                   {rows.map((r) =>
                     renderNode(
                       r.node.id,
@@ -400,21 +408,49 @@ export function EvidenceChain({
     );
   }
 
+  const canDraw = merged.edges.length > 0;
+  const showDiagram = view === "diagram" && canDraw;
+  const segment = (v: "diagram" | "list", text: string, disabled?: boolean) => (
+    <button
+      type="button"
+      aria-pressed={view === v}
+      disabled={disabled}
+      onClick={() => setView(v)}
+      className={cx(
+        "h-7 px-2.5 text-xs first:rounded-l-sm last:rounded-r-sm disabled:opacity-50",
+        view === v ? "bg-surface-subtle font-medium text-fg" : "text-fg-secondary hover:text-fg",
+      )}
+    >
+      {text}
+    </button>
+  );
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-fg-muted">
         <span>
           {merged.nodes.length.toLocaleString("en-US")} nodes · {merged.edges.length.toLocaleString("en-US")} relations
-          {highlight.size ? " · highlighted rows are cited" : ""}
+          {highlight.size && !showDiagram ? " · highlighted rows are cited" : ""}
         </span>
-        <label className="inline-flex items-center gap-1.5">
-          <input type="checkbox" checked={keepOpen} onChange={(e) => setKeep(e.target.checked)} />
-          keep open
-        </label>
+        <span className="inline-flex items-center gap-3">
+          {!showDiagram ? (
+            <label className="inline-flex min-h-6 items-center gap-1.5">
+              <input type="checkbox" checked={keepOpen} onChange={(e) => setKeep(e.target.checked)} className="h-4 w-4 accent-accent" />
+              keep open
+            </label>
+          ) : null}
+          <span role="group" aria-label="Evidence view" className="inline-flex overflow-hidden rounded-sm border border-border-input bg-surface">
+            {segment("diagram", "Diagram", !canDraw)}
+            {segment("list", "List")}
+          </span>
+        </span>
       </div>
-      <ul aria-label={label} className="text-sm">
-        {roots.map((r) => renderNode(r, "", new Set(), 0))}
-      </ul>
+      {showDiagram ? (
+        <GraphView graph={merged} highlightIds={highlightIds} citations={citations} />
+      ) : (
+        <ul aria-label={label} className="text-sm">
+          {roots.map((r) => renderNode(r, "", new Set(), 0))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import type { ToolResult } from "@/lib/api/types";
 import { ms, pluralS } from "@/lib/format";
@@ -8,15 +8,19 @@ import { pathsToGraph } from "@/lib/toolgraph";
 import { RowsTable } from "./DataView";
 import { EvidenceChain } from "./EvidenceChain";
 import { Tabs } from "./Tabs";
+import { useToast } from "./Toast";
 import { Chip, EmptyState, ExtLink, cx } from "./ui";
 
-/** A ToolResult as a reader checks it: rows, evidence links, the traversed paths as an evidence chain, and the Cypher template. */
-export function ToolResultView({ name, params, result }: { name: string; params: Record<string, unknown>; result: ToolResult }) {
+/**
+ * A ToolResult as a reader checks it: rows, evidence links, the traversed paths as an evidence chain, and the Cypher
+ * template. Memoised: typing in the tool's form above must not re-render a large result.
+ */
+export const ToolResultView = memo(function ToolResultView({ name, params, result }: { name: string; params: Record<string, unknown>; result: ToolResult }) {
   const graph = useMemo(() => pathsToGraph(result), [result]);
   const n = result.rows.length;
   return (
     <div className="space-y-3">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-secondary" role="status">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-secondary">
         <span className="font-mono text-fg">{name}</span>
         <span>·</span>
         <span className="tabular">
@@ -45,7 +49,7 @@ export function ToolResultView({ name, params, result }: { name: string; params:
       />
     </div>
   );
-}
+});
 
 function Rows({ result }: { result: ToolResult }) {
   if (result.rows.length === 0) {
@@ -101,10 +105,12 @@ function Paths({ result, graph }: { result: ToolResult; graph: ReturnType<typeof
 
 function Cypher({ name, params, template }: { name: string; params: Record<string, unknown>; template: string }) {
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
   async function copy() {
     try {
       await navigator.clipboard.writeText(template);
       setCopied(true);
+      toast("Cypher template copied");
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);

@@ -60,6 +60,14 @@ def _is_timeout(exc: Exception) -> bool:
     return "timeout" in text or "timed out" in text
 
 
+def _is_missing_graph(exc: Exception) -> bool:
+    """`GRAPH.RO_QUERY` on a key that does not exist yet (fresh database, before the first worker run)."""
+    return "empty key" in str(exc).lower()
+
+
+EMPTY = QueryOutput(header=[], rows=[], run_time_ms=0.0, stats={})
+
+
 class FalkorPool:
     """One lazily built client per role, shared across threads."""
 
@@ -84,23 +92,28 @@ class FalkorPool:
         return role.value, secret.get_secret_value()
 
     def client(self, role: Role) -> FalkorDB:
+        existing = self._clients.get(role)
+        if existing is not None:
+            return existing
+        username, password = self._credentials(role)
+        # Built outside the lock: the constructor connects, and while the database restarts it can block for the
+        # connect timeout; holding the lock would queue every other role behind it. A losing racer is closed.
+        client = FalkorDB(
+            host=self._settings.falkordb_host,
+            port=self._settings.falkordb_port,
+            username=username,
+            password=password,
+            socket_timeout=self._settings.falkordb_timeout_seconds + WRITE_TIMEOUT_MS / 1000,
+            socket_connect_timeout=self._settings.falkordb_timeout_seconds,
+            health_check_interval=30,
+            client_name=f"kep-brain:{role.value}",
+        )
         with self._lock:
-            existing = self._clients.get(role)
-            if existing is not None:
-                return existing
-            username, password = self._credentials(role)
-            client = FalkorDB(
-                host=self._settings.falkordb_host,
-                port=self._settings.falkordb_port,
-                username=username,
-                password=password,
-                socket_timeout=self._settings.falkordb_timeout_seconds + WRITE_TIMEOUT_MS / 1000,
-                socket_connect_timeout=self._settings.falkordb_timeout_seconds,
-                health_check_interval=30,
-                client_name=f"kep-brain:{role.value}",
-            )
-            self._clients[role] = client
-            return client
+            winner = self._clients.setdefault(role, client)
+        if winner is not client:
+            with contextlib.suppress(Exception):
+                client.connection.close()
+        return winner
 
     def graph(self, role: Role, name: str) -> Graph:
         return self.client(role).select_graph(name)
@@ -136,6 +149,10 @@ class FalkorPool:
         except ResponseError as exc:
             if _is_timeout(exc):
                 raise AppError("graph_timeout") from exc
+            if read_only and _is_missing_graph(exc):
+                # A graph that was never written reads as empty, so list routes answer [] instead of 500.
+                log.info("graph_missing", graph=graph)
+                return EMPTY
             raise
         header = [h[1] if isinstance(h, list | tuple) else str(h) for h in (res.header or [])]
         stats = {

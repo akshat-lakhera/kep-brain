@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense, type ReactNode } from "react";
+import { Suspense, cache, type ReactNode } from "react";
 import { serverApi } from "@/lib/api/server";
 import { routes } from "@/lib/routes";
 import type { ApiResult } from "@/lib/api/core";
 import type { DecisionOut, GraphEdge, GraphNode, GraphOut, ItemList, KepCard, KepDetail, KepRef, StatusChangeOut, ToolSpec } from "@/lib/api/types";
-import { FINDING_KIND_TEXT, humanize, isoDate, isoUtc, numberFromPath, pluralS, shortSha } from "@/lib/format";
+import { FINDING_KIND_TEXT, fixLabel, isoDate, isoUtc, kepYamlUrl, numberFromPath, pluralS, shortSha, stripMarkdown } from "@/lib/format";
 import { fieldsOf } from "@/lib/schema";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { EvidenceChain } from "@/components/EvidenceChain";
 import { KeyLinks } from "@/components/KeyLinks";
 import { Tabs } from "@/components/Tabs";
-import { ToolResultView } from "@/components/ToolResultView";
+import { ImpactView } from "@/components/ImpactView";
 import { PersonLink, SigLink } from "@/components/ui";
 import { PagedTable } from "@/components/PagedTable";
 import {
@@ -33,54 +34,55 @@ import {
   thClass,
 } from "@/components/ui";
 
+/** One KEP read per request, shared by the metadata and the page. */
+const loadKep = cache((number: string, path?: string) => serverApi.kep(number, path));
+
+const NUMBER = /^\d+$/;
+
+function pathParam(sp: Record<string, string | string[] | undefined>): string | undefined {
+  return typeof sp.path === "string" ? sp.path : undefined;
+}
+
+/** Cuts a description at a word boundary so it stays within what search results show. */
+function clip(text: string, max = 158): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max - 30)).trimEnd()}…`;
+}
+
 export async function generateMetadata(props: PageProps<"/explore/kep/[number]">): Promise<Metadata> {
   const { number } = await props.params;
-  const ok = /^\d+$/.test(number);
+  if (!NUMBER.test(number)) return { title: "KEP" };
+  // The canonical page is the number alone, even when ?path= disambiguates a reused number.
+  const canonical = routes.kep(number);
+  const kep = await loadKep(number, pathParam(await props.searchParams));
+  if (!kep.ok) {
+    return {
+      title: `KEP-${number}`,
+      description: `KEP-${number}: facts, status history, who decided each state and on what evidence, lineage and open findings.`,
+      alternates: { canonical },
+    };
+  }
+  const k = kep.data;
+  const facts = [k.owning_sig, k.status ? `status ${k.status}` : null].filter(Boolean).join(", ");
   return {
-    title: ok ? `KEP-${number}` : "KEP",
-    description: ok
-      ? `KEP-${number}: facts, status history, who decided each state and on what evidence, lineage and open findings.`
-      : undefined,
+    title: `KEP-${number}: ${k.title}`,
+    description: clip(
+      `${k.title} (KEP-${number}${facts ? `, ${facts}` : ""}): who decided each state and on what evidence, its status history, lineage and open findings.`,
+    ),
+    alternates: { canonical },
   };
 }
 
-export default function KepPage(props: PageProps<"/explore/kep/[number]">) {
-  return (
-    <Suspense fallback={<KepSkeleton />}>
-      <KepBody params={props.params} searchParams={props.searchParams} />
-    </Suspense>
-  );
-}
+// Blocking route (no Suspense above the KEP fetch): an unknown number must answer with a real HTTP 404.
+export const instant = false;
 
-function KepSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="skeleton h-8 w-2/3" />
-      <div className="skeleton h-28 w-full" />
-      <SkeletonBlock lines={8} label="Loading the KEP" />
-    </div>
-  );
-}
+export default async function KepPage(props: PageProps<"/explore/kep/[number]">) {
+  const { number } = await props.params;
+  const path = pathParam(await props.searchParams);
+  if (!NUMBER.test(number)) notFound();
 
-async function KepBody({
-  params,
-  searchParams,
-}: {
-  params: PageProps<"/explore/kep/[number]">["params"];
-  searchParams: PageProps<"/explore/kep/[number]">["searchParams"];
-}) {
-  const { number } = await params;
-  const sp = await searchParams;
-  const path = typeof sp.path === "string" ? sp.path : undefined;
-  if (!/^\d+$/.test(number)) notFound();
-
-  const [kep, history, decisions, tools] = await Promise.all([
-    serverApi.kep(number, path),
-    serverApi.kepHistory(number, path),
-    serverApi.kepDecisions(number, path),
-    serverApi.tools(),
-  ]);
-
+  const kep = await loadKep(number, path);
   if (!kep.ok) {
     if (kep.error.code === "not_found" || kep.error.status === 404) notFound();
     if (kep.error.code === "ambiguous_reference") {
@@ -97,15 +99,39 @@ async function KepBody({
     );
   }
   const k = kep.data;
-  // Feature detection: the section exists only when the API registers impact_of_change and its schema accepts a KEP reference.
-  const impactTool = tools.ok ? tools.data.items.find((t) => t.name === IMPACT_TOOL) : undefined;
-  const impactParams = impactTool ? kepParamsFor(impactTool, k) : null;
+  const n = k.number ?? numberFromPath(k.key) ?? number;
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Explore", href: "/explore" as Route },
+          ...(k.owning_sig ? [{ label: k.owning_sig, href: routes.sig(k.owning_sig) }] : []),
+          { label: `KEP-${n}`, href: routes.kep(number) },
+        ]}
+      />
       <Header k={k} />
       <Card title="Facts">
         <KepFacts k={k} />
       </Card>
+      <Suspense fallback={<SkeletonBlock lines={8} label="Loading decisions and status history" />}>
+        <Details k={k} number={number} path={path} />
+      </Suspense>
+    </div>
+  );
+}
+
+/** The tabs and the impact section: everything that needs more than the KEP record itself streams in behind the header. */
+async function Details({ k, number, path }: { k: KepDetail; number: string; path?: string }) {
+  const [history, decisions, tools] = await Promise.all([
+    serverApi.kepHistory(number, path),
+    serverApi.kepDecisions(number, path),
+    serverApi.tools(),
+  ]);
+  // Feature detection: the section exists only when the API registers impact_of_change and its schema accepts a KEP reference.
+  const impactTool = tools.ok ? tools.data.items.find((t) => t.name === IMPACT_TOOL) : undefined;
+  const impactParams = impactTool ? kepParamsFor(impactTool, k) : null;
+  return (
+    <>
       <Tabs
         label="KEP details"
         tabs={[
@@ -128,7 +154,7 @@ async function KepBody({
           <Impact tool={impactTool} params={impactParams} />
         </Suspense>
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -159,7 +185,7 @@ async function Impact({ tool, params }: { tool: ToolSpec; params: Record<string,
       }
     >
       <p className="mb-3 max-w-[80ch] text-sm text-fg-secondary">{tool.description}</p>
-      {res.ok ? <ToolResultView name={tool.name} params={params} result={res.data} /> : <ErrorState error={res.error} what={tool.name} />}
+      {res.ok ? <ImpactView name={tool.name} params={params} result={res.data} /> : <ErrorState error={res.error} what={tool.name} />}
     </Card>
   );
 }
@@ -192,12 +218,15 @@ function Header({ k }: { k: KepDetail }) {
   const n = k.number ?? numberFromPath(k.key);
   const ask = `Trace the decisions on KEP-${n}: who decided each stage change, and is the metadata current?`;
   const askHref = `/ask?q=${encodeURIComponent(ask)}` as Route;
+  // The summary is the README's first paragraph as written, Markdown included; it is shown as plain text here.
+  const summary = k.summary ? stripMarkdown(k.summary) : null;
+  const yaml = kepYamlUrl(k.source_url);
   return (
     <header className="border-b border-border pb-6">
       <KeyLinks
         links={[
           { key: "o", href: k.url },
-          { key: "y", href: k.source_url },
+          ...(yaml ? [{ key: "y", href: yaml }] : []),
           { key: "a", href: askHref },
         ]}
       />
@@ -205,7 +234,7 @@ function Header({ k }: { k: KepDetail }) {
         {n !== null ? <span className="eyebrow !text-fg-secondary">KEP-{n}</span> : null}
         <span className="font-mono text-xs text-fg-muted">{k.key}</span>
       </p>
-      <h1 className="display mt-2 max-w-[28ch] text-2xl font-semibold">{k.title}</h1>
+      <h1 className="display mt-2 max-w-[28ch] text-3xl">{k.title}</h1>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <StatusChip status={k.status} />
         {k.stage ? <Chip mono>{k.stage}</Chip> : null}
@@ -222,27 +251,20 @@ function Header({ k }: { k: KepDetail }) {
         ) : null}
       </div>
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
-        <span className="inline-flex items-center gap-1.5">
-          <ExtLink href={k.url}>KEP on GitHub</ExtLink> <kbd aria-hidden="true">o</kbd>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <ExtLink href={k.source_url}>kep.yaml</ExtLink> <kbd aria-hidden="true">y</kbd>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Link href={askHref} className="quiet-link">
-            Ask about this KEP
-          </Link>{" "}
-          <kbd aria-hidden="true">a</kbd>
-        </span>
+        <ExtLink href={k.url}>KEP on GitHub</ExtLink>
+        <ExtLink href={yaml}>kep.yaml</ExtLink>
+        <Link href={askHref} className="quiet-link">
+          Ask about this KEP
+        </Link>
       </div>
-      {k.summary ? (
-        k.summary.length > 360 ? (
-          <details className="mt-4 max-w-[70ch] text-md text-fg-secondary">
-            <summary className="cursor-pointer">{k.summary.slice(0, 360).trimEnd()}… <span className="text-accent">Full summary</span></summary>
-            <p className="mt-2">{k.summary}</p>
+      {summary ? (
+        summary.length > 360 ? (
+          <details className="mt-4 max-w-[70ch] text-md break-words text-fg-secondary">
+            <summary className="cursor-pointer">{summary.slice(0, 360).trimEnd()}… <span className="text-accent">Full summary</span></summary>
+            <p className="mt-2">{summary}</p>
           </details>
         ) : (
-          <p className="mt-4 max-w-[70ch] text-md text-fg-secondary">{k.summary}</p>
+          <p className="mt-4 max-w-[70ch] text-md break-words text-fg-secondary">{summary}</p>
         )
       ) : null}
     </header>
@@ -498,7 +520,7 @@ function People({ k }: { k: KepDetail }) {
       <table className={tableClass}>
         <caption className="mb-1 text-left text-xs text-fg-muted">
           Relationships as stored, Person → KEP, from{" "}
-          <ExtLink href={k.source_url}>kep.yaml</ExtLink>
+          <ExtLink href={kepYamlUrl(k.source_url)}>kep.yaml</ExtLink>
         </caption>
         <thead>
           <tr>
@@ -510,7 +532,7 @@ function People({ k }: { k: KepDetail }) {
           {rows.map((r, i) => (
             <tr key={`${r.login}-${r.rel}-${i}`}>
               <td className={tdClass}>
-                <PersonLink login={r.login} /> <ExtLink href={r.url} label={`@${r.login} on GitHub`}><span className="sr-only">GitHub</span></ExtLink>
+                <PersonLink login={r.login} /> <ExtLink href={r.url} label={`@${r.login} on GitHub`} className="h-6 w-6 justify-center"><span className="sr-only">GitHub</span></ExtLink>
               </td>
               <td className={cx(tdClass, "font-mono")}>—{r.rel}→</td>
             </tr>
@@ -619,7 +641,7 @@ function Findings({ k }: { k: KepDetail }) {
           </div>
           {f.suggested_fix ? (
             <p className="mt-2 text-sm">
-              Suggested fix: <span className="font-mono">{humanize(f.suggested_fix)}</span>
+              Suggested fix: {fixLabel(f.suggested_fix)}
             </p>
           ) : null}
           <p className="mt-1 text-xs text-fg-muted">
@@ -639,7 +661,7 @@ function Sections({ k }: { k: KepDetail }) {
   return (
     <ul className="columns-1 gap-6 md:columns-2">
       {k.sections.map((s) => (
-        <li key={s.anchor} className="mb-1 break-inside-avoid">
+        <li key={s.anchor} className="mb-1.5 break-inside-avoid">
           <ExtLink href={s.url}>{s.heading}</ExtLink>
           {s.kind ? <span className="ml-1 font-mono text-xs text-fg-muted">{s.kind}</span> : null}
         </li>

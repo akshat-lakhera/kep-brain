@@ -116,6 +116,10 @@ export function ExploreSearch({ sigs }: { sigs: { key: string; display_name: str
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onBlur={(e) => {
+            // Tabbing away closes the list as a click outside does; option clicks keep focus (mousedown is prevented).
+            if (!boxRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+          }}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
               e.preventDefault();

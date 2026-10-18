@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, PageHeader, SkeletonBlock } from "@/components/
 export const metadata: Metadata = {
   title: "Tools",
   description: "The read-only graph tools behind every answer, callable directly with their parameters.",
+  alternates: { canonical: "/tools" },
 };
 
 export default function ToolsPage() {

@@ -49,7 +49,11 @@ async function forward(req: NextRequest, ctx: RouteContext<"/api/[...path]">): P
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
   }
-  // Streamed bodies (SSE) pass through unbuffered.
+  // Streamed bodies (SSE) pass through unbuffered; tell a buffering reverse proxy in front of this one not to hold them.
+  if (upstream.headers.get("content-type")?.includes("text/event-stream")) {
+    out.set("cache-control", "no-cache, no-transform");
+    out.set("x-accel-buffering", "no");
+  }
   return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 

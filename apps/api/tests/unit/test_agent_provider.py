@@ -270,3 +270,12 @@ def test_whitespace_only_reply_counts_as_empty() -> None:
 
     assert _empty(resp("\n\n")) and _empty(resp(None))
     assert not _empty(resp("It is provisional.")) and not _empty(resp("", [object()]))
+
+
+def test_a_timed_out_call_moves_to_the_next_model_instead_of_retrying() -> None:
+    import openai
+
+    from app.agent.provider import classify
+
+    exc = openai.APITimeoutError(request=httpx.Request("POST", "http://llm.invalid/v1/chat/completions"))
+    assert classify(exc, 0, 4).action == "next_model"
