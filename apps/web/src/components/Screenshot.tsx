@@ -4,10 +4,12 @@ import { cx } from "./ui";
 /**
  * A product screenshot in a thin browser frame: three dots and the page's route in mono in the title strip, a 1px
  * strong border, 14px radius, an inset highlight on the top edge and a deep drop shadow. The hero frame also sits on
- * a soft radial glow; every other frame is the same without it.
+ * a soft radial glow; every other frame is the same without it. With `srcLight`, the light theme shows the light
+ * capture and the dark theme the dark one; the hidden one is display:none, so a lazy image is never fetched.
  */
 export function Screenshot({
   src,
+  srcLight,
   alt,
   path,
   hero = false,
@@ -15,6 +17,8 @@ export function Screenshot({
   className,
 }: {
   src: StaticImageData;
+  /** The same view captured in the light theme. */
+  srcLight?: StaticImageData;
   alt: string;
   /** The route shown in the title strip, e.g. "/ask". */
   path: string;
@@ -37,7 +41,14 @@ export function Screenshot({
             <span className="sr-only"> {path}</span>
           </span>
         </figcaption>
-        <Image src={src} alt={alt} sizes={sizes} priority={hero} placeholder="blur" className="block h-auto w-full" />
+        {srcLight ? (
+          <>
+            <Image src={srcLight} alt={alt} sizes={sizes} priority={hero} placeholder="blur" className="block h-auto w-full dark:hidden" />
+            <Image src={src} alt={alt} sizes={sizes} priority={hero} placeholder="blur" className="hidden h-auto w-full dark:block" />
+          </>
+        ) : (
+          <Image src={src} alt={alt} sizes={sizes} priority={hero} placeholder="blur" className="block h-auto w-full" />
+        )}
       </figure>
     </div>
   );

@@ -12,9 +12,13 @@ import { JsonLd } from "@/components/JsonLd";
 import { Mark } from "@/components/Mark";
 import { Screenshot } from "@/components/Screenshot";
 import askAnswer from "../../public/shots/ask-answer.png";
+import askAnswerLight from "../../public/shots/ask-answer-light.png";
 import askChain from "../../public/shots/ask-chain.png";
+import askChainLight from "../../public/shots/ask-chain-light.png";
 import kepDecisions from "../../public/shots/kep-decisions.png";
+import kepDecisionsLight from "../../public/shots/kep-decisions-light.png";
 import auditDraft from "../../public/shots/audit-draft.png";
+import auditDraftLight from "../../public/shots/audit-draft-light.png";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -102,6 +106,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
           <div className="lg:col-span-7">
             <Screenshot
               src={askAnswer}
+              srcLight={askAnswerLight}
               alt="The Ask page in the dark theme: an answer explaining what a Kubernetes Enhancement Proposal is, with five numbered citations, beside its evidence chain of 11 nodes and 8 relations drawn as a diagram: the two KEP process documents and their sections, each node labelled, the five cited sections ringed, with a Diagram or List toggle above and a legend below."
               path="/ask"
               hero
@@ -129,6 +134,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
         image={
           <Screenshot
             src={askChain}
+            srcLight={askChainLight}
             alt="An answer to what the status implementable means for a KEP, with one citation, beside its evidence chain of seven nodes and five relations drawn as a diagram: the Kubernetes Enhancement Proposals document linked to its sections, the cited KEP Workflow section ringed."
             path="/ask"
             sizes={IMAGE_SIZES}
@@ -148,6 +154,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
         image={
           <Screenshot
             src={kepDecisions}
+            srcLight={kepDecisionsLight}
             alt="The Decisions tab of KEP-268: two decisions, each with the date, the decision text, the deciders by role, and the evidence links to the commit, status change, pull request and comment on GitHub."
             path="/explore/kep/268"
             sizes={IMAGE_SIZES}
@@ -166,6 +173,7 @@ function Landing({ graph, summary }: { graph: Meta["graph"] | null; summary: Fin
         image={
           <Screenshot
             src={auditDraft}
+            srcLight={auditDraftLight}
             alt="The Audit page with a finding expanded and the Draft a fix dialog open: the issue title and Markdown body composed from the evidence, copy buttons, and a notice that nothing is posted."
             path="/audit"
             sizes={IMAGE_SIZES}
