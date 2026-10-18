@@ -11,7 +11,7 @@ KEP Brain answers who decided a KEP's current state and on what evidence, who ap
 ## How answers are produced
 <!-- readme: how-it-works -->
 
-A question goes to a language model that may only call read-only graph tools. Every tool result is a set of graph records, each with an evidence id and a public GitHub URL. A deterministic validator checks that every claim cites a record returned in that request; a claim it cannot tie to a record is unsupported, and if any remain the whole answer is replaced by an abstention. KEP Brain never answers from outside knowledge. Answers are cached per question and graph version.
+A question goes to a language model that may only call read-only graph tools. Every tool result is a set of graph records, each with an evidence id and a public GitHub URL. A deterministic validator checks every cited claim against the records returned in that request: a citation it cannot tie to a record is unsupported, an answer without a valid citation is not accepted, and in either case the whole answer is replaced by an abstention. Explicit mentions of returned KEPs, issues and people are linked to their records automatically. KEP Brain never answers from outside knowledge. Answers are cached per question and graph version.
 
 ## When KEP Brain abstains
 <!-- readme: how-it-works -->

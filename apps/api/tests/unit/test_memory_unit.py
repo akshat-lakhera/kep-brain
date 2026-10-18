@@ -87,3 +87,19 @@ def test_planner_context_renders_playbook_hint() -> None:
         }
     )
     assert "find_entities -> who_owns" in text and "2x" in text
+
+
+async def test_new_memory_graph_refused_at_the_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.memory import store
+    from app.settings import Settings
+
+    class Pool:
+        async def ping(self) -> list[str]:
+            return ["kep", "ops", "mem:A", "mem:B"]
+
+    monkeypatch.setattr(store, "get_settings", lambda: Settings(memory_max_graphs=2))
+    with pytest.raises(AppError) as exc:
+        await store._ensure_capacity(Pool())  # type: ignore[arg-type]
+    assert exc.value.code == "rate_limited"
+    monkeypatch.setattr(store, "get_settings", lambda: Settings(memory_max_graphs=3))
+    await store._ensure_capacity(Pool())  # type: ignore[arg-type]

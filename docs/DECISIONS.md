@@ -26,5 +26,5 @@
 
 - Date: 2026-10-15
 - Status: accepted
-- Decision: the answering agent may call only read-only catalog tools. A deterministic validator checks that every claim cites a record returned in the same request; otherwise the answer is replaced by an abstention.
-- Consequence: every statement shown to users traces to a graph node with a public GitHub URL.
+- Decision: the answering agent may call only read-only catalog tools. A deterministic validator checks that every inline citation points to a record returned in the same request and that the answer has at least one; otherwise the answer is replaced by an abstention.
+- Consequence: every citation shown to users is a graph node with a public GitHub URL.

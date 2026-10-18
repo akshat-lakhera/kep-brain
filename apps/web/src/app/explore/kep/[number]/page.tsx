@@ -16,6 +16,7 @@ import { Tabs } from "@/components/Tabs";
 import { ImpactView } from "@/components/ImpactView";
 import { PersonLink, SigLink } from "@/components/ui";
 import { PagedTable } from "@/components/PagedTable";
+import { KepConnections, type ConnectTarget } from "@/components/explore/KepConnections";
 import {
   Card,
   Chip,
@@ -130,6 +131,7 @@ async function Details({ k, number, path }: { k: KepDetail; number: string; path
   // Feature detection: the section exists only when the API registers impact_of_change and its schema accepts a KEP reference.
   const impactTool = tools.ok ? tools.data.items.find((t) => t.name === IMPACT_TOOL) : undefined;
   const impactParams = impactTool ? kepParamsFor(impactTool, k) : null;
+  const hasPaths = tools.ok && tools.data.items.some((t) => t.name === PATH_TOOL);
   return (
     <>
       <Tabs
@@ -143,6 +145,14 @@ async function Details({ k, number, path }: { k: KepDetail; number: string; path
           { id: "sections", label: "Sections", content: <Sections k={k} /> },
         ]}
       />
+      {hasPaths ? (
+        <Card title="How they connect" id="connect">
+          <p className="mb-3 max-w-[80ch] text-sm text-fg-secondary">
+            Shortest paths in the graph between this KEP and its SIG or one of its people, up to four hops.
+          </p>
+          <KepConnections kepKey={k.key} targets={connectTargets(k)} />
+        </Card>
+      ) : null}
       {impactTool && impactParams ? (
         <Suspense
           fallback={
@@ -159,6 +169,25 @@ async function Details({ k, number, path }: { k: KepDetail; number: string; path
 }
 
 const IMPACT_TOOL = "impact_of_change";
+// Same name as in KepConnections; a constant exported from a client module is not a plain value on the server.
+const PATH_TOOL = "path_between";
+
+/** The owning SIG and every person listed on the page, each once with all of their roles. */
+function connectTargets(k: KepDetail): ConnectTarget[] {
+  const out: ConnectTarget[] = k.owning_sig ? [{ label: "SIG", key: k.owning_sig, text: `${k.owning_sig} (owning SIG)` }] : [];
+  const roles = new Map<string, string[]>();
+  const add = (login: string, role: string) => {
+    const list = roles.get(login) ?? [];
+    if (!list.includes(role)) list.push(role);
+    roles.set(login, list);
+  };
+  k.authors.forEach((p) => add(p.login, "author"));
+  k.approvers.forEach((p) => add(p.login, "approver"));
+  k.reviewers.forEach((p) => add(p.login, "reviewer"));
+  k.prr_approvers.forEach((p) => add(p.login, "PRR approver"));
+  for (const [login, r] of roles) out.push({ label: "Person", key: login, text: `@${login} (${r.join(", ")})` });
+  return out;
+}
 
 /** Parameters that point a tool at this KEP, read from its schema: a `kep_ref`-style field, or the single required text field. */
 function kepParamsFor(tool: ToolSpec, k: KepDetail): Record<string, unknown> | null {

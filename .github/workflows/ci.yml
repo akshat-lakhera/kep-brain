@@ -90,3 +90,4 @@ jobs:
       - run: docker compose config --quiet
         env:
           FALKORDB_PASSWORD: ci-dummy-password
+          MCP_TOKEN: ci-dummy-token

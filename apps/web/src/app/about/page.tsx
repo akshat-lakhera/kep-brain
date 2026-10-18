@@ -48,6 +48,13 @@ const NODES: [string, string][] = [
   ["Release, FeatureGate, Label", "the targets a KEP points at"],
 ];
 
+// Copied from the path_to_decision tool (apps/api/src/app/tools/t01/decision_path.py, VIA_EVIDENCE).
+const DECISION_EVIDENCE_QUERY = `MATCH (p:Person {key: $login})-[r:SUBMITTED|COMMENTED]->(x)<-[e:EVIDENCED_BY]-(d:Decision {kep_path: $key})
+WHERE size($kinds) = 0 OR d.kind IN $kinds
+RETURN d AS decision, type(r) AS rel, x AS via, e.evidence_kind AS evidence_kind
+ORDER BY d.decided_at DESC, d.key, x.key
+LIMIT 50`;
+
 export default function AboutPage() {
   return (
     <>
@@ -117,7 +124,7 @@ export default function AboutPage() {
               <p className="mt-1 text-fg-secondary">
                 Why a KEP is designed the way it is, who approved it and on what evidence, who knows an area, what changed
                 since a release, whether a record is still current, and what a KEP or a status is. Every answer shows the
-                graph path it read and cites each claim.
+                graph path it read and cites the records behind it.
               </p>
             </li>
             <li>
@@ -211,16 +218,41 @@ export default function AboutPage() {
           </div>
         </Card>
 
+        <Card title="Why a graph" id="why-graph">
+          <div className="max-w-[80ch] space-y-3 text-fg-secondary">
+            <p>
+              &ldquo;Did this person take part in a decision on this KEP, and where?&rdquo; crosses three records: the person,
+              the review or comment they wrote, and the decision that cites it as evidence. A vector store finds similar text
+              but cannot follow who wrote what and what cites it; in SQL each hop is another join through link tables. In the
+              graph it is one pattern, and the tool behind it runs this query as written:
+            </p>
+            <pre className="overflow-x-auto rounded-sm border border-border bg-surface-subtle p-3 font-mono text-xs text-fg">
+              <code>{DECISION_EVIDENCE_QUERY}</code>
+            </pre>
+            <p>
+              Longer connections, such as how a person reaches a KEP through other KEPs and SIGs, use the database&apos;s
+              shortest-path search over the same edges, up to four hops.
+            </p>
+          </div>
+        </Card>
+
+        <Card title="Indexes and constraints" id="indexes">
+          <Suspense fallback={<SkeletonBlock lines={4} label="Loading indexes" />}>
+            <Schema />
+          </Suspense>
+        </Card>
+
         <Card title="How an answer is produced, and when there is none" id="answers">
           <ol className="max-w-[80ch] list-decimal space-y-2 pl-5 text-fg-secondary">
             <li>The question goes to a language model that may only call the read-only graph tools, in at most three rounds.</li>
             <li>
               Every tool result is a set of graph records, each with an evidence id and a public GitHub URL. The model writes
-              its answer with those ids after every claim.
+              its answer with those ids as inline citations.
             </li>
             <li>
-              A validator checks every claim against the records actually returned in that request. A claim it cannot tie to
-              a record is unsupported; if any remain, the whole answer is replaced by an abstention.
+              A validator checks every citation against the records actually returned in that request. An answer with a
+              citation it cannot tie to a record, or with none at all, is replaced by an abstention. Plain mentions of a
+              returned KEP, issue or person are linked to that record.
             </li>
             <li>
               Abstention reasons: <span className="font-mono">no_evidence</span> (the graph holds nothing relevant),{" "}
@@ -275,7 +307,7 @@ export default function AboutPage() {
             </li>
             <li>The data is as fresh as the last worker run; the date and commit are shown in the top bar on every page.</li>
             <li>
-              Every claim cites a record in the graph. Fixes are drafted for a human to review, with read-only access to
+              Answers cite records in the graph. Fixes are drafted for a human to review, with read-only access to
               GitHub. People are stored by public GitHub login only.
             </li>
             <li>
@@ -483,6 +515,110 @@ async function Sources() {
         <StatTile label="Findings" value={g.findings.toLocaleString("en-US")} />
         <StatTile label="People" value={g.people.toLocaleString("en-US")} />
       </div>
+    </div>
+  );
+}
+
+interface IndexRow {
+  label?: unknown;
+  properties?: unknown;
+  types?: unknown;
+}
+
+interface ConstraintRow {
+  type?: unknown;
+  label?: unknown;
+  properties?: unknown;
+  entitytype?: unknown;
+  status?: unknown;
+}
+
+function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.map(String) : typeof v === "string" ? [v] : [];
+}
+
+/** One line per label and index type, with the indexed properties: `types` maps each property to its index types. */
+function indexLines(rows: IndexRow[]): { label: string; type: string; props: string[] }[] {
+  const out = new Map<string, { label: string; type: string; props: string[] }>();
+  for (const r of rows) {
+    const label = String(r.label ?? "");
+    if (!label) continue;
+    const types = typeof r.types === "object" && r.types !== null && !Array.isArray(r.types) ? (r.types as Record<string, unknown>) : {};
+    const props = Object.keys(types).length ? Object.keys(types) : strings(r.properties);
+    for (const prop of props) {
+      for (const t of strings(types[prop]).length ? strings(types[prop]) : ["RANGE"]) {
+        const id = `${label}|${t}`;
+        const line = out.get(id) ?? { label, type: t, props: [] };
+        if (!line.props.includes(prop)) line.props.push(prop);
+        out.set(id, line);
+      }
+    }
+  }
+  return [...out.values()].sort((a, b) => a.label.localeCompare(b.label) || a.type.localeCompare(b.type));
+}
+
+async function Schema() {
+  const res = await serverApi.runTool("get_graph_schema", {});
+  const row = res.ok ? (res.data.rows[0] as { indexes?: unknown; constraints?: unknown } | undefined) : undefined;
+  if (!row || !Array.isArray(row.indexes)) {
+    return <p className="text-sm text-fg-muted">The live index list is not available right now.</p>;
+  }
+  const lines = indexLines(row.indexes as IndexRow[]);
+  const constraints = Array.isArray(row.constraints) ? (row.constraints as ConstraintRow[]) : null;
+  return (
+    <div className="space-y-5">
+      <p className="max-w-[80ch] text-fg-secondary">
+        Read from the graph database when this page loads: every lookup by key, number, status or date uses a range index,
+        and search uses the full-text ones.
+      </p>
+      <TableWrap label="Indexes">
+        <table className={tableClass}>
+          <caption className="mb-1 text-left text-xs text-fg-muted">Indexes, {lines.length} by label and type</caption>
+          <thead>
+            <tr>
+              <th className={thClass}>Label</th>
+              <th className={thClass}>Type</th>
+              <th className={thClass}>Properties</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => (
+              <tr key={`${l.label}-${l.type}`}>
+                <td className={cx(tdClass, "font-mono text-xs")}>{l.label}</td>
+                <td className={cx(tdClass, "font-mono text-xs")}>{l.type.toLowerCase()}</td>
+                <td className={cx(tdClass, "font-mono text-xs [overflow-wrap:anywhere]")}>{l.props.join(", ")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableWrap>
+      {constraints && constraints.length > 0 ? (
+        <TableWrap label="Constraints">
+          <table className={tableClass}>
+            <caption className="mb-1 text-left text-xs text-fg-muted">Constraints, {constraints.length}</caption>
+            <thead>
+              <tr>
+                <th className={thClass}>Label</th>
+                <th className={thClass}>Type</th>
+                <th className={thClass}>Properties</th>
+                <th className={thClass}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {constraints.map((c, i) => (
+                <tr key={`${String(c.label)}-${String(c.type)}-${strings(c.properties).join(",")}-${i}`}>
+                  <td className={cx(tdClass, "font-mono text-xs")}>{String(c.label ?? "")}</td>
+                  <td className={cx(tdClass, "font-mono text-xs")}>{String(c.type ?? "").toLowerCase()}</td>
+                  <td className={cx(tdClass, "font-mono text-xs [overflow-wrap:anywhere]")}>{strings(c.properties).join(", ")}</td>
+                  <td className={cx(tdClass, "font-mono text-xs")}>{String(c.status ?? "").toLowerCase()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableWrap>
+      ) : constraints ? null : (
+        <p className="text-sm text-fg-muted">The constraint list is not available right now.</p>
+      )}
     </div>
   );
 }

@@ -121,3 +121,5 @@ class AskLimiter(RateLimiter):
 ASK_LIMITER = AskLimiter()
 # Direct tool calls (`POST /v1/tools/{name}`) run graph queries without the LLM; bounded per address all the same.
 TOOLS_LIMITER = RateLimiter()
+# Memory reads and deletes (`/v1/memory/*`) query the caller's own graph; bounded per address too.
+MEMORY_LIMITER = RateLimiter()

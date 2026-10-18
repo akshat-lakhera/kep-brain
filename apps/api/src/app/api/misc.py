@@ -198,7 +198,8 @@ async def list_tools() -> dict[str, Any]:
 async def call_tool(
     request: Request, name: str, body: Annotated[dict[str, Any] | None, Body()] = None
 ) -> dict[str, Any]:
-    tool = get_tool(name)
+    # get_graph_schema is kept out of the planner catalog but is public read-only schema, used by the About page.
+    tool = get_tool(name, llm_only=name != "get_graph_schema")
     TOOLS_LIMITER.check(client_ip(request), settings_of(request).tools_rate_limit_per_10m)
     memory_id = valid_memory_id(request.headers.get("x-kep-memory-id"))
     from pydantic import ValidationError

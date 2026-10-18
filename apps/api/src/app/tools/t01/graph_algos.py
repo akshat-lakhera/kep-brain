@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Literal
 
@@ -94,6 +95,9 @@ class PathBetween(Tool):
                 return run.result([{"not_connected_within": searched, "from": keys[0], "to": keys[1],
                                     "search_timed_out_at": max_len}])  # fmt: skip
             searched = max_len
+            rows = list(
+                {json.dumps(r.get("path"), sort_keys=True, default=str): r for r in rows}.values()
+            )  # SPpaths may yield a path twice
             if rows:
                 break
         for row in rows:
@@ -110,7 +114,7 @@ MATCH (p:Person)-[r:APPROVES|REVIEWS|AUTHORED|PRR_APPROVED]->(k:KEP)
 WHERE coalesce(r.valid_to, $open) = $open AND coalesce(p.is_bot, false) = false
   AND ($sig = '' OR k.owning_sig = $sig) AND (size($keys) = 0 OR k.key IN $keys)
 WITH p, count(DISTINCT k) AS keps, collect(DISTINCT type(r)) AS roles, collect(DISTINCT k.owning_sig) AS sigs
-RETURN p AS person, keps, roles, sigs, p.pagerank AS pagerank, p.betweenness AS betweenness
+RETURN p AS person, keps, roles, sigs, p.pagerank AS pagerank
 ORDER BY {order}, p.key
 LIMIT {limit}
 """
@@ -118,7 +122,6 @@ LIMIT {limit}
 
 _ORDERS = {
     "pagerank": "coalesce(p.pagerank, -1.0) DESC, keps DESC",
-    "betweenness": "coalesce(p.betweenness, -1.0) DESC, keps DESC",
     "degree": "keps DESC",
 }
 RANK = {(m, n): _rank_template(o, n) for m, o in _ORDERS.items() for n in (5, 10, 20)}
@@ -128,7 +131,7 @@ HAS_METRIC = "MATCH (p:Person) WHERE p.{metric} IS NOT NULL RETURN count(p) AS n
 class RankPeopleParams(ToolParams):
     sig: SigKey | None = Field(default=None)
     kep_refs: list[str] = Field(default_factory=list, max_length=20)
-    metric: Literal["pagerank", "betweenness", "degree"] = "pagerank"
+    metric: Literal["pagerank", "degree"] = "pagerank"
     limit: Literal[5, 10, 20] = 10
 
     @field_validator("kep_refs")
@@ -141,7 +144,7 @@ class RankPeople(Tool):
     name = "rank_people"
     description = (
         "Who is most central in a SIG or a set of KEPs: people with author/reviewer/approver/PRR-approver edges "
-        "into the scope, ordered by stored PageRank or betweenness when the analytics run has computed them, "
+        "into the scope, ordered by stored PageRank when the analytics run has computed it, "
         "else by degree (number of distinct KEPs). metric_used says which ordering applied."
     )
     Params = RankPeopleParams

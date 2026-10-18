@@ -19,6 +19,7 @@ from app.db.falkordb import FalkorPool, Role
 from app.errors import AppError
 from app.ingest.common import iso
 from app.memory.classify import facts_from_question, kep_numbers, question_kind
+from app.settings import get_settings
 
 MEMORY_ID_RE = re.compile(r"[0-9A-Z]{26}")
 MAX_EPISODES = 200
@@ -138,6 +139,13 @@ async def _exists(pool: FalkorPool, memory_id: str) -> bool:
     return found
 
 
+async def _ensure_capacity(pool: FalkorPool) -> None:
+    """A new memory graph is refused once MEMORY_MAX_GRAPHS exist; existing memories keep working."""
+    cap = get_settings().memory_max_graphs
+    if sum(1 for name in await pool.ping() if name.startswith("mem:")) >= cap:
+        raise AppError("rate_limited", {"reason": "memory capacity reached; try again later", "scope": "memory_graphs"})
+
+
 async def _read(pool: FalkorPool, memory_id: str, query: str, params: dict[str, Any] | None = None) -> list[Any]:
     out = await pool.ro_query(memory_graph_name(memory_id), query, params or {})
     return _rows(out.header, out.rows)
@@ -164,11 +172,11 @@ async def remember(pool: FalkorPool, memory_id: str, ask_result: Mapping[str, An
     """Store one answered question. Returns False when the request was already remembered."""
     request_id = str(ask_result["request_id"])
     question = str(ask_result["question"])
-    if (
-        await _exists(pool, memory_id)
-        and (await _read(pool, memory_id, EPISODE_EXISTS, {"request_id": request_id}))[0]["n"]
-    ):
-        return False
+    if await _exists(pool, memory_id):
+        if (await _read(pool, memory_id, EPISODE_EXISTS, {"request_id": request_id}))[0]["n"]:
+            return False
+    else:
+        await _ensure_capacity(pool)
 
     now = time.time()
     kind = question_kind(question)

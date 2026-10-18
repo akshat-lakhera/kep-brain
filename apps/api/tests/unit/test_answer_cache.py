@@ -115,10 +115,10 @@ async def test_replay_emits_the_tool_calls_paths_and_graph_of_the_live_answer() 
     assert live["graph"]["edges"] == [{"source": EID, "target": SIG_EID, "type": "SPONSORED_BY"}]
 
     hit, events = await _ask(make_agent(pool, []), "Which SIG sponsors coscheduling?", "r2")
-    # The JSON shape of a live answer (plus the cache stamp): no replay-only fields leak, templates are stripped.
+    # The JSON shape of a live answer (plus the cache stamp): no replay-only fields leak, templates stay.
     assert set(hit) == set(live) | {"cached_at"} and hit["cached"] is True and "paths" not in hit
     assert hit["graph"] == live["graph"] and hit["tool_calls"] == live["tool_calls"]
-    assert all("template" not in t for t in hit["tool_calls"])
+    assert all(t["template"] == "MATCH ..." for t in hit["tool_calls"])
     # The SSE events a live answer produces, in order: the recorded tool call (with its template), the path it
     # read, the evidence, then the numbered citations and the checked text.
     names = [e for e, _ in events]

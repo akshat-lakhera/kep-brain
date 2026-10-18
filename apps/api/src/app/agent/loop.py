@@ -283,7 +283,7 @@ class Agent:
         graph: dict[str, Any] = hit.get("graph") or {}
         graph = {"nodes": graph.get("nodes") or [], "edges": graph.get("edges") or []}
         hit["graph"] = graph
-        hit["tool_calls"] = [{k: v for k, v in t.items() if k != "template"} for t in records]
+        hit["tool_calls"] = records
         hit.setdefault("citations", [])
         remembered = await self._remember(memory_id, hit) if hit.get("answer_markdown") else []
         evidence = [Evidence(evidence_id=n["id"], label=n["label"], key=n["key"], title=n["title"], url=n["url"])
@@ -448,7 +448,7 @@ class Agent:
             "question": st.question,
             "answer_markdown": v.answer_markdown,
             "citations": [c.model_dump() for c in v.citations],
-            "tool_calls": [{k: v_ for k, v_ in t.items() if k != "template"} for t in st.tool_calls],
+            "tool_calls": st.tool_calls,
             "graph": graph,
             "abstained": v.abstained,
             "abstain_reason": v.abstain_reason if v.abstained else None,
@@ -465,7 +465,7 @@ class Agent:
         if self.cache is not None and not v.abstained and v.answer_markdown and not personal:
             # The entry also keeps what a replay needs to emit the events of a live answer: the tool records with
             # their templates and the paths each call read (both bounded like the live events; `graph` is capped
-            # by _graph). `_replay` strips them again before the response leaves.
+            # by _graph). `_replay` drops the paths again before the response leaves.
             await self.cache.put(st.question, {**response, "tool_calls": st.tool_calls, "paths": st.call_paths})
         await emit("memory", {"recalled": recalled or [], "remembered": remembered,
                               "findings_recalled": findings or []})  # fmt: skip

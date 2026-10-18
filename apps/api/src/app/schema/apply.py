@@ -27,6 +27,7 @@ SECONDARY_RANGE: tuple[tuple[str, str], ...] = (
     ("KEP", "status"),
     ("Finding", "kep_path"),
     ("Finding", "state"),
+    ("Finding", "kind"),
     ("StatusChange", "at"),
     ("StatusChange", "kep_path"),
     ("StatusChange", "valid_to"),
@@ -41,9 +42,6 @@ SECONDARY_RANGE: tuple[tuple[str, str], ...] = (
     ("Release", "released_at"),
     ("Document", "kind"),
     ("Person", "pagerank"),
-    ("Person", "betweenness"),
-    ("Person", "wcc_id"),
-    ("Person", "lp_community_id"),
 )
 
 FULLTEXT: tuple[tuple[str, tuple[str, ...]], ...] = (

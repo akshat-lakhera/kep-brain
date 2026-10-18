@@ -52,6 +52,8 @@ def test_kep_ref_rejects(raw: object) -> None:
         ("draft_stale_doc_issue", {"finding_key": "MATCH (n) RETURN n"}),
         ("get_kep", {"kep_ref": 583, "extra": 1}),
         ("rank_people", {"limit": 100}),
+        ("rank_people", {"metric": "betweenness"}),
+        ("rank_people", {"metric": "wcc"}),
     ],
 )
 def test_params_out_of_bounds_rejected(tool: str, params: dict[str, object]) -> None:

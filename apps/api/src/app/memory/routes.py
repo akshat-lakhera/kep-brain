@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Depends, Header, Request
 
-from app.api.deps import pool_of
+from app.api.deps import MEMORY_LIMITER, client_ip, pool_of, settings_of
 from app.errors import AppError
 from app.memory import store
 from app.worker import coordinate
+
+
+def _limit(request: Request) -> None:
+    MEMORY_LIMITER.check(client_ip(request), settings_of(request).memory_rate_limit_per_10m)
+
 
 router = APIRouter(tags=["memory"])
 
@@ -21,21 +26,21 @@ def _memory_id(header: str | None) -> str:
     return memory_id
 
 
-@router.get("/memory/me")
+@router.get("/memory/me", dependencies=[Depends(_limit)])
 async def memory_me(
     request: Request, x_kep_memory_id: str | None = Header(default=None, alias="X-Kep-Memory-Id")
 ) -> dict[str, Any]:
     return await store.get_memory(pool_of(request), _memory_id(x_kep_memory_id))
 
 
-@router.delete("/memory/me")
+@router.delete("/memory/me", dependencies=[Depends(_limit)])
 async def memory_forget(
     request: Request, x_kep_memory_id: str | None = Header(default=None, alias="X-Kep-Memory-Id")
 ) -> dict[str, Any]:
     return {"deleted": await store.forget(pool_of(request), _memory_id(x_kep_memory_id))}
 
 
-@router.delete("/memory/me/facts/{key}")
+@router.delete("/memory/me/facts/{key}", dependencies=[Depends(_limit)])
 async def memory_forget_fact(
     key: str, request: Request, x_kep_memory_id: str | None = Header(default=None, alias="X-Kep-Memory-Id")
 ) -> dict[str, Any]:
@@ -44,7 +49,7 @@ async def memory_forget_fact(
     return {"deleted": True}
 
 
-@router.delete("/memory/me/playbooks/{key}")
+@router.delete("/memory/me/playbooks/{key}", dependencies=[Depends(_limit)])
 async def memory_forget_playbook(
     key: str, request: Request, x_kep_memory_id: str | None = Header(default=None, alias="X-Kep-Memory-Id")
 ) -> dict[str, Any]:

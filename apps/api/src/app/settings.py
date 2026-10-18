@@ -77,6 +77,8 @@ class Settings(BaseSettings):
     ask_rate_limit_per_10m: int = Field(default=30, ge=1)
     ask_daily_cap: int = Field(default=150, ge=1)
     tools_rate_limit_per_10m: int = Field(default=300, ge=1)
+    memory_rate_limit_per_10m: int = Field(default=120, ge=1)
+    memory_max_graphs: int = Field(default=2000, ge=1)
     trust_proxy: bool = False
     max_body_bytes: int = Field(default=65536, ge=1024)
     admin_token: SecretStr | None = None
